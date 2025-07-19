@@ -124,6 +124,36 @@ const initialPageProfile: PageProfile = {
     members: [],
 };
 
+const createNewScheduledPost = (
+    target: Target,
+    postText: string,
+    selectedImage: File | null,
+    imagePreview: string | null,
+    scheduleDate: string,
+    editingScheduledPostId: string | null,
+    managedTarget: Target,
+    userPlan: Plan | null,
+    currentUserRole: Role
+): ScheduledPost => {
+    const needsApproval = userPlan?.limits.contentApprovalWorkflow && currentUserRole === 'editor';
+    const postStatus: 'pending' | 'approved' = needsApproval ? 'pending' : 'approved';
+
+    const newPost: ScheduledPost = {
+        id: editingScheduledPostId && target.id === managedTarget.id ? editingScheduledPostId : `local_${Date.now()}_${target.id}`,
+        text: postText,
+        imageFile: selectedImage || undefined,
+        imageUrl: imagePreview || undefined,
+        hasImage: !!selectedImage || !!imagePreview,
+        scheduledAt: new Date(scheduleDate),
+        isReminder: target.type === 'instagram',
+        targetId: target.id,
+        targetInfo: { name: target.name, avatarUrl: target.picture.data.url, type: target.type },
+        isSynced: false,
+        status: postStatus,
+    };
+    return newPost;
+};
+
 
 const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, plans, allUsers, managedTarget, allTargets, onChangePage, onLogout, isSimulationMode, aiClient, stabilityApiKey, onSettingsClick, fetchWithPagination, onSyncHistory, syncingTargetId, theme, onToggleTheme, fbAccessToken }) => {
   const [view, setView] = useState<DashboardView>('composer');
@@ -535,28 +565,19 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                     targetsToScheduleFor.push(linkedInstagramTarget);
                 }
                 
-                const newPosts = targetsToScheduleFor.map(target => {
-                    const needsApproval = userPlan?.limits.contentApprovalWorkflow && currentUserRole === 'editor';
-                    
-                    // 1. Create a separate, strictly-typed constant for the status.
-                    const postStatus: 'pending' | 'approved' = needsApproval ? 'pending' : 'approved';
-                
-                    // 2. Build the final object and explicitly type it as ScheduledPost.
-                    const newPost: ScheduledPost = {
-                        id: editingScheduledPostId && target.id === managedTarget.id ? editingScheduledPostId : `local_${Date.now()}_${target.id}`,
-                        text: postText,
-                        imageFile: selectedImage || undefined,
-                        imageUrl: imagePreview || undefined,
-                        hasImage: !!selectedImage || !!imagePreview,
-                        scheduledAt: new Date(scheduleDate),
-                        isReminder: target.type === 'instagram',
-                        targetId: target.id,
-                        targetInfo: { name: target.name, avatarUrl: target.picture.data.url, type: target.type },
-                        isSynced: false,
-                        status: postStatus, // Use the strictly-typed constant
-                    };
-                    return newPost;
-                });
+                const newPosts = targetsToScheduleFor.map(target => 
+                    createNewScheduledPost(
+                        target,
+                        postText,
+                        selectedImage,
+                        imagePreview,
+                        scheduleDate,
+                        editingScheduledPostId,
+                        managedTarget,
+                        userPlan,
+                        currentUserRole
+                    )
+                );
 
                 let newScheduledList: ScheduledPost[];
                 if (editingScheduledPostId) {
