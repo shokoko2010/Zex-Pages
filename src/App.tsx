@@ -546,11 +546,86 @@ const App: React.FC = () => {
           const userDocRef = db.collection('users').doc(user.uid);
           await userDocRef.set({ fbAccessToken: credential.accessToken }, { merge: true });
         }
-    } catch (error) {
+    } catch (error: any) {
         console.error("Facebook connect error:", error);
-        alert(`فشل الاتصال بفيسبوك. السبب: ${error}`);
+        
+        // Handle account exists with different credential error
+        if (error.code === 'auth/account-exists-with-different-credential') {
+            const email = error.email;
+            const pendingCred = firebase.auth.FacebookAuthProvider.credentialFromError(error);
+            
+            if (email && pendingCred) {
+                // Show UI to inform user about the conflict and get their original login method
+                const shouldProceed = confirm(
+                    `يوجد حساب بالفعل مرتبط بهذا البريد الإلكتروني (${email}). ` +
+                    `هل تريد ربط حساب فيسبوك بحسابك الحالي؟ ` +
+                    `ستحتاج إلى إدخال كلمة المرور الأصلية.`
+                );
+                
+                if (shouldProceed) {
+                    try {
+                        // TODO: Replace this prompt with your actual UI component
+                        // You should create a modal or form to collect the user's password
+                        const password = prompt('يرجى إدخال كلمة المرور لحسابك الأصلي:');
+                        
+                        if (password) {
+                            // Sign in with the original email/password method
+                            const originalUserCredential = await auth.signInWithEmailAndPassword(email, password);
+                            
+                            // Link the Facebook credential to the existing account
+                            const linkedResult = await originalUserCredential.user!.linkWithCredential(pendingCred);
+                            
+                            // Extract the Facebook access token from the linked result
+                            const linkedCredential = linkedResult.credential as firebase.auth.OAuthCredential;
+                            if (linkedCredential?.accessToken) {
+                                setFbAccessToken(linkedCredential.accessToken);
+                                // Save the token to Firestore for persistence
+                                const userDocRef = db.collection('users').doc(originalUserCredential.user!.uid);
+                                await userDocRef.set({ fbAccessToken: linkedCredential.accessToken }, { merge: true });
+                                
+                                alert('تم ربط حساب فيسبوك بنجاح!');
+                            }
+                        } else {
+                            alert('تم إلغاء العملية. لم يتم ربط حساب فيسبوك.');
+                        }
+                    } catch (linkError: any) {
+                        console.error("Error linking accounts:", linkError);
+                        let errorMessage = 'فشل في ربط الحسابات.';
+                        
+                        if (linkError.code === 'auth/wrong-password') {
+                            errorMessage = 'كلمة المرور غير صحيحة.';
+                        } else if (linkError.code === 'auth/user-not-found') {
+                            errorMessage = 'لم يتم العثور على حساب بهذا البريد الإلكتروني.';
+                        } else if (linkError.code === 'auth/provider-already-linked') {
+                            errorMessage = 'حساب فيسبوك مرتبط بالفعل بهذا الحساب.';
+                        } else if (linkError.code === 'auth/credential-already-in-use') {
+                            errorMessage = 'بيانات اعتماد فيسبوك مستخدمة بالفعل مع حساب آخر.';
+                        }
+                        
+                        alert(`${errorMessage} السبب: ${linkError.message}`);
+                    }
+                } else {
+                    alert('تم إلغاء ربط حساب فيسبوك.');
+                }
+            } else {
+                alert('فشل في الحصول على معلومات الحساب المطلوبة للربط.');
+            }
+        } else {
+            // Handle other Facebook connection errors
+            let errorMessage = 'فشل الاتصال بفيسبوك.';
+            
+            if (error.code === 'auth/popup-closed-by-user') {
+                errorMessage = 'تم إغلاق نافذة تسجيل الدخول بواسطة المستخدم.';
+            } else if (error.code === 'auth/popup-blocked') {
+                errorMessage = 'تم حظر النافذة المنبثقة. يرجى السماح بالنوافذ المنبثقة وإعادة المحاولة.';
+            } else if (error.code === 'auth/cancelled-popup-request') {
+                errorMessage = 'تم إلغاء طلب تسجيل الدخول.';
+            }
+            
+            alert(`${errorMessage} السبب: ${error.message || error}`);
+        }
     }
-  };
+};
 
 
   const handleLogout = useCallback(async () => {
