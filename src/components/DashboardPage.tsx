@@ -370,6 +370,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                           avatarUrl: target.picture.data.url,
                           type: target.type,
                       },
+                      status: 'approved'
                   });
               }
           });
@@ -691,7 +692,6 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         'bulk': { key: 'bulkScheduling', name: 'الجدولة المجمعة' },
         'planner': { key: 'contentPlanner', name: 'استراتيجيات المحتوى' },
         'inbox': { key: 'autoResponder', name: 'صندوق الوارد (مع الرد التلقائي)' },
-        'analytics': { key: 'deepAnalytics', name: 'التحليلات العميقة' }
     };
 
     const requestedFeature = featureMap[newView];
