@@ -300,6 +300,7 @@ export interface AppUser {
   favoriteTargetIds?: string[];
   geminiApiKey?: string;
   stabilityApiKey?: string;
+  lastLoginIp?: string;
 }
 
 
