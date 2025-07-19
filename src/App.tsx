@@ -641,39 +641,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-// In src/App.tsx or a separate initialization file
-
-const seedPlansIfEmpty = async () => {
-  const plansCollectionRef = db.collection('plans');
-  const snapshot = await plansCollectionRef.limit(1).get(); // Check if any documents exist
-
-  if (snapshot.empty) {
-    console.log("Plans collection is empty. Seeding data...");
-    const plansToSeed = [
-      { /* Free plan data */ },
-      { /* Pro plan data */ },
-      // ...
-    ];
-
-    const batch = db.batch(); // Use batch writes for efficiency
-    plansToSeed.forEach(plan => {
-      const docRef = plansCollectionRef.doc(plan.id);
-      batch.set(docRef, plan);
-    });
-
-    try {
-      await batch.commit();
-      console.log("Plans seeded successfully.");
-    } catch (error) {
-      console.error("Error seeding plans:", error);
-    }
-  }
-};
-
-// You would call seedPlansIfEmpty() somewhere in your app's initialization,
-// making sure it only runs once globally (e.g., using a flag in localStorage
-// or checking a specific document in Firestore).
-// Example (within an effect or initialization function):
-// useEffect(() => {
-//   seedPlansIfEmpty();
-// }, []); // Run once on mount
