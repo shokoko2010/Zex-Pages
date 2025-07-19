@@ -673,7 +673,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     };
 
     const handleApprovePost = async (postId: string) => {
-        const newScheduledPosts = scheduledPosts.map(p => p.id === postId ? { ...p, status: 'approved' } : p);
+        const newScheduledPosts = scheduledPosts.map(p => p.id === postId ? { ...p, status: 'approved' as const } : p);
         setScheduledPosts(newScheduledPosts);
         await saveDataToFirestore({ scheduledPosts: newScheduledPosts });
         showNotification('success', 'تمت الموافقة على المنشور.');
