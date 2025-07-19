@@ -26,6 +26,19 @@ const MOCK_BUSINESSES: Business[] = [
     { id: 'b2', name: 'مجموعة مطاعم النكهة الأصيلة' },
 ];
 
+const getIpAddress = async (): Promise<string> => {
+    try {
+        const response = await fetch('https://api.ipify.org?format=json');
+        if (!response.ok) return 'unknown';
+        const data = await response.json();
+        return data.ip || 'unknown';
+    } catch (error) {
+        console.error("Could not fetch IP address:", error);
+        return 'unknown';
+    }
+};
+
+
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -82,19 +95,20 @@ const App: React.FC = () => {
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
         setLoadingUser(true);
-        // Fetch plans regardless of user state
-        try {
-            const plansCollection = db.collection('plans');
-            const plansSnapshot = await plansCollection.get();
-            const plansList = plansSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Plan));
-            setPlans(plansList);
-        } catch (error) {
-            console.error("Failed to fetch plans:", error);
-        }
 
         if (currentUser) {
+            // Fetch plans only when the user is logged in
+            try {
+                const plansCollection = db.collection('plans');
+                const plansSnapshot = await plansCollection.get();
+                const plansList = plansSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Plan));
+                setPlans(plansList);
+            } catch (error) {
+                console.error("Failed to fetch plans:", error);
+                setAuthError("فشل تحميل بيانات الاشتراك. قد تكون هناك مشكلة في الأذونات.");
+            }
+
             setUser(currentUser);
-            // Fetch user-specific settings from Firestore
             const userDocRef = db.collection('users').doc(currentUser.uid);
             const userDoc = await userDocRef.get();
             let userData;
@@ -112,7 +126,7 @@ const App: React.FC = () => {
                     }
                 }
             } else {
-               // This case handles users who signed up before the plan system was added
+               const ip = await getIpAddress();
                const newUserDoc: AppUser = {
                    email: currentUser.email!,
                    uid: currentUser.uid,
@@ -120,6 +134,7 @@ const App: React.FC = () => {
                    planId: 'free',
                    createdAt: new Date().toISOString(),
                    onboardingCompleted: false,
+                   lastLoginIp: ip,
                };
                await userDocRef.set(newUserDoc, { merge: true });
                setIsAdmin(false);
@@ -127,7 +142,6 @@ const App: React.FC = () => {
                setIsTourOpen(true);
                userData = newUserDoc;
             }
-            // If user is admin, fetch all other users for management dashboards
             if (userData && userData.isAdmin) {
                 try {
                     const usersSnapshot = await db.collection('users').get();
@@ -137,12 +151,10 @@ const App: React.FC = () => {
                     console.error("Failed to fetch all users:", error);
                 }
             }
-
         } else {
             setUser(null);
             setIsAdmin(false);
             setUserPlanId(null);
-            // Clear all user-related state
             setApiKey(null);
             setStabilityApiKey(null);
             setTargets([]);
@@ -152,6 +164,7 @@ const App: React.FC = () => {
             setFbAccessToken(null);
             setAllUsers([]);
             setIsTourOpen(false);
+            setPlans([]); // Clear plans on logout
         }
         setLoadingUser(false);
     });
@@ -465,6 +478,7 @@ const App: React.FC = () => {
         const userCredential = await auth.createUserWithEmailAndPassword(email, password);
         const user = userCredential.user;
         if (user) {
+            const ip = await getIpAddress();
             const userDocRef = db.collection('users').doc(user.uid);
             await userDocRef.set({
                 email: user.email,
@@ -473,6 +487,7 @@ const App: React.FC = () => {
                 planId: 'free',
                 createdAt: new Date().toISOString(),
                 onboardingCompleted: false,
+                lastLoginIp: ip,
             });
         }
     } catch (error: any) {
@@ -488,7 +503,13 @@ const App: React.FC = () => {
   const handleEmailSignIn = async (email: string, password: string) => {
     setAuthError(null);
     try {
-        await auth.signInWithEmailAndPassword(email, password);
+        const userCredential = await auth.signInWithEmailAndPassword(email, password);
+        const user = userCredential.user;
+        if (user) {
+            const ip = await getIpAddress();
+            const userDocRef = db.collection('users').doc(user.uid);
+            await userDocRef.set({ lastLoginIp: ip }, { merge: true });
+        }
     } catch (error: any) {
         if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
             setAuthError('البريد الإلكتروني أو كلمة المرور غير صحيحة.');
