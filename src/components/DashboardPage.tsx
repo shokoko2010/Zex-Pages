@@ -535,23 +535,30 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                     targetsToScheduleFor.push(linkedInstagramTarget);
                 }
                 
-                // Approval Workflow Logic
-                const needsApproval = userPlan?.limits.contentApprovalWorkflow && currentUserRole === 'editor';
-                const status: ScheduledPost['status'] = needsApproval ? 'pending' : 'approved';
+                const newPosts: ScheduledPost[] = targetsToScheduleFor.map(target => {
+                    // Approval Workflow Logic - Moved inside map for clarity
+                    const needsApproval = userPlan?.limits.contentApprovalWorkflow && currentUserRole === 'editor';
+                    let postStatus: ScheduledPost['status'];
+                    if (needsApproval) {
+                        postStatus = 'pending';
+                    } else {
+                        postStatus = 'approved';
+                    }
 
-                const newPosts: ScheduledPost[] = targetsToScheduleFor.map(target => ({
-                    id: editingScheduledPostId && target.id === managedTarget.id ? editingScheduledPostId : `local_${Date.now()}_${target.id}`,
-                    text: postText,
-                    imageFile: selectedImage || undefined,
-                    imageUrl: imagePreview || undefined,
-                    hasImage: !!selectedImage || !!imagePreview,
-                    scheduledAt: new Date(scheduleDate),
-                    isReminder: target.type === 'instagram',
-                    targetId: target.id,
-                    targetInfo: { name: target.name, avatarUrl: target.picture.data.url, type: target.type },
-                    isSynced: false,
-                    status: status,
-                }));
+                    return {
+                        id: editingScheduledPostId && target.id === managedTarget.id ? editingScheduledPostId : `local_${Date.now()}_${target.id}`,
+                        text: postText,
+                        imageFile: selectedImage || undefined,
+                        imageUrl: imagePreview || undefined,
+                        hasImage: !!selectedImage || !!imagePreview,
+                        scheduledAt: new Date(scheduleDate),
+                        isReminder: target.type === 'instagram',
+                        targetId: target.id,
+                        targetInfo: { name: target.name, avatarUrl: target.picture.data.url, type: target.type },
+                        isSynced: false,
+                        status: postStatus,
+                    };
+                });
 
                 let newScheduledList: ScheduledPost[];
                 if (editingScheduledPostId) {
@@ -566,7 +573,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                 setScheduledPosts(sortedList);
                 await saveDataToFirestore({ scheduledPosts: sortedList });
                 
-                const successMessage = needsApproval 
+                const successMessage = (userPlan?.limits.contentApprovalWorkflow && currentUserRole === 'editor') 
                     ? 'تم إرسال المنشور للمراجعة بنجاح!' 
                     : (editingScheduledPostId ? 'تم تحديث المنشور المجدول بنجاح!' : 'تم جدولة المنشور بنجاح!');
                 showNotification('success', successMessage);
