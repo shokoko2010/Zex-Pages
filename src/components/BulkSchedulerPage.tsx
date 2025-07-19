@@ -133,7 +133,7 @@ const BulkSchedulerPage: React.FC<BulkSchedulerPageProps> = ({
                 aiClient={aiClient}
                 onGenerateDescription={onGenerateDescription}
                 onGeneratePostFromText={onGeneratePostFromText}
-                // role={role} // Assuming BulkPostItemCard will also be updated
+                role={role}
               />
             ))}
           </div>

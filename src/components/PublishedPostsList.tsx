@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { PublishedPost } from '../types';
+import { PublishedPost, Role } from '../types';
 import Button from './ui/Button';
 import HandThumbUpIcon from './icons/HandThumbUpIcon';
 import ChatBubbleOvalLeftEllipsisIcon from './icons/ChatBubbleOvalLeftEllipsisIcon';
@@ -14,6 +14,7 @@ interface PublishedPostsListProps {
   isLoading: boolean;
   onFetchAnalytics: (postId: string) => void;
   onGenerateInsights: (postId: string) => void;
+  role: Role;
 }
 
 const StatCard: React.FC<{ icon: React.ReactNode, value?: number, label: string }> = ({ icon, value, label }) => (
@@ -48,8 +49,9 @@ const PostSkeleton: React.FC = () => (
     </div>
 );
 
-const PublishedPostsList: React.FC<PublishedPostsListProps> = ({ posts, isLoading, onFetchAnalytics, onGenerateInsights }) => {
+const PublishedPostsList: React.FC<PublishedPostsListProps> = ({ posts, isLoading, onFetchAnalytics, onGenerateInsights, role }) => {
   const [openInsightsPostId, setOpenInsightsPostId] = useState<string | null>(null);
+  const isViewer = role === 'viewer';
 
   const toggleInsights = (postId: string) => {
     if (openInsightsPostId === postId) {
@@ -119,7 +121,7 @@ const PublishedPostsList: React.FC<PublishedPostsListProps> = ({ posts, isLoadin
                         variant="secondary"
                         onClick={() => toggleInsights(post.id)}
                         isLoading={post.analytics.isGeneratingInsights}
-                        disabled={post.analytics.loading || post.analytics.comments === 0}
+                        disabled={post.analytics.loading || post.analytics.comments === 0 || isViewer}
                         title={post.analytics.comments === 0 ? "لا يمكن تحليل منشور بدون تعليقات" : ""}
                     >
                         <LightBulbIcon className="w-5 h-5 ml-2" />
@@ -129,7 +131,7 @@ const PublishedPostsList: React.FC<PublishedPostsListProps> = ({ posts, isLoadin
                         variant="secondary"
                         onClick={() => onFetchAnalytics(post.id)}
                         isLoading={post.analytics.loading}
-                        disabled={post.analytics.isGeneratingInsights}
+                        disabled={post.analytics.isGeneratingInsights || isViewer}
                     >
                         <ArrowPathIcon className="w-5 h-5 ml-2" />
                         تحديث الإحصائيات

@@ -50,12 +50,12 @@ const AdminAnalyticsPage: React.FC<AdminAnalyticsPageProps> = ({ users, plans })
     const newUsersLast30Days = users.filter(u => u.createdAt && new Date(u.createdAt) > thirtyDaysAgo).length;
 
     // Subscriptions per plan
-    const subscriptionsPerPlan = users.reduce<Record<string, number>>((acc, user) => {
+    const subscriptionsPerPlan = users.reduce((acc, user) => {
       const plan = plansMap.get(user.planId);
       const planName = plan?.name || 'غير معروف';
       acc[planName] = (acc[planName] || 0) + 1;
       return acc;
-    }, {});
+    }, {} as Record<string, number>);
 
     return { totalUsers, activeSubscriptions, monthlyRecurringRevenue, newUsersLast30Days, subscriptionsPerPlan };
   }, [users, plans]);

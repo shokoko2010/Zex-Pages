@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { BulkPostItem, Target } from '../types';
+import { BulkPostItem, Target, Role } from '../types';
 import Button from './ui/Button';
 import TrashIcon from './icons/TrashIcon';
 import SparklesIcon from './icons/SparklesIcon';
@@ -16,6 +17,7 @@ interface BulkPostItemCardProps {
   aiClient: GoogleGenAI | null;
   onGenerateDescription: (id: string) => void;
   onGeneratePostFromText: (id: string) => void;
+  role: Role;
 }
 
 const BulkPostItemCard: React.FC<BulkPostItemCardProps> = ({
@@ -26,8 +28,10 @@ const BulkPostItemCard: React.FC<BulkPostItemCardProps> = ({
   aiClient,
   onGenerateDescription,
   onGeneratePostFromText,
+  role,
 }) => {
   const [generatingType, setGeneratingType] = useState<'image' | 'text' | null>(null);
+  const isViewer = role === 'viewer';
 
   useEffect(() => {
     if (!item.isGeneratingDescription) {
@@ -80,6 +84,7 @@ const BulkPostItemCard: React.FC<BulkPostItemCardProps> = ({
               onChange={(e) => onUpdate(item.id, { text: e.target.value })}
               placeholder={hasImage ? 'اكتب وصفًا للصورة هنا، أو فكرة لتوليد منشور جديد...' : 'اكتب فكرة أو موضوعًا هنا ليقوم الذكاء الاصطناعي بكتابة المنشور...'}
               className="w-full h-24 p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700"
+              disabled={isViewer}
             />
             <div className="flex flex-wrap gap-2 mt-2">
                {hasImage && item.imageFile && (
@@ -88,7 +93,7 @@ const BulkPostItemCard: React.FC<BulkPostItemCardProps> = ({
                     size="sm"
                     onClick={handleGenDesc}
                     isLoading={item.isGeneratingDescription && generatingType === 'image'}
-                    disabled={!aiClient || item.isGeneratingDescription}
+                    disabled={!aiClient || item.isGeneratingDescription || isViewer}
                     title="ولّد وصفاً للصورة"
                   >
                     <SparklesIcon className="w-4 h-4 ml-2" />
@@ -100,7 +105,7 @@ const BulkPostItemCard: React.FC<BulkPostItemCardProps> = ({
                 size="sm"
                 onClick={handleGenPost}
                 isLoading={item.isGeneratingDescription && generatingType === 'text'}
-                disabled={!aiClient || !item.text.trim() || item.isGeneratingDescription}
+                disabled={!aiClient || !item.text.trim() || item.isGeneratingDescription || isViewer}
                 title={!item.text.trim() ? 'اكتب فكرة أولاً' : 'ولّد منشورًا من النص'}
               >
                 <SparklesIcon className="w-4 h-4 ml-2" />
@@ -119,6 +124,7 @@ const BulkPostItemCard: React.FC<BulkPostItemCardProps> = ({
                 value={item.scheduleDate}
                 onChange={(e) => onUpdate(item.id, { scheduleDate: e.target.value })}
                 className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 focus:ring-blue-500 focus:border-blue-500"
+                disabled={isViewer}
               />
             </div>
             <div>
@@ -134,6 +140,7 @@ const BulkPostItemCard: React.FC<BulkPostItemCardProps> = ({
                             checked={item.targetIds.includes(target.id)}
                             onChange={() => handleTargetToggle(target.id)}
                             className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                            disabled={isViewer}
                         />
                         <label htmlFor={`target-${item.id}-${target.id}`} className="mr-2 flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer">
                             {target.type === 'page'
@@ -155,6 +162,7 @@ const BulkPostItemCard: React.FC<BulkPostItemCardProps> = ({
             onClick={() => onRemove(item.id)}
             className="!p-2"
             aria-label="Remove post from bulk list"
+            disabled={isViewer}
           >
             <TrashIcon className="w-5 h-5" />
           </Button>

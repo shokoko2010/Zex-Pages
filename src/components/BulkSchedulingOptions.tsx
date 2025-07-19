@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { WeeklyScheduleSettings } from '../types';
 import Button from './ui/Button';
@@ -8,6 +9,7 @@ interface BulkSchedulingOptionsProps {
   settings: WeeklyScheduleSettings;
   onSettingsChange: (settings: WeeklyScheduleSettings) => void;
   onReschedule: () => void;
+  disabled?: boolean;
 }
 
 const weekDays = [
@@ -21,7 +23,8 @@ const BulkSchedulingOptions: React.FC<BulkSchedulingOptionsProps> = ({
   onStrategyChange,
   settings,
   onSettingsChange,
-  onReschedule
+  onReschedule,
+  disabled
 }) => {
     
   const handleDayToggle = (dayId: number) => {
@@ -55,12 +58,14 @@ const BulkSchedulingOptions: React.FC<BulkSchedulingOptionsProps> = ({
             <button 
               onClick={() => onStrategyChange('even')}
               className={`w-1/2 p-2 rounded-md text-sm font-semibold transition-colors ${strategy === 'even' ? 'bg-white dark:bg-gray-900 shadow text-blue-600' : 'text-gray-600 dark:text-gray-300'}`}
+              disabled={disabled}
             >
               توزيع متساوٍ
             </button>
             <button 
               onClick={() => onStrategyChange('weekly')}
               className={`w-1/2 p-2 rounded-md text-sm font-semibold transition-colors ${strategy === 'weekly' ? 'bg-white dark:bg-gray-900 shadow text-blue-600' : 'text-gray-600 dark:text-gray-300'}`}
+              disabled={disabled}
             >
               جدولة أسبوعية
             </button>
@@ -77,6 +82,7 @@ const BulkSchedulingOptions: React.FC<BulkSchedulingOptionsProps> = ({
                     key={day.id}
                     onClick={() => handleDayToggle(day.id)}
                     className={`p-2 rounded-md text-xs font-bold transition-colors ${settings.days.includes(day.id) ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-500'}`}
+                    disabled={disabled}
                   >
                     {day.name}
                   </button>
@@ -91,6 +97,7 @@ const BulkSchedulingOptions: React.FC<BulkSchedulingOptionsProps> = ({
                 value={settings.time}
                 onChange={handleTimeChange}
                 className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 focus:ring-blue-500 focus:border-blue-500"
+                disabled={disabled}
               />
             </div>
           </div>
@@ -102,7 +109,7 @@ const BulkSchedulingOptions: React.FC<BulkSchedulingOptionsProps> = ({
             variant="secondary" 
             className="w-full"
             onClick={handleRescheduleClick}
-            disabled={strategy === 'weekly' && settings.days.length === 0}
+            disabled={(strategy === 'weekly' && settings.days.length === 0) || disabled}
             title={strategy === 'weekly' && settings.days.length === 0 ? "اختر يوماً على الأقل" : "أعد توزيع التواريخ بناءً على الإعدادات الجديدة"}
         >
             إعادة جدولة المنشورات

@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Target, PublishedPost, Draft, ScheduledPost, BulkPostItem, ContentPlanItem, StrategyRequest, WeeklyScheduleSettings, PageProfile, PerformanceSummaryData, StrategyHistoryItem, InboxItem, AutoResponderSettings, PostAnalytics, Plan, Role, AppUser, AudienceGrowthData, HeatmapDataPoint, ContentTypePerformanceData } from '../types';
 import Header from './Header';
@@ -539,6 +538,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                 
                 // Approval Workflow Logic
                 const needsApproval = userPlan?.limits.contentApprovalWorkflow && currentUserRole === 'editor';
+                const status: ScheduledPost['status'] = needsApproval ? 'pending' : 'approved';
 
                 const newPosts: ScheduledPost[] = targetsToScheduleFor.map(target => ({
                     id: editingScheduledPostId && target.id === managedTarget.id ? editingScheduledPostId : `local_${Date.now()}_${target.id}`,
@@ -551,7 +551,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                     targetId: target.id,
                     targetInfo: { name: target.name, avatarUrl: target.picture.data.url, type: target.type },
                     isSynced: false,
-                    status: needsApproval ? 'pending' : 'approved',
+                    status: status,
                 }));
 
                 let newScheduledList: ScheduledPost[];
