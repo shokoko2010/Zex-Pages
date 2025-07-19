@@ -536,15 +536,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                 }
                 
                 const newPosts: ScheduledPost[] = targetsToScheduleFor.map(target => {
-                    // Approval Workflow Logic - Moved inside map for clarity
                     const needsApproval = userPlan?.limits.contentApprovalWorkflow && currentUserRole === 'editor';
-                    let postStatus: ScheduledPost['status'];
-                    if (needsApproval) {
-                        postStatus = 'pending';
-                    } else {
-                        postStatus = 'approved';
-                    }
-
                     return {
                         id: editingScheduledPostId && target.id === managedTarget.id ? editingScheduledPostId : `local_${Date.now()}_${target.id}`,
                         text: postText,
@@ -556,7 +548,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                         targetId: target.id,
                         targetInfo: { name: target.name, avatarUrl: target.picture.data.url, type: target.type },
                         isSynced: false,
-                        status: postStatus,
+                        status: (needsApproval ? 'pending' : 'approved') as 'pending' | 'approved',
                     };
                 });
 
