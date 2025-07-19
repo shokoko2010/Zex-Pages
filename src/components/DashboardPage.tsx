@@ -535,9 +535,14 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                     targetsToScheduleFor.push(linkedInstagramTarget);
                 }
                 
-                const newPosts: ScheduledPost[] = targetsToScheduleFor.map(target => {
+                const newPosts = targetsToScheduleFor.map(target => {
                     const needsApproval = userPlan?.limits.contentApprovalWorkflow && currentUserRole === 'editor';
-                    return {
+                    
+                    // 1. Create a separate, strictly-typed constant for the status.
+                    const postStatus: 'pending' | 'approved' = needsApproval ? 'pending' : 'approved';
+                
+                    // 2. Build the final object and explicitly type it as ScheduledPost.
+                    const newPost: ScheduledPost = {
                         id: editingScheduledPostId && target.id === managedTarget.id ? editingScheduledPostId : `local_${Date.now()}_${target.id}`,
                         text: postText,
                         imageFile: selectedImage || undefined,
@@ -548,8 +553,9 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                         targetId: target.id,
                         targetInfo: { name: target.name, avatarUrl: target.picture.data.url, type: target.type },
                         isSynced: false,
-                        status: (needsApproval ? 'pending' : 'approved') as 'pending' | 'approved',
+                        status: postStatus, // Use the strictly-typed constant
                     };
+                    return newPost;
                 });
 
                 let newScheduledList: ScheduledPost[];
