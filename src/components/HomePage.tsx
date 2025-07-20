@@ -12,10 +12,10 @@ interface HomePageProps {
   userPlanId: string;
   onSignIn: (email: string, password: string) => Promise<void>;
   onSignUp: (email: string, password: string) => Promise<void>;
-  authError: string | null;
+    authError: string | null;
 }
 
-const HomePage: React.FC<HomePageProps> = ({ apiKey, stabilityApiKey, favoriteTargetIds, fbAccessToken, setFbAccessToken, userPlanId, onSignIn, onSignUp, authError }) => {
+const HomePage: React.FC<HomePageProps> = ({ apiKey, stabilityApiKey, favoriteTargetIds, fbAccessToken, setFbAccessToken, userPlanId,onSignIn, onSignUp, authError }) => {
   return (
     <div className="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 min-h-screen flex flex-col">
       <LandingHeader /*onLoginClick={() => {  }}*/ />

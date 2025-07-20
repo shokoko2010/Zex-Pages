@@ -262,9 +262,9 @@ function App() {
                               fbAccessToken={fbAccessToken} 
                               setFbAccessToken={setFbAccessToken} 
                               userPlanId={userPlanId}
-                              onSignIn={handleSignIn}
-                              onSignUp={handleSignUp}
-                              authError={authError}
+                            />
+                            <LoginPage onSignIn={handleSignIn} onSignUp = {handleSignUp} authError = {authError}
+                                setIsAdmin={setIsAdmin}
                             />
                             <OnboardingTour
                                 isOpen={isTourOpen}
