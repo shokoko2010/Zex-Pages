@@ -13,6 +13,8 @@ const initialPlanLimits: PlanLimits = {
   pages: 1,
   aiText: true,
   aiImage: true,
+  scheduledPosts: 50, // Added missing property
+  drafts: 20, // Added missing property
   autoResponder: false,
   contentPlanner: false,
   bulkScheduling: false,
@@ -49,7 +51,7 @@ const PlanEditorModal: React.FC<PlanEditorModalProps> = ({ isOpen, onClose, onSa
   };
   
   const handleLimitChange = (key: keyof PlanLimits, value: string | boolean) => {
-    if (key === 'pages') {
+    if (key === 'pages' || key === 'scheduledPosts' || key === 'drafts') {
         const numValue = parseInt(value as string, 10);
         setDraftPlan(p => ({ ...p, limits: { ...p.limits, [key]: isNaN(numValue) ? 0 : numValue } }));
     } else if (typeof value === 'boolean') {
@@ -148,8 +150,10 @@ const PlanEditorModal: React.FC<PlanEditorModalProps> = ({ isOpen, onClose, onSa
             </label>
             <textarea 
               id="features" 
-              value={draftPlan.features.join('\n')} 
-              onChange={(e) => setDraftPlan(p => ({...p, features: e.target.value.split('\n')}))} 
+              value={draftPlan.features.join('
+')} 
+              onChange={(e) => setDraftPlan(p => ({...p, features: e.target.value.split('
+')}))} 
               rows={6} 
               className="w-full px-4 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none" 
               placeholder="- Feature 1&#10;- Feature 2&#10;- Feature 3"
@@ -171,6 +175,34 @@ const PlanEditorModal: React.FC<PlanEditorModalProps> = ({ isOpen, onClose, onSa
                   id="limit-pages" 
                   value={draftPlan.limits.pages} 
                   onChange={e => handleLimitChange('pages', e.target.value)} 
+                  className="w-full px-4 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                />
+              </div>
+
+              {/* Scheduled Posts Limit */}
+              <div>
+                <label htmlFor="limit-scheduled-posts" className="block text-base font-medium mb-3 text-gray-700">
+                  Number of Scheduled Posts (-1 for unlimited)
+                </label>
+                <input 
+                  type="number" 
+                  id="limit-scheduled-posts" 
+                  value={draftPlan.limits.scheduledPosts} 
+                  onChange={e => handleLimitChange('scheduledPosts', e.target.value)} 
+                  className="w-full px-4 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                />
+              </div>
+
+              {/* Drafts Limit */}
+              <div>
+                <label htmlFor="limit-drafts" className="block text-base font-medium mb-3 text-gray-700">
+                  Number of Drafts (-1 for unlimited)
+                </label>
+                <input 
+                  type="number" 
+                  id="limit-drafts" 
+                  value={draftPlan.limits.drafts} 
+                  onChange={e => handleLimitChange('drafts', e.target.value)} 
                   className="w-full px-4 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
                 />
               </div>
