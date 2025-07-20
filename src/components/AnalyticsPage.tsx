@@ -25,6 +25,8 @@ interface AnalyticsPageProps {
   heatmapData: HeatmapDataPoint[];
   contentTypeData: ContentTypePerformanceData[];
   isGeneratingDeepAnalytics: boolean;
+  publishedPosts: PublishedPost[];
+  publishedPostsLoading: boolean;
 }
 
 const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
@@ -43,6 +45,8 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
   heatmapData,
   contentTypeData,
   isGeneratingDeepAnalytics,
+  publishedPosts,
+  publishedPostsLoading,
 }) => {
   const canViewDeepAnalytics = userPlan?.limits.deepAnalytics ?? false;
 

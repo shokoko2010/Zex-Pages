@@ -24,6 +24,7 @@ interface InboxPageProps {
   isSyncing: boolean;
   aiClient: GoogleGenAI | null;
   role: Role;
+  repliedUsersPerPost: Record<string, string[]>;
 }
 
 const timeSince = (dateString: string) => {
@@ -60,7 +61,8 @@ const InboxPage: React.FC<InboxPageProps> = ({
   onSync,
   isSyncing,
   aiClient,
-  role
+  role,
+  repliedUsersPerPost
 }) => {
   const [selectedItem, setSelectedItem] = useState<InboxItem | null>(null);
   const [replyText, setReplyText] = useState('');
