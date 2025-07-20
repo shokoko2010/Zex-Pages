@@ -29,7 +29,7 @@ const initialPlan: Plan = {
   pricePeriod: 'monthly',
   features: [],
   limits: initialPlanLimits,
-  adminOnly: false, // Added adminOnly field
+  adminOnly: false, 
 };
 
 const PlanEditorModal: React.FC<PlanEditorModalProps> = ({ isOpen, onClose, onSave, plan }) => {
@@ -40,7 +40,7 @@ const PlanEditorModal: React.FC<PlanEditorModalProps> = ({ isOpen, onClose, onSa
     const newDraft = plan ? JSON.parse(JSON.stringify(plan)) : initialPlan;
     // Ensure new limits exist on old plans and adminOnly is set
     newDraft.limits = { ...initialPlanLimits, ...(newDraft.limits || {}) };
-    newDraft.adminOnly = newDraft.adminOnly ?? false; // Ensure adminOnly is set
+    newDraft.adminOnly = newDraft.adminOnly ?? false; 
     setDraftPlan(newDraft);
   }, [plan, isOpen]);
 
@@ -89,7 +89,7 @@ const PlanEditorModal: React.FC<PlanEditorModalProps> = ({ isOpen, onClose, onSa
                 <div className="flex items-center"><input type="checkbox" id="limit-bulk" checked={draftPlan.limits.bulkScheduling} onChange={e => handleLimitChange('bulkScheduling', e.target.checked)} className="h-4 w-4" /><label htmlFor="limit-bulk" className="mr-2">الجدولة المجمعة</label></div>
                 <div className="flex items-center"><input type="checkbox" id="limit-approval" checked={draftPlan.limits.contentApprovalWorkflow} onChange={e => handleLimitChange('contentApprovalWorkflow', e.target.checked)} className="h-4 w-4" /><label htmlFor="limit-approval" className="mr-2">workflow موافقة المحتوى</label></div>
                 <div className="flex items-center"><input type="checkbox" id="limit-analytics" checked={draftPlan.limits.deepAnalytics} onChange={e => handleLimitChange('deepAnalytics', e.target.checked)} className="h-4 w-4" /><label htmlFor="limit-analytics" className="mr-2">التحليلات العميقة</label></div>
-                {/* New adminOnly checkbox */}
+                
                 <div className="flex items-center">
                   <input
                     type="checkbox"
