@@ -6,6 +6,7 @@ import HomePage from './components/HomePage';
 import SettingsModal from './components/SettingsModal';
 import PrivacyPolicyPage from './components/PrivacyPolicyPage';
 import OnboardingTour from './components/OnboardingTour';
+import AdminPage from './components/AdminPage'; // Added import for AdminPage
 import { GoogleGenAI } from '@google/genai';
 import { initializeGoogleGenAI } from './services/geminiService';
 import { Target, Business, PublishedPost, InboxItem, Plan, AppUser } from './types';
@@ -63,7 +64,7 @@ const App: React.FC = () => {
   const [favoriteTargetIds, setFavoriteTargetIds] = useState<Set<string>>(new Set());
   
   const [loadingBusinessId, setLoadingBusinessId] = useState<string | null>(null);
-  const [loadedBusinessIds, setLoadedBusinessIds] = useState<Set<string>>(new Set());
+  const [loadedBusinessIds, setLoadedBusinessIds] = new Set<string>();
   const [syncingTargetId, setSyncingTargetId] = useState<string | null>(null);
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
 
@@ -585,6 +586,21 @@ const App: React.FC = () => {
       }
       if (!user) {
         return <HomePage onSignIn={handleEmailSignIn} onSignUp={handleEmailSignUp} authError={authError} />;
+      }
+
+      // Check if the user is an admin and render AdminPage
+      if (isAdmin) {
+          return (
+            <AdminPage
+              user={user}
+              allUsers={allUsers}
+              onLogout={handleLogout}
+              onSettingsClick={() => setIsSettingsModalOpen(true)}
+              theme={theme}
+              onToggleTheme={handleToggleTheme}
+              plans={plans}
+            />
+          );
       }
 
       const userPlan = plans.find(p => p.id === userPlanId) || plans.find(p => p.id === 'free') || null;
