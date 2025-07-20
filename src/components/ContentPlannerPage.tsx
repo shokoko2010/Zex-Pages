@@ -173,8 +173,7 @@ const ContentPlannerPage: React.FC<ContentPlannerPageProps> = ({
       ].join(';')
     );
 
-    const csvContent = [csvHeaders.join(';'), ...rows].join('
-');
+    const csvContent = (csvHeaders.join(';') + '' + rows.join(''));
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
 
