@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Target, Business } from '../types';
+import { Target, Business, Plan } from '../types'; // Import Plan
 import Button from './ui/Button';
 import FacebookIcon from './icons/FacebookIcon';
 import InstagramIcon from './icons/InstagramIcon';
@@ -32,6 +32,7 @@ interface PageSelectorPageProps {
   isFacebookConnected: boolean;
   onConnectFacebook: () => void;
   onRefreshPages: () => void; // Add refresh handler prop
+  userPlan: Plan | null; // Add userPlan prop
 }
 
 const TargetCard: React.FC<{ target: Target; linkedInstagram: Target | null; onSelect: () => void; isFavorite: boolean; onToggleFavorite: (e: React.MouseEvent) => void; }> = ({ target, linkedInstagram, onSelect, isFavorite, onToggleFavorite }) => {
@@ -117,6 +118,7 @@ const PageSelectorPage: React.FC<PageSelectorPageProps> = ({
   isFacebookConnected,
   onConnectFacebook,
   onRefreshPages,
+  userPlan, // Destructure userPlan
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isPortfolioDropdownOpen, setIsPortfolioDropdownOpen] = useState(false);
@@ -177,11 +179,8 @@ const PageSelectorPage: React.FC<PageSelectorPageProps> = ({
        );
     }
 
-    if (targets.length > 0 && sortedAndFilteredTargets.length === 0) {
-        return <div className="text-center text-gray-500 dark:text-gray-400 py-10">لا توجد نتائج بحث تطابق "{searchQuery}".</div>;
-    }
-    
-    if (targets.length === 0 && !isLoading) {
+    // Bypass targets.length check if adminOnly is true
+    if (targets.length === 0 && !isLoading && !userPlan?.adminOnly) {
       return (
         <div className="text-center text-gray-500 dark:text-gray-400 p-8 border-2 border-dashed rounded-lg bg-white dark:bg-gray-800">
           <h3 className="font-semibold text-xl text-gray-700 dark:text-gray-300 mb-2">لم يتم العثور على أي وجهات</h3>
@@ -202,6 +201,11 @@ const PageSelectorPage: React.FC<PageSelectorPageProps> = ({
         </div>
       );
     }
+    
+    if (targets.length > 0 && sortedAndFilteredTargets.length === 0) {
+        return <div className="text-center text-gray-500 dark:text-gray-400 py-10">لا توجد نتائج بحث تطابق "{searchQuery}".</div>;
+    }
+
     
     return (
         <div className="space-y-8">

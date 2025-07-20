@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { db, User } from '../services/firebaseService';
-import { Plan, AppUser } from '../types';
+import { Plan, AppUser, Target } from '../types'; // Import Target
 import Button from './ui/Button';
 import PlanEditorModal from './PlanEditorModal';
 import TrashIcon from './icons/TrashIcon';
@@ -37,7 +37,8 @@ const AdminPage: React.FC<AdminPageProps> = ({
     const [isLoading, setIsLoading] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
-    const [adminView, setAdminView] = useState<'dashboard' | 'userManagement'>('dashboard'); // New state for view
+    const [adminView, setAdminView] = useState<'dashboard' | 'userManagement' | 'adminPages'>('dashboard'); // Add 'adminPages' view
+    const [adminPages, setAdminPages] = useState<Target[]>([]); // New state for admin's pages
 
     const fetchPlans = async () => {
         setIsLoading(true);
@@ -58,6 +59,25 @@ const AdminPage: React.FC<AdminPageProps> = ({
     useEffect(() => {
         setPlans(initialPlans.sort((a,b) => a.price - b.price));
     }, [initialPlans]);
+
+    // New useEffect to fetch admin's pages
+    useEffect(() => {
+        const fetchAdminPages = async () => {
+            if (user && user.uid) {
+                try {
+                    const pagesCollection = db.collection('pages');
+                    const q = pagesCollection.where('userId', '==', user.uid);
+                    const querySnapshot = await q.get();
+                    const pagesList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Target));
+                    setAdminPages(pagesList);
+                } catch (error) {
+                    console.error("Error fetching admin pages: ", error);
+                }
+            }
+        };
+
+        fetchAdminPages();
+    }, [user]); // Rerun when user changes
 
 
     const handleEdit = (plan: Plan) => {
@@ -113,6 +133,18 @@ const AdminPage: React.FC<AdminPageProps> = ({
                             <UserCircleIcon className="w-5 h-5"/>
                         </Button>
                     )}
+                    {/* Button for Admin Pages View */}
+                    {adminView !== 'adminPages' && (
+                        <Button onClick={() => setAdminView('adminPages')} variant="secondary" className="!p-2" aria-label="صفحاتي">
+                            <span className="text-xs">صفحاتي</span>
+                        </Button>
+                    )}
+                    {adminView === 'adminPages' && (
+                        <Button onClick={() => setAdminView('dashboard')} variant="secondary" className="!p-2" aria-label="لوحة تحكم المسؤول">
+                            <ChartBarIcon className="w-5 h-5"/>
+                        </Button>
+                    )}
+
                     <Button onClick={onSettingsClick} variant="secondary" className="!p-2" aria-label="الإعدادات">
                         <SettingsIcon className="w-5 h-5"/>
                     </Button>
@@ -195,7 +227,7 @@ const AdminPage: React.FC<AdminPageProps> = ({
                             </div>
                         </div>
                     </>
-                ) : (
+                ) : adminView === 'userManagement' ? (
                     // Corrected JSX for User Management View
                     <UserManagementPage 
                         allUsers={allUsers} 
@@ -204,6 +236,25 @@ const AdminPage: React.FC<AdminPageProps> = ({
                         // You might need to add props here for managing users and their pages
                         // based on the implementation of UserManagementPage
                     />
+                ) : ( // adminView === 'adminPages'
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg">
+                        <h2 className="text-2xl font-bold mb-4">صفحاتي ({adminPages.length})</h2>
+                        {adminPages.length === 0 ? (
+                            <p className="text-gray-600 dark:text-gray-400">لا توجد صفحات مرتبطة بحساب المسؤول هذا حتى الآن.</p>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {adminPages.map(page => (
+                                    <div key={page.id} className="border dark:border-gray-700 rounded-lg p-4 flex items-center space-x-4">
+                                        <img src={page.picture.data.url} alt={page.name} className="w-12 h-12 rounded-full object-cover" />
+                                        <div>
+                                            <h3 className="text-lg font-semibold">{page.name}</h3>
+                                            <p className="text-sm text-gray-500 dark:text-gray-400">المنصة: {page.type === 'page' ? 'فيسبوك' : 'إنستغرام'}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 )}
             </main>
         </div>
