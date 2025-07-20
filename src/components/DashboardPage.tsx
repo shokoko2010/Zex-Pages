@@ -212,18 +212,69 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
   const handleScheduleAllBulk = async () => { /* ... unchanged ... */ };
   const handleFetchProfile = useCallback(async () => {
     console.log("Retrieve and Improve with AI button clicked! (Start)");
-    console.log("isSimulationMode:", isSimulationMode); // Add this
-    console.log("aiClient:", aiClient); // Add this
-    console.log("fbAccessToken:", fbAccessToken); // Add this
+    console.log("isSimulationMode:", isSimulationMode);
+    console.log("aiClient:", aiClient);
+    console.log("fbAccessToken:", fbAccessToken);
   
     setIsFetchingProfile(true); // Set loading state
     console.log("setIsFetchingProfile(true) called");
+  
     try {
-      // ... rest of the code
-    } catch (error) {
-      // ... error handling
+      console.log("Inside try block");
+      if (isSimulationMode || !aiClient) {
+          showNotification('error', "لا يمكن تنفيذ هذه الميزة في وضع المحاكاة أو بدون مفتاح API.");
+          return;
+      }
+  
+      // Step 1: Fetch raw data from Facebook API
+      console.log("Attempting to fetch from Facebook API");
+      const pageDataResponse: any = await new Promise((resolve, reject) => {
+          if (!fbAccessToken) {
+              console.error("Facebook Access Token not available.");
+              return reject(new Error("Facebook Access Token not available."));
+          }
+          const path = `/${managedTarget.id}?fields=about,category,contact_address,website,country_page_likes&access_token=${fbAccessToken}`;
+          console.log("Facebook API path:", path);
+          window.FB.api(path, (response: any) => {
+              console.log("Facebook API response:", response);
+              if (response && !response.error) {
+                  resolve(response);
+              } else {
+                  const error = response?.error || { message: "Unknown Facebook API error." };
+                  console.error("Facebook API Error:", error);
+                  reject(new Error(`Facebook API Error: ${error.message}`));
+              }
+          });
+      });
+      console.log("Facebook data fetched:", pageDataResponse);
+  
+      const profileData = {
+          about: pageDataResponse.about,
+          category: pageDataResponse.category,
+          contact: pageDataResponse.contact_address,
+          website: pageDataResponse.website,
+          country: Object.keys(pageDataResponse.country_page_likes || {})[0],
+      };
+      console.log("Prepared profile data for AI:", profileData);
+  
+      // Step 2: Send data to Gemini for enhancement
+      console.log("Sending data to Gemini for enhancement");
+      const enhancedProfile = await enhanceProfileFromFacebookData(aiClient, profileData);
+      console.log("Enhanced profile from AI:", enhancedProfile);
+  
+      // Step 3: Update the state with the enhanced data
+      console.log("Updating page profile state");
+      handlePageProfileChange({ ...pageProfile, ...enhancedProfile });
+      showNotification('success', 'تم استرداد بيانات الصفحة وتحسينها بنجاح!');
+      console.log("Profile updated and notification shown");
+  
+    } catch (e: any) {
+        console.error("Error in handleFetchProfile:", e);
+        showNotification('error', `فشل جلب البيانات: ${e.message}`);
     } finally {
-      // ... finally block
+        console.log("Inside finally block");
+        setIsFetchingProfile(false); // Unset loading state
+        console.log("setIsFetchingProfile(false) called");
     }
   }, [managedTarget.id, isSimulationMode, aiClient, showNotification, pageProfile, handlePageProfileChange, fbAccessToken]);
   
