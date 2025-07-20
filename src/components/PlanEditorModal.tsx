@@ -59,18 +59,20 @@ const PlanEditorModal: React.FC<PlanEditorModalProps> = ({ isOpen, onClose, onSa
 
   return (
     <div 
-      className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4 overflow-y-auto" 
+      className="fixed top-0 left-0 right-0 bottom-0 bg-black bg-opacity-60 flex items-center justify-center p-4 overflow-y-auto" 
+      style={{ zIndex: 9999 }}
       onClick={onClose}
     >
       <div 
-        className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+        className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl p-4 w-full max-w-2xl max-h-[80vh] overflow-y-auto relative"
         onClick={(e) => e.stopPropagation()}
+        style={{ zIndex: 10000 }}
       >
-        <h2 className="text-2xl font-bold mb-6 text-gray-800 dark:text-white">
+        <h2 className="text-xl font-bold mb-4 text-gray-800 dark:text-white">
           {plan ? 'Edit Plan' : 'Add New Plan'}
         </h2>
         
-        <div className="space-y-6">
+        <div className="space-y-4">
           {/* Basic Info */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -142,7 +144,7 @@ const PlanEditorModal: React.FC<PlanEditorModalProps> = ({ isOpen, onClose, onSa
               id="features" 
               value={draftPlan.features.join('\n')} 
               onChange={(e) => setDraftPlan(p => ({...p, features: e.target.value.split('\n')}))} 
-              rows={4} 
+              rows={3} 
               className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none" 
               placeholder="- Feature 1&#10;- Feature 2&#10;- Feature 3"
             />
@@ -276,7 +278,7 @@ const PlanEditorModal: React.FC<PlanEditorModalProps> = ({ isOpen, onClose, onSa
         </div>
 
         {/* Action Buttons */}
-        <div className="mt-8 flex justify-end gap-3 border-t pt-6">
+        <div className="mt-6 flex justify-end gap-3 border-t pt-4">
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
