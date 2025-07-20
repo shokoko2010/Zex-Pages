@@ -12,8 +12,8 @@ import PostInsights from './PostInsights';
 interface PublishedPostsListProps {
   posts: PublishedPost[];
   isLoading: boolean;
-  onFetchAnalytics: (postId: string) => void;
-  onGenerateInsights: (postId: string) => void;
+  // Removed onFetchAnalytics: (postId: string) => void;
+  // Removed onGenerateInsights: (postId: string) => void;
   role: Role;
 }
 
@@ -49,21 +49,11 @@ const PostSkeleton: React.FC = () => (
     </div>
 );
 
-const PublishedPostsList: React.FC<PublishedPostsListProps> = ({ posts, isLoading, onFetchAnalytics, onGenerateInsights, role }) => {
+const PublishedPostsList: React.FC<PublishedPostsListProps> = ({ posts, isLoading, role }) => { // Removed onFetchAnalytics, onGenerateInsights
   const [openInsightsPostId, setOpenInsightsPostId] = useState<string | null>(null);
   const isViewer = role === 'viewer';
 
-  const toggleInsights = (postId: string) => {
-    if (openInsightsPostId === postId) {
-      setOpenInsightsPostId(null);
-    } else {
-      const post = posts.find(p => p.id === postId);
-      if (post && !post.analytics.aiSummary && !post.analytics.isGeneratingInsights) {
-        onGenerateInsights(postId);
-      }
-      setOpenInsightsPostId(postId);
-    }
-  };
+  // Removed toggleInsights function as it used onGenerateInsights
 
   if (isLoading) {
     return (
@@ -117,25 +107,8 @@ const PublishedPostsList: React.FC<PublishedPostsListProps> = ({ posts, isLoadin
                     <StatCard icon={<ShareIcon className="w-5 h-5 text-green-500" />} value={post.analytics.shares} label="مشاركة" />
                 </div>
                 <div className="flex items-center gap-2">
-                     <Button
-                        variant="secondary"
-                        onClick={() => toggleInsights(post.id)}
-                        isLoading={post.analytics.isGeneratingInsights}
-                        disabled={post.analytics.loading || post.analytics.comments === 0 || isViewer}
-                        title={post.analytics.comments === 0 ? "لا يمكن تحليل منشور بدون تعليقات" : ""}
-                    >
-                        <LightBulbIcon className="w-5 h-5 ml-2" />
-                        {post.analytics.isGeneratingInsights ? 'جاري التحليل...' : (openInsightsPostId === post.id ? 'إخفاء التحليل' : 'عرض التحليل')}
-                    </Button>
-                    <Button 
-                        variant="secondary"
-                        onClick={() => onFetchAnalytics(post.id)}
-                        isLoading={post.analytics.loading}
-                        disabled={post.analytics.isGeneratingInsights || isViewer}
-                    >
-                        <ArrowPathIcon className="w-5 h-5 ml-2" />
-                        تحديث الإحصائيات
-                    </Button>
+                     {/* Removed Button for toggling insights */}
+                    {/* Removed Button for fetching analytics */}
                 </div>
             </div>
              {post.analytics.lastUpdated && 
@@ -144,12 +117,7 @@ const PublishedPostsList: React.FC<PublishedPostsListProps> = ({ posts, isLoadin
                 </p>
             }
           </div>
-           {openInsightsPostId === post.id && (
-                <PostInsights
-                    summary={post.analytics.aiSummary}
-                    sentiment={post.analytics.sentiment}
-                />
-            )}
+           {/* Removed PostInsights usage */}
         </div>
       ))}
     </div>
