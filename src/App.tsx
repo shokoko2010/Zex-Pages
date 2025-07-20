@@ -42,32 +42,25 @@ const getIpAddress = async (): Promise<string> => {
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
-  const [appUser, setAppUser] = useState<AppUser | null>(null); // To store user's DB data
+  const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
   
-  // Plans and admin state
   const [plans, setPlans] = useState<Plan[]>([]);
   const [allUsers, setAllUsers] = useState<AppUser[]>([]);
 
-  // API Keys and AI client
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [stabilityApiKey, setStabilityApiKey] = useState<string | null>(null);
   const [aiClient, setAiClient] = useState<GoogleGenAI | null>(null);
   
-  // UI State
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isTourOpen, setIsTourOpen] = useState(false);
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-        return 'dark';
-    }
-    return 'light';
+    return (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) ? 'dark' : 'light';
   });
 
-  // Facebook and Target related state
   const [targets, setTargets] = useState<Target[]>([]);
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [targetsLoading, setTargetsLoading] = useState(true);
@@ -76,41 +69,29 @@ const App: React.FC = () => {
   const [favoriteTargetIds, setFavoriteTargetIds] = useState<Set<string>>(new Set());
   
   const [loadingBusinessId, setLoadingBusinessId] = useState<string | null>(null);
-  const [loadedBusinessIds, setLoadedBusinessIds] = new Set<string>();
+  const [loadedBusinessIds, setLoadedBusinessIds] = useState<Set<string>>(new Set()); // Correctly initialized
   const [syncingTargetId, setSyncingTargetId] = useState<string | null>(null);
 
-  // Theme management
   useEffect(() => {
-    if (theme === 'dark') {
-        document.documentElement.classList.add('dark');
-        localStorage.setItem('theme', 'dark');
-    } else {
-        document.documentElement.classList.remove('dark');
-        localStorage.setItem('theme', 'light');
-    }
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    localStorage.setItem('theme', theme);
   }, [theme]);
   
-  // Path management for routing
   useEffect(() => {
     const handlePopState = () => setCurrentPath(window.location.pathname);
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
   
-  // Main Firebase Auth Listener
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
         setLoadingUser(true);
         if (currentUser) {
             setUser(currentUser);
-            // Fetch plans once user is confirmed
             try {
                 const plansSnapshot = await db.collection('plans').get();
-                const plansList = plansSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Plan));
-                setPlans(plansList);
-            } catch (error) {
-                console.error("Failed to fetch plans:", error);
-            }
+                setPlans(plansSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Plan)));
+            } catch (error) { console.error("Failed to fetch plans:", error); }
 
             const userDocRef = db.collection('users').doc(currentUser.uid);
             const userDoc = await userDocRef.get();
@@ -118,7 +99,6 @@ const App: React.FC = () => {
             if (userDoc.exists) {
                 userData = userDoc.data() as AppUser;
             } else {
-               const ip = await getIpAddress();
                userData = {
                    email: currentUser.email!,
                    uid: currentUser.uid,
@@ -126,7 +106,7 @@ const App: React.FC = () => {
                    planId: 'free',
                    createdAt: new Date().toISOString(),
                    onboardingCompleted: false,
-                   lastLoginIp: ip,
+                   lastLoginIp: await getIpAddress(),
                };
                await userDocRef.set(userData, { merge: true });
             }
@@ -137,17 +117,13 @@ const App: React.FC = () => {
             setFavoriteTargetIds(new Set(userData.favoriteTargetIds || []));
             if (!userData.onboardingCompleted) setIsTourOpen(true);
 
-            // **NEW CACHING LOGIC**: Load targets from user doc if they exist
             if (userData.targets && userData.targets.length > 0) {
-                console.log("Loading targets from Firestore cache.");
                 setTargets(userData.targets);
                 setTargetsLoading(false);
             } else {
-                // Only set loading if we don't have cached targets
-                setTargetsLoading(true); 
+                setTargetsLoading(!!userData.fbAccessToken); 
             }
 
-            // If user is admin, fetch all users data for the admin page
             if (userData.isAdmin) {
                 try {
                     const usersSnapshot = await db.collection('users').get();
@@ -155,18 +131,10 @@ const App: React.FC = () => {
                 } catch (error) { console.error("Failed to fetch all users:", error); }
             }
         } else {
-            // Reset all state on logout
-            setUser(null);
-            setAppUser(null);
-            setApiKey(null);
-            setStabilityApiKey(null);
-            setTargets([]);
-            setBusinesses([]);
-            setSelectedTarget(null);
-            setFavoriteTargetIds(new Set());
-            setAllUsers([]);
-            setIsTourOpen(false);
-            setPlans([]);
+            setUser(null); setAppUser(null); setApiKey(null);
+            setStabilityApiKey(null); setTargets([]); setBusinesses([]);
+            setSelectedTarget(null); setFavoriteTargetIds(new Set());
+            setAllUsers([]); setIsTourOpen(false); setPlans([]);
             setAuthError(null);
         }
         setLoadingUser(false);
@@ -176,17 +144,13 @@ const App: React.FC = () => {
 
   const handleCompleteTour = async () => {
       setIsTourOpen(false);
-      if (user) {
-          await db.collection('users').doc(user.uid).set({ onboardingCompleted: true }, { merge: true });
-      }
+      if (user) await db.collection('users').doc(user.uid).set({ onboardingCompleted: true }, { merge: true });
   };
-
 
   const handleToggleFavorite = async (targetId: string) => {
     if (!user) return;
     const newFavorites = new Set(favoriteTargetIds);
-    if (newFavorites.has(targetId)) newFavorites.delete(targetId);
-    else newFavorites.add(targetId);
+    newFavorites.has(targetId) ? newFavorites.delete(targetId) : newFavorites.add(targetId);
     setFavoriteTargetIds(newFavorites);
     await db.collection('users').doc(user.uid).set({ favoriteTargetIds: Array.from(newFavorites) }, { merge: true });
   };
@@ -210,11 +174,10 @@ const App: React.FC = () => {
   const fetchWithPagination = useCallback(async (initialPath: string, accessToken?: string): Promise<any[]> => {
       let allData: any[] = [];
       let path: string | null = initialPath;
-      
       const tokenToUse = accessToken || appUser?.fbAccessToken;
       if (!tokenToUse) throw new Error("Facebook Access Token is missing.");
 
-      if (!path.includes('access_token=')) path = path.includes('?') ? `${path}&access_token=${tokenToUse}` : `${path}?access_token=${tokenToUse}`;
+      path = path.includes('?') ? `${path}&access_token=${tokenToUse}` : `${path}?access_token=${tokenToUse}`;
 
       let counter = 0;
       while (path && counter < 50) {
@@ -224,10 +187,9 @@ const App: React.FC = () => {
               path = response.paging?.next ? response.paging.next.replace('https://graph.facebook.com', '') : null;
           } else {
               if (response?.error) {
-                console.error(`Error fetching paginated data for path ${path}:`, response.error);
                 if (response.error.code === 190) { 
-                  alert("انتهت صلاحية جلسة فيسبوك. يرجى تسجيل الخروج والدخول مرة أخرى.");
-                  await handleLogout();
+                  alert("انتهت صلاحية جلسة فيسبوك. يرجى إعادة ربط الحساب.");
+                  await db.collection('users').doc(user!.uid).set({ fbAccessToken: null }, { merge: true });
                 }
                 throw new Error(`خطأ في واجهة فيسبوك: ${response.error.message}`);
               }
@@ -236,7 +198,7 @@ const App: React.FC = () => {
           counter++;
       }
       return allData;
-  }, [appUser?.fbAccessToken]);
+  }, [appUser?.fbAccessToken, user]);
 
   const fetchInstagramAccounts = useCallback(async (pages: Target[]): Promise<Target[]> => {
     if (pages.length === 0 || !appUser?.fbAccessToken) return [];
@@ -249,10 +211,9 @@ const App: React.FC = () => {
                 const body = JSON.parse(res.body);
                 if (body?.instagram_business_account) {
                     const igAccount = body.instagram_business_account;
-                    const parentPage = pages[index];
                     igAccounts.push({
                         id: igAccount.id, name: igAccount.name ? `${igAccount.name} (@${igAccount.username})` : `@${igAccount.username}`,
-                        type: 'instagram', parentPageId: parentPage.id, access_token: parentPage.access_token,
+                        type: 'instagram', parentPageId: pages[index].id, access_token: pages[index].access_token,
                         picture: { data: { url: igAccount.profile_picture_url || 'https://via.placeholder.com/150/833AB4/FFFFFF?text=IG' } }
                     });
                 }
@@ -263,47 +224,34 @@ const App: React.FC = () => {
   }, [appUser?.fbAccessToken]);
 
   const fetchFacebookData = useCallback(async () => {
-    if (!user || isSimulation) {
+    if (!user || isSimulation || !appUser?.fbAccessToken) {
       if (isSimulation) {
         setTargets(MOCK_TARGETS); setBusinesses(MOCK_BUSINESSES); setTargetsLoading(false);
+      } else {
+        setTargetsLoading(false);
       }
       return;
-    }
-    if (!appUser?.fbAccessToken) {
-        setTargetsLoading(false); // Not loading if no token
-        return;
     }
     
     setTargetsLoading(true);
     setTargetsError(null);
     try {
-        const pagesPromise = fetchWithPagination('/me/accounts?fields=id,name,access_token,picture{url}&limit=100');
-        const [allPagesData] = await Promise.all([pagesPromise]);
-        
+        const allPagesData = await fetchWithPagination('/me/accounts?fields=id,name,access_token,picture{url}&limit=100');
         const allTargetsMap = new Map<string, Target>();
-        if (allPagesData) allPagesData.forEach(p => allTargetsMap.set(p.id, { ...p, type: 'page' }));
-        
+        allPagesData.forEach(p => allTargetsMap.set(p.id, { ...p, type: 'page' }));
         const igAccounts = await fetchInstagramAccounts(Array.from(allTargetsMap.values()));
         igAccounts.forEach(ig => allTargetsMap.set(ig.id, ig));
-        
         const finalTargets = Array.from(allTargetsMap.values());
         setTargets(finalTargets);
-
-        // **NEW**: Save fetched targets to user's document in Firestore
         await db.collection('users').doc(user.uid).set({ targets: finalTargets }, { merge: true });
-        console.log("Facebook targets fetched and saved to Firestore.");
-
     } catch (error: any) {
-        console.error("Error fetching data from Facebook:", error);
         setTargetsError(`فشل تحميل بياناتك من فيسبوك. الخطأ: ${error.message}`);
     } finally {
         setTargetsLoading(false);
     }
   }, [user, appUser, isSimulation, fetchInstagramAccounts, fetchWithPagination]);
 
-  // Effect to fetch FB data only if it wasn't loaded from cache
   useEffect(() => {
-    // If we have a token but the targets array is empty, it means they were not cached.
     if (appUser?.fbAccessToken && (!appUser.targets || appUser.targets.length === 0)) {
         fetchFacebookData();
     }
@@ -313,10 +261,9 @@ const App: React.FC = () => {
     setLoadingBusinessId(businessId);
     try {
       const ownedPages = await fetchWithPagination(`/${businessId}/owned_pages?fields=id,name,access_token,picture{url}&limit=100`);
-      const allBusinessPages = [...ownedPages];
-      const igAccounts = await fetchInstagramAccounts(allBusinessPages);
+      const igAccounts = await fetchInstagramAccounts(ownedPages);
       const newTargetsMap = new Map<string, Target>();
-      allBusinessPages.forEach(p => newTargetsMap.set(p.id, { ...p, type: 'page' }));
+      ownedPages.forEach(p => newTargetsMap.set(p.id, { ...p, type: 'page' }));
       igAccounts.forEach(ig => newTargetsMap.set(ig.id, ig));
       
       setTargets(prevTargets => {
@@ -324,7 +271,6 @@ const App: React.FC = () => {
         newTargetsMap.forEach((value, key) => existingTargetsMap.set(key, value));
         return Array.from(existingTargetsMap.values());
       });
-      
       setLoadedBusinessIds(prev => new Set(prev).add(businessId));
     } catch(error: any) {
       alert(`فشل تحميل الصفحات: ${error.message}`);
@@ -333,24 +279,21 @@ const App: React.FC = () => {
     }
   }, [fetchWithPagination, fetchInstagramAccounts]);
 
-  // Syncing logic (omitted for brevity, remains unchanged)
-  const handleFullHistorySync = useCallback(async (pageTarget: Target) => { /* ... */ }, []);
+  const handleFullHistorySync = useCallback(async (pageTarget: Target) => { /* Sync logic remains unchanged */ }, []);
 
-  // Auth handlers (SignUp, SignIn)
   const handleEmailSignUp = async (email: string, password: string) => {
     setAuthError(null);
     try {
         await auth.createUserWithEmailAndPassword(email, password);
-        // The onAuthStateChanged listener will handle the rest.
     } catch (error: any) {
         setAuthError(error.code === 'auth/email-already-in-use' ? 'هذا البريد الإلكتروني مسجل بالفعل.' : 'حدث خطأ أثناء إنشاء الحساب.');
     }
   };
+
   const handleEmailSignIn = async (email: string, password: string) => {
     setAuthError(null);
     try {
         const cred = await auth.signInWithEmailAndPassword(email, password);
-        // Update last login IP
         if(cred.user) await db.collection('users').doc(cred.user.uid).set({ lastLoginIp: await getIpAddress() }, { merge: true });
     } catch (error: any) {
         setAuthError('البريد الإلكتروني أو كلمة المرور غير صحيحة.');
@@ -366,11 +309,10 @@ const App: React.FC = () => {
         const result = await auth.currentUser?.linkWithPopup(facebookProvider);
         const credential = result?.credential as firebase.auth.OAuthCredential;
         if (credential?.accessToken) {
-          // Save token to Firestore, which triggers the appUser state update
           const userDocRef = db.collection('users').doc(user.uid);
-          await userDocRef.set({ fbAccessToken: credential.accessToken }, { merge: true });
+          await userDocRef.set({ fbAccessToken: credential.accessToken, targets: [] }, { merge: true });
           alert("تم ربط حساب فيسبوك بنجاح! جاري جلب صفحاتك...");
-          // fetchFacebookData will be triggered by the useEffect watching appUser
+          // Auth state listener will pick up the change and trigger fetchFacebookData
         }
     } catch (error: any) {
         if (error.code === 'auth/credential-already-in-use') alert("هذا الحساب الفيسبوك مرتبط بالفعل بحساب آخر.");
@@ -386,7 +328,6 @@ const App: React.FC = () => {
       
       if (!user || !appUser) return <HomePage onSignIn={handleEmailSignIn} onSignUp={handleEmailSignUp} authError={authError} />;
       
-      // **PRIORITY #1**: If user is admin, show AdminPage immediately.
       if (appUser.isAdmin) {
           return <AdminPage user={user} allUsers={allUsers} onLogout={handleLogout} onSettingsClick={() => setIsSettingsModalOpen(true)} theme={theme} onToggleTheme={handleToggleTheme} plans={plans} />;
       }
@@ -414,7 +355,7 @@ const App: React.FC = () => {
             syncingTargetId={syncingTargetId}
             theme={theme}
             onToggleTheme={handleToggleTheme}
-            fbAccessToken={appUser.fbAccessToken}
+            fbAccessToken={appUser.fbAccessToken || null} // Ensure it's not undefined
           />
         );
       }
@@ -437,7 +378,7 @@ const App: React.FC = () => {
           onToggleFavorite={handleToggleFavorite}
           isFacebookConnected={!!appUser.fbAccessToken}
           onConnectFacebook={handleFacebookConnect}
-          onRefreshPages={fetchFacebookData} // Provide the refresh function
+          onRefreshPages={fetchFacebookData}
         />
       );
   };
