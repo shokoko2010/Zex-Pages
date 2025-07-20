@@ -4,9 +4,13 @@ import { ContentTypePerformanceData } from '../types';
 
 interface ContentTypePerformanceChartProps {
   data: ContentTypePerformanceData[];
+  isLoading: boolean; // Added isLoading prop
 }
 
-const ContentTypePerformanceChart: React.FC<ContentTypePerformanceChartProps> = ({ data }) => {
+const ContentTypePerformanceChart: React.FC<ContentTypePerformanceChartProps> = ({ data, isLoading }) => {
+  if (isLoading) {
+    return <div className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow-lg text-center text-gray-500">Loading Content Type Performance Data...</div>;
+  }
   const maxEngagement = Math.max(...data.map(d => d.avgEngagement), 0) || 1;
 
   return (

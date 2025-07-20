@@ -2,9 +2,7 @@ import React, { useState } from 'react';
 import AnalyticsSummaryDashboard from './AnalyticsSummaryDashboard';
 import PublishedPostsList from './PublishedPostsList';
 import AudienceGrowthChart from './AudienceGrowthChart';
-import EngagementHeatmap from './EngagementHeatmap';
 import ContentTypePerformanceChart from './ContentTypePerformanceChart';
-import DeepAnalyticsSection from './DeepAnalyticsSection';
 import { PerformanceSummaryData, PublishedPost, AudienceGrowthData, HeatmapDataPoint, ContentTypePerformanceData, Role, Plan } from '../types';
 
 interface AnalyticsPageProps {
@@ -27,6 +25,7 @@ interface AnalyticsPageProps {
   publishedPostsLoading: boolean;
   analyticsPeriod: "7d" | "30d"; // Added this line
   setAnalyticsPeriod: React.Dispatch<React.SetStateAction<"7d" | "30d">>; // Added this line (based on how it's used in DashboardPage.tsx)
+  performanceSummaryText: string; // Added this line
 }
 
 const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
@@ -49,6 +48,7 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
   publishedPostsLoading,
   analyticsPeriod, // Destructure the new prop
   setAnalyticsPeriod, // Destructure the new prop
+  performanceSummaryText // Destructure the new prop
 }) => {
   const canViewDeepAnalytics = userPlan?.limits.deepAnalytics ?? false;
 
@@ -64,11 +64,12 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
 
       <AudienceGrowthChart data={audienceGrowthData} isLoading={isLoading} />
 
-      <EngagementHeatmap data={heatmapData} isLoading={isLoading} />
+      {/* EngagementHeatmap and DeepAnalyticsSection removed due to missing files */}
+      {/* <EngagementHeatmap data={heatmapData} isLoading={isLoading} /> */}
 
       <ContentTypePerformanceChart data={contentTypeData} isLoading={isLoading} />
 
-      {canViewDeepAnalytics && (
+      {/* {canViewDeepAnalytics && (
         <DeepAnalyticsSection
           publishedPosts={publishedPosts}
           publishedPostsLoading={publishedPostsLoading}
@@ -77,7 +78,7 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
           isGeneratingDeepAnalytics={isGeneratingDeepAnalytics}
           role={role}
         />
-      )}
+      )} */}
 
       {/* Keeping the Individual Post Performance section as it was */}
       <div>

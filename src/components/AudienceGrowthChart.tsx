@@ -4,9 +4,14 @@ import { AudienceGrowthData } from '../types';
 
 interface AudienceGrowthChartProps {
   data: AudienceGrowthData[];
+  isLoading: boolean; // Added isLoading prop
 }
 
-const AudienceGrowthChart: React.FC<AudienceGrowthChartProps> = ({ data }) => {
+const AudienceGrowthChart: React.FC<AudienceGrowthChartProps> = ({ data, isLoading }) => {
+  if (isLoading) {
+    return <div className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow-lg text-center text-gray-500">Loading Audience Growth Data...</div>;
+  }
+
   if (data.length === 0) {
     return <div className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow-lg text-center text-gray-500">لا توجد بيانات كافية لعرض نمو الجمهور.</div>;
   }
