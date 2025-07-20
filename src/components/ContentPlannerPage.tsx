@@ -173,17 +173,17 @@ const ContentPlannerPage: React.FC<ContentPlannerPageProps> = ({
       ].join(';')
     );
 
-    const csvContent = [csvHeaders.join(';'), ...rows].join('
-');
+const csvContent = [csvHeaders.join(';'), ...rows].join('\n');
 
-    const blob = new Blob(['﻿' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }); // Removed '﻿'
 
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', 'content-strategy.csv');
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.setAttribute('href', url);
+  link.setAttribute('download', 'content-strategy.csv');
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+
     link.click();
     document.body.removeChild(link);
   };
