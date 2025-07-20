@@ -894,11 +894,41 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             user={user}
         />;
       case 'admin':
-        return isAdmin ? <AdminPage /> : <div>Access Denied</div>;
+        return isAdmin ? (
+          <AdminPage 
+            user={user}
+            allUsers={allUsers}
+            plans={plans}
+            onLogout={onLogout}
+            theme={theme}
+            onToggleTheme={onToggleTheme}
+            isSimulationMode={isSimulationMode}
+          />
+        ) : <div>Access Denied</div>;
       case 'users':
-        return isAdmin ? <UserManagementPage plans={plans} /> : <div>Access Denied</div>;
+        return isAdmin ? (
+          <UserManagementPage 
+            plans={plans}
+            user={user}
+            allUsers={allUsers}
+            onLogout={onLogout}
+            theme={theme}
+            onToggleTheme={onToggleTheme}
+            isSimulationMode={isSimulationMode}
+          />
+        ) : <div>Access Denied</div>;
       case 'admin-analytics':
-        return isAdmin ? <AdminAnalyticsPage users={allUsers} plans={plans} /> : <div>Access Denied</div>;
+        return isAdmin ? (
+          <AdminAnalyticsPage 
+            users={allUsers} 
+            plans={plans}
+            user={user}
+            onLogout={onLogout}
+            theme={theme}
+            onToggleTheme={onToggleTheme}
+            isSimulationMode={isSimulationMode}
+          />
+        ) : <div>Access Denied</div>;
       default:
         return null;
     }
