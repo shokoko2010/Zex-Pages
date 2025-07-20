@@ -144,8 +144,8 @@ const App: React.FC = () => {
             }
             if (userData && userData.isAdmin) {
                 try {
-                    const usersSnapshot = await db.collection('users').get();
-                    const usersList = usersSnapshot.docs.map(doc => doc.data() as AppUser);
+                    const usersSnapshot = db.collection('users');
+                    const usersList = (await usersSnapshot.get()).docs.map(doc => doc.data() as AppUser);
                     setAllUsers(usersList);
                 } catch (error) {
                     console.error("Failed to fetch all users:", error);
@@ -395,7 +395,8 @@ const App: React.FC = () => {
 
     } catch(error: any) {
       console.error(`Error loading pages for business ${businessId}:`, error);
-      alert(`فشل تحميل الصفحات من حافظة الأعمال.\nالسبب: ${error.message}`);
+      alert(`فشل تحميل الصفحات من حافظة الأعمال.
+السبب: ${error.message}`);
     } finally {
       setLoadingBusinessId(null);
     }
@@ -465,7 +466,10 @@ const App: React.FC = () => {
     } catch(error: any) {
       console.error("Error during full history sync:", error);
       const errorMessage = error instanceof Error ? error.message : "حدث خطأ غير متوقع أثناء المزامنة.";
-      alert(`فشلت المزامنة الكاملة للهدف ${pageTarget.name}.\nالسبب: ${errorMessage}\n\nقد تحتاج إلى تحديث صلاحيات الوصول وإعادة المحاولة.`);
+      alert(`فشلت المزامنة الكاملة للهدف ${pageTarget.name}.
+السبب: ${errorMessage}
+
+قد تحتاج إلى تحديث صلاحيات الوصول وإعادة المحاولة.`);
     } finally {
       setSyncingTargetId(null);
     }
@@ -650,9 +654,9 @@ const seedPlansIfEmpty = async () => {
   if (snapshot.empty) {
     console.log("Plans collection is empty. Seeding data...");
     const plansToSeed = [
-      { /* Free plan data */ },
-      { /* Pro plan data */ },
-      // ...
+      { id: 'free', name: 'Free Plan', price: 0, features: ['Limited posts', 'Basic analytics'], postLimit: 10, aiCredits: 5 },
+      { id: 'pro', name: 'Pro Plan', price: 29.99, features: ['Unlimited posts', 'Advanced analytics', 'AI assistance'], postLimit: -1, aiCredits: 100 },
+      { id: 'premium', name: 'Premium Plan', price: 99.99, features: ['All Pro features', 'Dedicated support', 'Early access to new features'], postLimit: -1, aiCredits: 500 },
     ];
 
     const batch = db.batch(); // Use batch writes for efficiency

@@ -14,7 +14,7 @@ interface HomePageProps {
 const HomePage: React.FC<HomePageProps> = ({ onSignIn, onSignUp, authError }) => {
   return (
     <div className="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 min-h-screen flex flex-col">
-      <LandingHeader onLoginClick={() => { /* This can be removed or repurposed */ }} />
+      <LandingHeader />
       
       <main className="flex-grow flex items-center justify-center p-4">
         <LoginPage onSignIn={onSignIn} onSignUp={onSignUp} authError={authError} />
