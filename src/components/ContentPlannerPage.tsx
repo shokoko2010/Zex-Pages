@@ -1,8 +1,3 @@
-
-
-
-
-
 import React, { useState, useCallback } from 'react';
 import { ContentPlanItem, StrategyRequest, PageProfile, StrategyHistoryItem, Role } from '../types';
 import Button from './ui/Button';
@@ -41,7 +36,7 @@ const StrategyButton: React.FC<{label: string, icon: React.ReactNode, active: bo
 );
 
 
-const ContentPlannerPage: React.FC<ContentPlannerPageProps> = ({ 
+const ContentPlannerPage: React.FC<ContentPlannerPageProps> = ({
   aiClient,
   isGenerating,
   error,
@@ -58,7 +53,7 @@ const ContentPlannerPage: React.FC<ContentPlannerPageProps> = ({
 }) => {
   const [strategyType, setStrategyType] = useState<StrategyRequest['type']>('standard');
   const [planDuration, setPlanDuration] = useState<StrategyRequest['duration']>('weekly');
-  
+
   // Common fields
   const [audience, setAudience] = useState('');
   const [goals, setGoals] = useState('');
@@ -74,7 +69,7 @@ const ContentPlannerPage: React.FC<ContentPlannerPageProps> = ({
   const [planImagePreviews, setPlanImagePreviews] = useState<string[]>([]);
   const [monthlyPostCount, setMonthlyPostCount] = useState<8 | 12 | 16 | 30>(12);
 
-  
+
   const [isDragging, setIsDragging] = useState(false);
   const [formError, setFormError] = useState('');
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
@@ -102,7 +97,7 @@ const ContentPlannerPage: React.FC<ContentPlannerPageProps> = ({
 
     let request: StrategyRequest;
     const baseRequest: any = { duration: planDuration, audience, goals, tone };
-    
+
     if (planDuration === 'monthly') {
         baseRequest.postCount = monthlyPostCount;
     }
@@ -118,7 +113,7 @@ const ContentPlannerPage: React.FC<ContentPlannerPageProps> = ({
 
     onGeneratePlan(request, planImages);
   };
-  
+
   const handleFileChange = (files: FileList | null) => {
     if (files) {
       const fileArray = Array.from(files);
@@ -127,7 +122,7 @@ const ContentPlannerPage: React.FC<ContentPlannerPageProps> = ({
       setPlanImagePreviews(prev => [...prev, ...previewUrls]);
     }
   };
-  
+
   const handleDragEvents = useCallback((e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); }, []);
   const handleDragEnter = (e: React.DragEvent) => { if (isViewer) return; handleDragEvents(e); setIsDragging(true); };
   const handleDragLeave = (e: React.DragEvent) => { if (isViewer) return; handleDragEvents(e); setIsDragging(false); };
@@ -137,13 +132,13 @@ const ContentPlannerPage: React.FC<ContentPlannerPageProps> = ({
     setIsDragging(false);
     if (e.dataTransfer.files) handleFileChange(e.dataTransfer.files);
   };
-  
+
   const removeImage = (index: number) => {
     if (isViewer) return;
     setPlanImages(prev => prev.filter((_, i) => i !== index));
     setPlanImagePreviews(prev => prev.filter((_, i) => i !== index));
   };
-  
+
   const aiHelperText = !aiClient ? (
     <p className="text-yellow-600 dark:text-yellow-400 text-sm mt-4 text-center">
       ميزات الذكاء الاصطناعي معطلة. يرجى إدخال مفتاح Gemini API في الإعدادات لتفعيلها.
@@ -151,7 +146,7 @@ const ContentPlannerPage: React.FC<ContentPlannerPageProps> = ({
   ) : null;
 
   const occasions = [
-    'اليوم الوطني السعودي', 'يوم التأسيس السعودي', 'شهر رمضان', 'عيد الفطر', 'عيد الأضحى', 
+    'اليوم الوطني السعودي', 'يوم التأسيس السعودي', 'شهر رمضان', 'عيد الفطر', 'عيد الأضحى',
     'العودة للمدارس', 'الجمعة البيضاء / Black Friday', 'اليوم العالمي للمرأة', 'يوم الحب / Valentine's Day',
     'حملة صيفية عامة', 'حملة شتوية عامة'
   ];
@@ -167,7 +162,7 @@ const ContentPlannerPage: React.FC<ContentPlannerPageProps> = ({
     const escapeCSV = (field: string) => `"${(field || '').replace(/"/g, '""')}"`;
 
     const csvHeaders = ['اليوم', 'الهوك', 'العنوان', 'النص التسويقي', 'فكرة التصميم'];
-    
+
     const rows = plan.map(item =>
       [
         escapeCSV(item.day),
@@ -180,9 +175,9 @@ const ContentPlannerPage: React.FC<ContentPlannerPageProps> = ({
 
     const csvContent = [csvHeaders.join(';'), ...rows].join('
 ');
-    
+
     const blob = new Blob(['﻿' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    
+
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
@@ -192,7 +187,7 @@ const ContentPlannerPage: React.FC<ContentPlannerPageProps> = ({
     link.click();
     document.body.removeChild(link);
   };
-  
+
   return (
     <>
     <div className="space-y-8 fade-in max-w-5xl mx-auto">
@@ -209,7 +204,7 @@ const ContentPlannerPage: React.FC<ContentPlannerPageProps> = ({
                 عرض سجل الاستراتيجيات ({strategyHistory.length})
             </Button>
         </div>
-        
+
         {isProfileEmpty && (
             <div className="p-4 mb-6 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 rounded-lg flex items-start gap-3">
                 <InformationCircleIcon className="w-6 h-6 flex-shrink-0 mt-0.5" />
@@ -231,7 +226,7 @@ const ContentPlannerPage: React.FC<ContentPlannerPageProps> = ({
                     <StrategyButton label="بناءً على صور" icon={<PhotoIcon className="w-8 h-8" />} active={strategyType === 'images'} onClick={() => setStrategyType('images')} disabled={isViewer}/>
                 </div>
             </div>
-            
+
             <div className="space-y-6 fade-in border-t dark:border-gray-700 pt-6">
                 <h3 className="text-xl font-bold text-gray-800 dark:text-white">2. خصص الاستراتيجية</h3>
                 {/* Strategy-specific fields */}
@@ -240,7 +235,7 @@ const ContentPlannerPage: React.FC<ContentPlannerPageProps> = ({
                 {strategyType === 'occasion' && <div className="fade-in"><label htmlFor="occasion" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">اختر المناسبة</label><select id="occasion" value={occasion} onChange={(e) => setOccasion(e.target.value)} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700" disabled={isViewer}><option disabled>اختر مناسبة للحملة...</option>{occasions.map(o => <option key={o} value={o}>{o}</option>)}</select></div>}
                 {strategyType === 'pillar' && <div className="fade-in"><label htmlFor="pillarTopic" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">الموضوع المحوري الرئيسي</label><input id="pillarTopic" type="text" value={pillarTopic} onChange={(e) => setPillarTopic(e.target.value)} placeholder="مثال: الدليل الشامل للتسويق الرقمي" className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700" disabled={isViewer}/></div>}
                 {strategyType === 'images' && <div className="fade-in"><div onDragEnter={handleDragEnter} onDragOver={handleDragEvents} onDragLeave={handleDragLeave} onDrop={handleDrop} className={`p-6 border-2 border-dashed ${isDragging ? 'border-blue-500 bg-blue-50 dark:bg-gray-700/50' : 'border-gray-300 dark:border-gray-600'} rounded-lg text-center ${isViewer ? 'cursor-not-allowed' : ''}`}><PhotoIcon className="w-12 h-12 mx-auto text-gray-400" /><p className="mt-2 text-sm text-gray-600 dark:text-gray-400">اسحب وأفلت صورك هنا، أو<label htmlFor="plan-images-upload" className={`text-blue-600 dark:text-blue-400 font-semibold ${isViewer ? 'cursor-not-allowed' : 'cursor-pointer'}`}> تصفح الملفات</label></p><input id="plan-images-upload" type="file" multiple accept="image/*" className="hidden" onChange={(e) => handleFileChange(e.target.files)} disabled={isViewer}/></div>{planImagePreviews.length > 0 && (<div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2 mt-4">{planImagePreviews.map((src, index) => (<div key={index} className="relative aspect-square"><img src={src} alt={`preview ${index}`} className="w-full h-full object-cover rounded-md"/>{!isViewer && <button onClick={() => removeImage(index)} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 w-5 h-5 flex items-center justify-center text-xs">&times;</button>}</div>))}</div>)}</div>}
-                
+
                 {/* Common fields */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label htmlFor="audience" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">الجمهور المستهدف <span className="text-red-500">*</span></label><input id="audience" type="text" value={audience} onChange={(e) => setAudience(e.target.value)} placeholder="مثال: الشباب، العائلات..." className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700" disabled={isViewer}/></div><div><label htmlFor="goals" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">الأهداف الرئيسية <span className="text-red-500">*</span></label><input id="goals" type="text" value={goals} onChange={(e) => setGoals(e.target.value)} placeholder="مثال: زيادة المتابعين..." className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700" disabled={isViewer}/></div></div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label htmlFor="tone" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">النبرة المفضلة</label><select id="tone" value={tone} onChange={(e) => setTone(e.target.value)} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700" disabled={isViewer}><option>ودود ومرح</option><option>احترافي ورسمي</option><option>تعليمي وملهم</option><option>مثير للحماس والطاقة</option></select></div><div><label htmlFor="planDuration" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">مدة الخطة</label><select id="planDuration" value={planDuration} onChange={(e) => setPlanDuration(e.target.value as StrategyRequest['duration'])} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700" disabled={isViewer}><option value="weekly">أسبوعية</option><option value="monthly">شهرية</option>{strategyType !== 'occasion' && <option value="annual">سنوية (نظرة عامة)</option>}</select></div></div>
@@ -256,7 +251,7 @@ const ContentPlannerPage: React.FC<ContentPlannerPageProps> = ({
                     </div>
                 )}
             </div>
-            
+
             {formError && <p className="text-red-500 text-sm text-center">{formError}</p>}
             {aiHelperText}
 
@@ -269,7 +264,7 @@ const ContentPlannerPage: React.FC<ContentPlannerPageProps> = ({
             )}
         </form>
       </div>
-      
+
       {error && (
         <div className="p-4 bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded-lg shadow">
           <p className="font-bold">حدث خطأ</p>
@@ -314,7 +309,7 @@ const ContentPlannerPage: React.FC<ContentPlannerPageProps> = ({
         </div>
       )}
     </div>
-    <StrategyHistoryModal 
+    <StrategyHistoryModal
         isOpen={isHistoryModalOpen}
         onClose={() => setIsHistoryModalOpen(false)}
         history={strategyHistory}

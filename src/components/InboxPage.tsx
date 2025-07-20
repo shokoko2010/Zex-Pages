@@ -71,7 +71,7 @@ const InboxPage: React.FC<InboxPageProps> = ({
   const [visibleCount, setVisibleCount] = useState(30);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [replyDisabledReason, setReplyDisabledReason] = useState<string | null>(null);
-  
+
   const isViewer = role === 'viewer';
 
 
@@ -108,7 +108,7 @@ const InboxPage: React.FC<InboxPageProps> = ({
       setSelectedItem(newSelectedItem);
     }
   }, [filteredItems, selectedItem]);
-  
+
   useEffect(() => {
     if (selectedItem?.type === 'message' && !selectedItem.messages && selectedItem.conversationId) {
         onFetchMessageHistory(selectedItem.conversationId);
@@ -167,7 +167,7 @@ const InboxPage: React.FC<InboxPageProps> = ({
       setIsGeneratingReplies(false);
     }
   };
-  
+
   const handleMarkAsDoneClick = () => {
       if (!selectedItem) return;
       onMarkAsDone(selectedItem.id);
@@ -177,7 +177,7 @@ const InboxPage: React.FC<InboxPageProps> = ({
     onAutoResponderSettingsChange(newSettings);
     setIsSettingsModalOpen(false);
   };
-  
+
   const renderList = () => {
     if (isLoading && items.length === 0) return <div className="p-4 text-center text-gray-500">جاري تحميل البريد الوارد...</div>;
     if (filteredItems.length === 0 && !isLoading) return <div className="p-4 text-center text-gray-500">لا يوجد شيء لعرضه.</div>;
@@ -212,7 +212,7 @@ const InboxPage: React.FC<InboxPageProps> = ({
                 )
             })}
             <div ref={loadMoreRef} className="h-10 flex items-center justify-center">
-                hasMore && !isLoading && (
+                {hasMore && !isLoading && (
                     <div className="flex items-center gap-2 text-gray-500">
                          <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -220,13 +220,12 @@ const InboxPage: React.FC<InboxPageProps> = ({
                         </svg>
                         <span>جاري تحميل المزيد...</span>
                     </div>
-                )
-            }
+                )}
             </div>
         </>
     );
   }
-  
+
   const renderDetail = () => {
     if(!selectedItem) return <div className="p-8 text-center text-gray-500 flex flex-col items-center justify-center h-full bg-gray-50 dark:bg-gray-800/50"><InboxArrowDownIcon className="w-16 h-16 mb-4 text-gray-400" /><p>اختر محادثة من القائمة لعرضها.</p></div>;
 
@@ -240,9 +239,9 @@ const InboxPage: React.FC<InboxPageProps> = ({
           {smartReplies.length > 0 && !replyDisabledReason && (
             <div className="flex flex-wrap gap-2">
                 {smartReplies.map((reply, i) => (
-                    <button 
-                        key={i} 
-                        onClick={() => setReplyText(reply)} 
+                    <button
+                        key={i}
+                        onClick={() => setReplyText(reply)}
                         className="px-3 py-1 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/50 dark:hover:bg-blue-900 rounded-full text-sm text-blue-800 dark:text-blue-200 transition-colors"
                     >
                         {reply}
@@ -275,7 +274,7 @@ const InboxPage: React.FC<InboxPageProps> = ({
               <img src={selectedItem.authorPictureUrl} alt={selectedItem.authorName} className="w-10 h-10 rounded-full" />
               <p className="font-bold text-gray-900 dark:text-white">{selectedItem.authorName}</p>
             </div>
-            
+
             <div className="flex-grow overflow-y-auto p-4 space-y-4">
               {!selectedItem.messages ? <p className="text-center text-gray-500">جاري تحميل المحادثة...</p> : 
                 selectedItem.messages.map((msg: InboxMessage) => (
@@ -291,7 +290,7 @@ const InboxPage: React.FC<InboxPageProps> = ({
         </div>
       );
     }
-    
+
     // Fallback for Comments
     return (
         <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-800/50">
@@ -305,7 +304,7 @@ const InboxPage: React.FC<InboxPageProps> = ({
                 </div>
                 <p className="text-gray-800 dark:text-gray-200 whitespace-pre-wrap text-lg">{selectedItem.text}</p>
             </div>
-            
+
             <div className="flex-grow overflow-y-auto p-4">
               {selectedItem.post && <div className="text-sm"><p className="font-semibold text-gray-500 dark:text-gray-400 mb-2">في الرد على المنشور:</p><div className="p-3 bg-white dark:bg-gray-800 rounded-lg flex items-center gap-3 shadow-sm">{selectedItem.post.picture && <img src={selectedItem.post.picture} alt="Post thumbnail" className="w-12 h-12 rounded-md object-cover flex-shrink-0" />}<p className="text-gray-700 dark:text-gray-300 line-clamp-2">{selectedItem.post.message || "منشور بصورة فقط"}</p></div></div>}
             </div>
@@ -313,7 +312,7 @@ const InboxPage: React.FC<InboxPageProps> = ({
         </div>
     )
   }
-  
+
   return (
     <>
     <div className="flex flex-col lg:flex-row h-full max-h-[calc(100vh-200px)] bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
