@@ -267,18 +267,18 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
     const handleRejectPost = async (postId: string) => { /* ... unchanged ... */ };
     
   const handleSetView = (newView: DashboardView) => {
-    // const isAllowed = (feature: keyof Plan['limits']) => userPlan?.limits[feature] ?? false;
-    // const planName = userPlan?.name || 'Free';
-    // const featureMap: Partial<Record<DashboardView, { key: keyof Plan['limits'], name: string }>> = {
-    //     'bulk': { key: 'bulkScheduling', name: 'الجدولة المجمعة' },
-    //     'planner': { key: 'contentPlanner', name: 'استراتيجيات المحتوى' },
-    //     'inbox': { key: 'autoResponder', name: 'صندوق الوارد' },
-    // };
-    // const requestedFeature = featureMap[newView];
-    // if (requestedFeature && !isAllowed(requestedFeature.key)) {
-    //     alert(`ميزة "${requestedFeature.name}" غير متاحة في خطة "${planName}".`);
-    //     return;
-    // }
+    const isAllowed = (feature: keyof Plan['limits']) => userPlan?.limits[feature] ?? false;
+    const planName = userPlan?.name || 'Free';
+    const featureMap: Partial<Record<DashboardView, { key: keyof Plan['limits'], name: string }>> = {
+        'bulk': { key: 'bulkScheduling', name: 'الجدولة المجمعة' },
+        'planner': { key: 'contentPlanner', name: 'استراتيجيات المحتوى' },
+        'inbox': { key: 'autoResponder', name: 'صندوق الوارد' },
+    };
+    const requestedFeature = featureMap[newView];
+    if (requestedFeature && !isAllowed(requestedFeature.key)) {
+        alert(`ميزة "${requestedFeature.name}" غير متاحة في خطة "${planName}".`);
+        return;
+    }
     setView(newView);
   };
     
@@ -505,11 +505,11 @@ ${planItem.body}`);
         <aside className="w-full md:w-64 bg-white dark:bg-gray-800 p-4 border-r dark:border-gray-700/50 flex-shrink-0">
           <nav className="space-y-2">
             <NavItem icon={<PencilSquareIcon className="w-5 h-5" />} label="إنشاء منشور" active={view === 'composer'} onClick={() => setView('composer')} />
-            <NavItem icon={<QueueListIcon className="w-5 h-5" />} label="الجدولة المجمعة" active={view === 'bulk'} onClick={() => handleSetView('bulk')} />
-            <NavItem icon={<BrainCircuitIcon className="w-5 h-5" />} label="استراتيجيات المحتوى" active={view === 'planner'} onClick={() => handleSetView('planner')} />
+            <NavItem icon={<QueueListIcon className="w-5 h-5" />} label="الجدولة المجمعة" active={view === 'bulk'} onClick={() => handleSetView('bulk')} disabled={!isAdmin && !isAllowed('bulkScheduling')} disabledTooltip={!isAdmin ? `متاحة في الخطط الأعلى من ${planName}` : undefined} />
+            <NavItem icon={<BrainCircuitIcon className="w-5 h-5" />} label="استراتيجيات المحتوى" active={view === 'planner'} onClick={() => handleSetView('planner')} disabled={!isAdmin && !isAllowed('contentPlanner')} disabledTooltip={!isAdmin ? `متاحة في الخطط الأعلى من ${planName}` : undefined} />
             <NavItem icon={<CalendarIcon className="w-5 h-5" />} label="تقويم المحتوى" active={view === 'calendar'} onClick={() => setView('calendar')} />
             <NavItem icon={<ArchiveBoxIcon className="w-5 h-5" />} label="المسودات" active={view === 'drafts'} onClick={() => setView('drafts')} />
-            <NavItem icon={<InboxArrowDownIcon className="w-5 h-5" />} label="صندوق الوارد" active={view === 'inbox'} onClick={() => handleSetView('inbox')} isPolling={isPolling} notificationCount={inboxItems.filter(item => item.status === 'new').length} />
+            <NavItem icon={<InboxArrowDownIcon className="w-5 h-5" />} label="صندوق الوارد" active={view === 'inbox'} onClick={() => handleSetView('inbox')} disabled={!isAdmin && !isAllowed('autoResponder')} disabledTooltip={!isAdmin ? `متاحة في الخطط الأعلى من ${planName}` : undefined} isPolling={isPolling} notificationCount={inboxItems.filter(item => item.status === 'new').length} />
             <NavItem icon={<ChartBarIcon className="w-5 h-5" />} label="التحليلات" active={view === 'analytics'} onClick={() => setView('analytics')} />
             <NavItem icon={<UserCircleIcon className="w-5 h-5" />} label="ملف الصفحة" active={view === 'profile'} onClick={() => setView('profile')} />
           </nav>

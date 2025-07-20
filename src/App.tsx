@@ -339,7 +339,8 @@ const App: React.FC = () => {
             features: ['All features for admin'],
             limits: {
               pages: -1, // Unlimited
-              teamMembers: -1, // Unlimited
+              aiText: true,
+              aiImage: true,
               scheduledPosts: -1, // Unlimited
               drafts: -1, // Unlimited
               bulkScheduling: true,
