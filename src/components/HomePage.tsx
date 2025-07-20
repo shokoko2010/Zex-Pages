@@ -17,6 +17,7 @@ const HomePage: React.FC<HomePageProps> = ({ apiKey, stabilityApiKey, favoriteTa
       <LandingHeader />
       
       <main className="flex-grow flex items-center justify-center p-4">
+       {/*removed login page here*/}
       </main>
 
       <Footer />

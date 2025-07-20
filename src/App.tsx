@@ -63,7 +63,7 @@ function App() {
         console.log('Generate insights clicked for post:', postId);
     };
 
-     const handleSignIn = async (email: string, password: string) => {
+    const handleSignIn = async (email: string, password: string) => {
         try {
             const auth = getAuth();
             await signInWithEmailAndPassword(auth, email, password);

@@ -4,9 +4,12 @@ import FacebookIcon from './icons/FacebookIcon';
 
 interface LoginPageProps {
   setIsAdmin: React.Dispatch<React.SetStateAction<boolean>>;
+  onSignIn: (email: string, password: string) => Promise<void>;
+  onSignUp: (email: string, password: string) => Promise<void>;
+  authError: string | null;
 }
 
-const LoginPage: React.FC<LoginPageProps> = ({ setIsAdmin }) => {
+const LoginPage: React.FC<LoginPageProps> = ({ setIsAdmin, onSignIn, onSignUp, authError }) => {
   const [isLoginView, setIsLoginView] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -27,6 +30,11 @@ const LoginPage: React.FC<LoginPageProps> = ({ setIsAdmin }) => {
     }
 
     setLoading(true);
+    if (isLoginView) {
+      await onSignIn(email, password);
+    } else {
+      await onSignUp(email, password);
+    }
     setLoading(false);
   };
 
@@ -103,6 +111,9 @@ const LoginPage: React.FC<LoginPageProps> = ({ setIsAdmin }) => {
            )}
         </div>
         
+        {(formError || authError) && (
+            <p className="text-sm text-red-600 text-center">{formError || authError}</p>
+        )}
 
         <div>
           <Button
