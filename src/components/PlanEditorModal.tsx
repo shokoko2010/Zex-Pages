@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect } from 'react';
 import { Plan, PlanLimits } from '../types';
 import Button from './ui/Button';
@@ -65,7 +63,7 @@ const PlanEditorModal: React.FC<PlanEditorModalProps> = ({ isOpen, onClose, onSa
         <h2 className="text-2xl font-bold mb-4 text-gray-800 dark:text-white">{plan ? 'تعديل الخطة' : 'إضافة خطة جديدة'}</h2>
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div><label htmlFor="id" className="block text-sm font-medium">معرف الخطة (ID)</label><input type="text" id="id" value={draftPlan.id} onChange={e => setDraftPlan(p => ({ ...p, id: e.target.value.toLowerCase().replace(/s/g, '-') }))} className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" placeholder="e.g., free, pro" disabled={!!plan} /></div>
+            <div><label htmlFor="id" className="block text-sm font-medium">معرف الخطة (ID)</label><input type="text" id="id" value={draftPlan.id} onChange={e => setDraftPlan(p => ({ ...p, id: e.target.value.toLowerCase().replace(/\s/g, '-') }))} className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" placeholder="e.g., free, pro" disabled={!!plan} /></div>
             <div><label htmlFor="name" className="block text-sm font-medium">اسم الخطة</label><input type="text" id="name" value={draftPlan.name} onChange={e => setDraftPlan(p => ({ ...p, name: e.target.value }))} className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" placeholder="e.g., Free, Professional"/></div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -74,9 +72,14 @@ const PlanEditorModal: React.FC<PlanEditorModalProps> = ({ isOpen, onClose, onSa
           </div>
           <div>
             <label htmlFor="features" className="block text-sm font-medium">الميزات (ميزة واحدة في كل سطر)</label>
-            <textarea id="features" value={draftPlan.features.join('
-')} onChange={e => setDraftPlan(p => ({...p, features: e.target.value.split('
-')}))} rows={5} className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" placeholder="- ميزة ١..."/>
+            <textarea 
+              id="features" 
+              value={draftPlan.features.join('\n')} 
+              onChange={e => setDraftPlan(p => ({...p, features: e.target.value.split('\n')}))} 
+              rows={5} 
+              className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" 
+              placeholder="- ميزة ١..."
+            />
           </div>
           <fieldset className="border p-4 rounded-md dark:border-gray-600">
             <legend className="px-2 font-semibold">الحدود والميزات</legend>
@@ -109,4 +112,5 @@ const PlanEditorModal: React.FC<PlanEditorModalProps> = ({ isOpen, onClose, onSa
     </div>
   );
 };
+
 export default PlanEditorModal;
