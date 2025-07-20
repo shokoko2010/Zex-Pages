@@ -147,7 +147,7 @@ const ContentPlannerPage: React.FC<ContentPlannerPageProps> = ({
 
   const occasions = [
     'اليوم الوطني السعودي', 'يوم التأسيس السعودي', 'شهر رمضان', 'عيد الفطر', 'عيد الأضحى',
-    'العودة للمدارس', 'الجمعة البيضاء / Black Friday', 'اليوم العالمي للمرأة', 'يوم الحب / Valentine's Day',
+    'العودة للمدارس', 'الجمعة البيضاء / Black Friday', 'اليوم العالمي للمرأة', 'يوم الحب / Valentines Day',
     'حملة صيفية عامة', 'حملة شتوية عامة'
   ];
 
