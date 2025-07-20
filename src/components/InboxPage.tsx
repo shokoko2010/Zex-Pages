@@ -25,6 +25,7 @@ interface InboxPageProps {
   aiClient: GoogleGenAI | null;
   role: Role;
   repliedUsersPerPost: Record<string, string[]>;
+  currentUserRole: Role;
 }
 
 const timeSince = (dateString: string) => {
@@ -62,7 +63,8 @@ const InboxPage: React.FC<InboxPageProps> = ({
   isSyncing,
   aiClient,
   role,
-  repliedUsersPerPost
+  repliedUsersPerPost,
+  currentUserRole
 }) => {
   const [selectedItem, setSelectedItem] = useState<InboxItem | null>(null);
   const [replyText, setReplyText] = useState('');
@@ -125,7 +127,7 @@ const InboxPage: React.FC<InboxPageProps> = ({
     const itemTime = new Date(selectedItem.timestamp).getTime();
     const ageInHours = (now - itemTime) / (1000 * 60 * 60);
 
-    if (isViewer) {
+    if (currentUserRole === 'viewer') {
         setReplyDisabledReason('لا تملك صلاحية الرد (وضع المشاهد).');
     } else if (selectedItem.isReplied) {
         setReplyDisabledReason('لقد تم الرد على هذه المحادثة بالفعل.');
@@ -134,7 +136,7 @@ const InboxPage: React.FC<InboxPageProps> = ({
     } else {
         setReplyDisabledReason(null);
     }
-  }, [selectedItem, onFetchMessageHistory, isViewer]);
+  }, [selectedItem, onFetchMessageHistory, currentUserRole]);
 
 
   const handleItemSelect = (item: InboxItem) => {

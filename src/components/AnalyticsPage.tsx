@@ -1,13 +1,11 @@
-
-
-import React from 'react';
-import { PerformanceSummaryData, PublishedPost, Role, Plan, AudienceGrowthData, HeatmapDataPoint, ContentTypePerformanceData } from '../types';
+import React, { useState } from 'react';
 import AnalyticsSummaryDashboard from './AnalyticsSummaryDashboard';
 import PublishedPostsList from './PublishedPostsList';
 import AudienceGrowthChart from './AudienceGrowthChart';
-import PostingTimesHeatmap from './PostingTimesHeatmap';
+import EngagementHeatmap from './EngagementHeatmap';
 import ContentTypePerformanceChart from './ContentTypePerformanceChart';
-import BrainCircuitIcon from './icons/BrainCircuitIcon';
+import DeepAnalyticsSection from './DeepAnalyticsSection';
+import { PerformanceSummaryData, PublishedPost, AudienceGrowthData, HeatmapDataPoint, ContentTypePerformanceData, Role, Plan } from '../types';
 
 interface AnalyticsPageProps {
   period: '7d' | '30d';
@@ -27,6 +25,8 @@ interface AnalyticsPageProps {
   isGeneratingDeepAnalytics: boolean;
   publishedPosts: PublishedPost[];
   publishedPostsLoading: boolean;
+  analyticsPeriod: "7d" | "30d"; // Added this line
+  setAnalyticsPeriod: React.Dispatch<React.SetStateAction<"7d" | "30d">>; // Added this line (based on how it's used in DashboardPage.tsx)
 }
 
 const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
@@ -47,6 +47,8 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
   isGeneratingDeepAnalytics,
   publishedPosts,
   publishedPostsLoading,
+  analyticsPeriod, // Destructure the new prop
+  setAnalyticsPeriod, // Destructure the new prop
 }) => {
   const canViewDeepAnalytics = userPlan?.limits.deepAnalytics ?? false;
 
@@ -60,34 +62,24 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
         isGeneratingSummary={isGeneratingSummary}
       />
 
-      {canViewDeepAnalytics ? (
-        <div className="space-y-8">
-            <h2 className="text-2xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
-              <BrainCircuitIcon className="w-7 h-7 text-blue-500"/>
-              التحليلات العميقة بالذكاء الاصطناعي
-            </h2>
-            {isGeneratingDeepAnalytics ? (
-                 <div className="text-center p-8 border-2 border-dashed rounded-lg">
-                    <p>جاري توليد التحليلات العميقة...</p>
-                </div>
-            ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    <AudienceGrowthChart data={audienceGrowthData} />
-                    <PostingTimesHeatmap data={heatmapData} />
-                    <div className="lg:col-span-2">
-                        <ContentTypePerformanceChart data={contentTypeData} />
-                    </div>
-                </div>
-            )}
-        </div>
-      ) : (
-         <div className="text-center text-gray-500 dark:text-gray-400 p-8 border-2 border-dashed rounded-lg bg-gray-50 dark:bg-gray-800/50">
-            <h3 className="font-semibold text-xl text-gray-700 dark:text-gray-300 mb-2">🚀 طور تحليلاتك!</h3>
-            <p>ميزة التحليلات العميقة (نمو الجمهور، أفضل أوقات النشر، أداء أنواع المحتوى) متاحة في الخطط الأعلى.</p>
-            <p>قم بترقية خطتك للحصول على رؤى أقوى تساعدك على النمو.</p>
-        </div>
+      <AudienceGrowthChart data={audienceGrowthData} isLoading={isLoading} />
+
+      <EngagementHeatmap data={heatmapData} isLoading={isLoading} />
+
+      <ContentTypePerformanceChart data={contentTypeData} isLoading={isLoading} />
+
+      {canViewDeepAnalytics && (
+        <DeepAnalyticsSection
+          publishedPosts={publishedPosts}
+          publishedPostsLoading={publishedPostsLoading}
+          onFetchAnalytics={onFetchAnalytics}
+          onGenerateInsights={onGenerateInsights}
+          isGeneratingDeepAnalytics={isGeneratingDeepAnalytics}
+          role={role}
+        />
       )}
 
+      {/* Keeping the Individual Post Performance section as it was */}
       <div>
         <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-4">
           أداء المنشورات الفردية
