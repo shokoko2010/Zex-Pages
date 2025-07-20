@@ -222,6 +222,7 @@ export interface InboxItem {
   conversationId?: string; // For messages
   messages?: InboxMessage[]; // For message history
   isReplied?: boolean; // To show reply status icon
+  status?: 'new' | 'read' | 'done'; // Added status
 }
 
 // --- Types for Auto-Responder (New IFTTT-style) ---

@@ -12,12 +12,12 @@ interface BulkSchedulerPageProps {
   onAddPosts: (files: FileList) => void;
   onUpdatePost: (id: string, updates: Partial<BulkPostItem>) => void;
   onRemovePost: (id: string) => void;
-  onScheduleAll: () => void;
+  onScheduleAll: () => Promise<void>;
   isSchedulingAll: boolean;
   targets: Target[];
   aiClient: GoogleGenAI | null;
-  onGenerateDescription: (id: string) => void;
-  onGeneratePostFromText: (id: string) => void;
+  onGenerateDescription: (id: string) => Promise<void>;
+  onGeneratePostFromText: (id: string) => Promise<void>;
   schedulingStrategy: 'even' | 'weekly';
   onSchedulingStrategyChange: (strategy: 'even' | 'weekly') => void;
   weeklyScheduleSettings: WeeklyScheduleSettings;

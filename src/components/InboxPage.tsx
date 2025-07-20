@@ -20,7 +20,7 @@ interface InboxPageProps {
   onFetchMessageHistory: (conversationId: string) => void;
   autoResponderSettings: AutoResponderSettings;
   onAutoResponderSettingsChange: (settings: AutoResponderSettings) => void;
-  onSync: () => Promise<void>;
+  onSync: () => void;
   isSyncing: boolean;
   aiClient: GoogleGenAI | null;
   role: Role;
@@ -212,7 +212,7 @@ const InboxPage: React.FC<InboxPageProps> = ({
                 )
             })}
             <div ref={loadMoreRef} className="h-10 flex items-center justify-center">
-                {hasMore && !isLoading && (
+                hasMore && !isLoading && (
                     <div className="flex items-center gap-2 text-gray-500">
                          <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -220,7 +220,8 @@ const InboxPage: React.FC<InboxPageProps> = ({
                         </svg>
                         <span>جاري تحميل المزيد...</span>
                     </div>
-                )}
+                )
+            }
             </div>
         </>
     );
@@ -246,7 +247,8 @@ const InboxPage: React.FC<InboxPageProps> = ({
                     >
                         {reply}
                     </button>
-                ))}
+                ))
+            }
             </div>
            )}
           <textarea value={replyText} onChange={(e) => setReplyText(e.target.value)} placeholder="اكتب ردك هنا..." className="w-full h-24 p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-gray-50 dark:bg-gray-700" disabled={!!replyDisabledReason}/>

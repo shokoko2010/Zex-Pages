@@ -1,5 +1,4 @@
 
-
 import React, { useState } from 'react';
 import Button from './ui/Button';
 import PhotoIcon from './icons/PhotoIcon';
@@ -158,7 +157,7 @@ const PostComposer: React.FC<PostComposerProps> = ({
         if (!aiClient) throw new Error("مفتاح Gemini API غير مكوّن. يرجى إضافته في الإعدادات.");
         base64Bytes = await generateImageFromPrompt(aiClient, aiImagePrompt, imageStyle, imageAspectRatio);
       }
-      const imageFile = base64ToFile(base64Bytes, `${aiImagePrompt.substring(0, 20).replace(/\s/g, '_')}.jpeg`);
+      const imageFile = base64ToFile(base64Bytes, `${aiImagePrompt.substring(0, 20).replace(/s/g, '_')}.jpeg`);
       onImageGenerated(imageFile);
     } catch (e: any) {
       setAiImageError(e.message || 'حدث خطأ غير متوقع. يرجى التأكد من أن وصفك لا ينتهك سياسات المحتوى.');
@@ -197,7 +196,9 @@ const PostComposer: React.FC<PostComposerProps> = ({
     try {
         const hashtags = await generateHashtags(aiClient, postText, pageProfile, selectedImage ?? undefined);
         const hashtagString = hashtags.join(' ');
-        onPostTextChange(postText ? `${postText}\n\n${hashtagString}` : hashtagString);
+        onPostTextChange(postText ? `${postText}
+
+${hashtagString}` : hashtagString);
     } catch (e: any) {
         setAiHashtagError(e.message || 'حدث خطأ غير متوقع.');
     } finally {

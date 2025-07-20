@@ -11,7 +11,7 @@ import { User } from '../services/firebaseService';
 interface PageProfilePageProps {
   profile: PageProfile;
   onProfileChange: (newProfile: PageProfile) => void;
-  onFetchProfile: () => void;
+  onFetchProfile: () => Promise<void>;
   isFetchingProfile: boolean;
   role: Role;
   user: User;

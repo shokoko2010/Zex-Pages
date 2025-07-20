@@ -1,7 +1,7 @@
 
 
 import React, { useState } from 'react';
-import { ScheduledPost, Role } from '../types';
+import { ScheduledPost, Role, Target, Plan } from '../types';
 import PhotoIcon from './icons/PhotoIcon';
 import BellIcon from './icons/BellIcon';
 import TrashIcon from './icons/TrashIcon';
@@ -22,9 +22,11 @@ interface ContentCalendarProps {
     role: Role;
     onApprove: (postId: string) => void;
     onReject: (postId: string) => void;
+    managedTarget: Target;
+    userPlan: Plan | null;
 }
 
-const ContentCalendar: React.FC<ContentCalendarProps> = ({ posts, onDelete, onEdit, onSync, isSyncing, role, onApprove, onReject }) => {
+const ContentCalendar: React.FC<ContentCalendarProps> = ({ posts, onDelete, onEdit, onSync, isSyncing, role, onApprove, onReject, managedTarget, userPlan }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
 
     const isOwner = role === 'owner';

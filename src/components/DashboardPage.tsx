@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Target, PublishedPost, Draft, ScheduledPost, BulkPostItem, ContentPlanItem, StrategyRequest, WeeklyScheduleSettings, PageProfile, PerformanceSummaryData, StrategyHistoryItem, InboxItem, AutoResponderSettings, PostAnalytics, Plan, Role, AppUser, AudienceGrowthData, HeatmapDataPoint, ContentTypePerformanceData, User } from '../types';
+import { Target, PublishedPost, Draft, ScheduledPost, BulkPostItem, ContentPlanItem, StrategyRequest, WeeklyScheduleSettings, PageProfile, PerformanceSummaryData, StrategyHistoryItem, InboxItem, AutoResponderSettings, PostAnalytics, Plan, Role, AppUser, AudienceGrowthData, HeatmapDataPoint, ContentTypePerformanceData } from '../types';
 import Header from './Header';
 import PostComposer from './PostComposer';
 import PostPreview from './PostPreview';
@@ -15,6 +15,7 @@ import { generateContentPlan, generatePerformanceSummary, generateOptimalSchedul
 import PageProfilePage from './PageProfilePage';
 import Button from './ui/Button';
 import { db } from '../services/firebaseService';
+import type { User } from '../services/firebaseService';
 
 // Icons
 import PencilSquareIcon from './icons/PencilSquareIcon';
@@ -238,7 +239,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
             setPublishedPosts(data.publishedPosts?.map((p:any) => ({...p, publishedAt: new Date(p.publishedAt)})) || []);
             setInboxItems(data.inboxItems?.map((i:any) => ({ ...i, timestamp: new Date(i.timestamp).toISOString() })) || []);
         } else {
-            const newProfile: PageProfile = { ...initialAutoResponderSettings, ownerUid: user.uid, members: [user.uid], team: [] };
+            const newProfile: PageProfile = { ...initialPageProfile, ownerUid: user.uid, members: [user.uid], team: [] };
             setPageProfile(newProfile);
             setCurrentUserRole('owner');
             await saveDataToFirestore({ 
@@ -254,7 +255,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
         setIsInboxLoading(false);
     };
     loadDataFromFirestore();
-  }, [managedTarget, getTargetDataRef, clearComposer, user.uid, saveDataToFirestore]);
+  }, [managedTarget, getTargetDataRef, clearComposer, user.uid, saveDataToFirestore, initialPageProfile]);
   
     const handlePublish = async () => { /* ... unchanged ... */ };
     const handleSaveDraft = async () => { /* ... unchanged ... */ };
@@ -300,6 +301,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
               selectedImage={selectedImage}
               onImageChange={(e) => setSelectedImage(e.target.files ? e.target.files[0] : null)}
               onImageGenerated={setSelectedImage}
+              onImageRemove={() => { setSelectedImage(null); setImagePreview(null); }}
               imagePreview={imagePreview}
               isScheduled={isScheduled}
               onIsScheduledChange={setIsScheduled}
@@ -313,7 +315,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
               linkedInstagramTarget={linkedInstagramTarget}
               editingScheduledPostId={editingScheduledPostId}
               userPlan={userPlan}
-              isSimulationMode={isSimulationMode}
+              isPublishing={isPublishing}
               aiClient={aiClient}
               pageProfile={pageProfile}
               stabilityApiKey={stabilityApiKey}
@@ -335,7 +337,6 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
             posts={scheduledPosts}
             onEdit={handleEditScheduledPost}
             onDelete={handleDeleteScheduledPost}
-            targets={allTargets}
             managedTarget={managedTarget}
             userPlan={userPlan}
             role={currentUserRole}
@@ -368,7 +369,11 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
             onGeneratePostFromText={handleGenerateBulkPostFromText}
             onScheduleAll={handleScheduleAllBulk}
             targets={bulkSchedulerTargets}
-            currentUserRole={currentUserRole}
+            aiClient={aiClient}
+            isSchedulingAll={isSchedulingAll}
+            schedulingStrategy={schedulingStrategy}
+            weeklyScheduleSettings={weeklyScheduleSettings}
+            role={currentUserRole}
           />
         );
       case 'planner':
@@ -381,6 +386,32 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
             error={planError}
             role={currentUserRole}
             onScheduleStrategy={handleScheduleAllBulk}
+            aiClient={aiClient}
+            onGeneratePlan={async (request, images) => {
+                setIsGeneratingPlan(true);
+                setPlanError(null);
+                try {
+                    const generatedPlan = await generateContentPlan(aiClient!, request, pageProfile, images);
+                    setContentPlan(generatedPlan);
+                } catch (e: any) {
+                    setPlanError(e.message || 'Failed to generate content plan');
+                } finally {
+                    setIsGeneratingPlan(false);
+                }
+            }}
+            onStartPost={(planItem) => {
+                setView('composer');
+                setPostText(`${planItem.hook}
+
+${planItem.headline}
+
+${planItem.body}`);
+                // Note: Image generation is not directly supported from plan item yet
+                // For now, user needs to generate or upload manually.
+            }}
+            pageProfile={pageProfile}
+            onLoadFromHistory={(plan) => setContentPlan(plan)}
+            onDeleteFromHistory={(id) => setStrategyHistory(prev => prev.filter(item => item.id !== id))}
           />
         );
       case 'inbox':
@@ -389,10 +420,23 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
             items={inboxItems}
             isLoading={isInboxLoading}
             autoResponderSettings={autoResponderSettings}
+            onAutoResponderSettingsChange={(settings) => {
+                setAutoResponderSettings(settings);
+                saveDataToFirestore({ autoResponderSettings: settings });
+            }}
             repliedUsersPerPost={repliedUsersPerPost}
             currentUserRole={currentUserRole}
             isSyncing={isPolling}
             onSync={() => setIsPolling(true)}
+            onReply={async (item, message) => { /* ... reply logic ... */ return true; }}
+            onMarkAsDone={(itemId) => {
+                 setInboxItems(prev => prev.map(item => item.id === itemId ? {...item, status: 'done'} : item));
+                 // Further action to mark as done in Firebase/Facebook API needed
+            }}
+            onGenerateSmartReplies={async (commentText) => { /* ... smart reply logic ... */ return []; }}
+            onFetchMessageHistory={async (conversationId) => { /* ... fetch history logic ... */ }}
+            aiClient={aiClient}
+            role={currentUserRole}
           />
         );
       case 'analytics':
@@ -421,7 +465,6 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
             pageProfile={pageProfile}
             currentUserRole={currentUserRole}
             showNotification={showNotification}
-            saveDataToFirestore={saveDataToFirestore}
             generatePerformanceSummary={generatePerformanceSummary}
             generatePostInsights={generatePostInsights}
             generateOptimalSchedule={generateOptimalSchedule}
@@ -436,13 +479,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
             onProfileChange={handlePageProfileChange}
             isFetchingProfile={isFetchingProfile}
             onFetchProfile={handleFetchProfile}
-            userPlan={userPlan}
-            isSimulationMode={isSimulationMode}
-            aiClient={aiClient}
-            managedTarget={managedTarget}
             role={currentUserRole}
-            showNotification={showNotification}
-            enhanceProfileFromFacebookData={enhanceProfileFromFacebookData}
             user={user}
           />
         );

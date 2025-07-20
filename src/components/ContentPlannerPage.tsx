@@ -22,7 +22,7 @@ interface ContentPlannerPageProps {
   isGenerating: boolean;
   error: string | null;
   plan: ContentPlanItem[] | null;
-  onGeneratePlan: (request: StrategyRequest, images?: File[]) => void;
+  onGeneratePlan: (request: StrategyRequest, images?: File[]) => Promise<void>;
   isSchedulingStrategy: boolean;
   onScheduleStrategy: () => Promise<void>;
   onStartPost: (planItem: ContentPlanItem) => void;
@@ -152,7 +152,7 @@ const ContentPlannerPage: React.FC<ContentPlannerPageProps> = ({
 
   const occasions = [
     'اليوم الوطني السعودي', 'يوم التأسيس السعودي', 'شهر رمضان', 'عيد الفطر', 'عيد الأضحى', 
-    'العودة للمدارس', 'الجمعة البيضاء / Black Friday', 'اليوم العالمي للمرأة', 'يوم الحب / Valentine\'s Day',
+    'العودة للمدارس', 'الجمعة البيضاء / Black Friday', 'اليوم العالمي للمرأة', 'يوم الحب / Valentine's Day',
     'حملة صيفية عامة', 'حملة شتوية عامة'
   ];
 
@@ -178,9 +178,10 @@ const ContentPlannerPage: React.FC<ContentPlannerPageProps> = ({
       ].join(';')
     );
 
-    const csvContent = [csvHeaders.join(';'), ...rows].join('\n');
+    const csvContent = [csvHeaders.join(';'), ...rows].join('
+');
     
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(['﻿' + csvContent], { type: 'text/csv;charset=utf-8;' });
     
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);

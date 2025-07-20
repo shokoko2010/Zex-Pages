@@ -6,7 +6,6 @@ import MoonIcon from './icons/MoonIcon';
 
 interface HeaderProps {
   onLogout: () => void;
-  isSimulationMode: boolean;
   pageName?: string;
   onChangePage?: () => void;
   onSettingsClick?: () => void;
@@ -14,7 +13,7 @@ interface HeaderProps {
   onToggleTheme: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ onLogout, isSimulationMode, pageName, onChangePage, onSettingsClick, theme, onToggleTheme }) => {
+const Header: React.FC<HeaderProps> = ({ onLogout, pageName, onChangePage, onSettingsClick, theme, onToggleTheme }) => {
   return (
     <header className="bg-white dark:bg-gray-800 shadow-md p-4 flex justify-between items-center relative">
       <div className="flex items-center gap-4">
@@ -28,11 +27,6 @@ const Header: React.FC<HeaderProps> = ({ onLogout, isSimulationMode, pageName, o
                 {pageName}
              </p>
           </div>
-        )}
-        {isSimulationMode && (
-          <span className="bg-yellow-200 text-yellow-800 text-xs font-bold mr-2 px-2.5 py-0.5 rounded-full dark:bg-yellow-900 dark:text-yellow-300 shrink-0">
-            وضع المحاكاة
-          </span>
         )}
       </div>
       <div className="flex items-center gap-2">
