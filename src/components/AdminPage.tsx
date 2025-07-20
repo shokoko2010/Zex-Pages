@@ -9,6 +9,10 @@ import PencilSquareIcon from './icons/PencilSquareIcon';
 import SettingsIcon from './icons/SettingsIcon';
 import SunIcon from './icons/SunIcon';
 import MoonIcon from './icons/MoonIcon';
+import UserCircleIcon from './icons/UserCircleIcon'; // Import UserCircleIcon
+import ChartBarIcon from './icons/ChartBarIcon'; // Import ChartBarIcon for Admin Dashboard button
+
+import UserManagementPage from './UserManagementPage'; // Import UserManagementPage
 
 interface AdminPageProps {
   user: User;
@@ -33,6 +37,7 @@ const AdminPage: React.FC<AdminPageProps> = ({
     const [isLoading, setIsLoading] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
+    const [adminView, setAdminView] = useState<'dashboard' | 'userManagement'>('dashboard'); // New state for view
 
     const fetchPlans = async () => {
         setIsLoading(true);
@@ -98,6 +103,16 @@ const AdminPage: React.FC<AdminPageProps> = ({
                     zex-pages <span className="text-sm font-normal text-red-500">(وضع المدير)</span>
                 </h1>
                 <div className="flex items-center gap-2">
+                     {/* New Buttons for view switching */}
+                    {adminView === 'userManagement' ? (
+                        <Button onClick={() => setAdminView('dashboard')} variant="secondary" className="!p-2" aria-label="لوحة تحكم المسؤول">
+                            <ChartBarIcon className="w-5 h-5"/>
+                        </Button>
+                    ) : (
+                         <Button onClick={() => setAdminView('userManagement')} variant="secondary" className="!p-2" aria-label="إدارة المستخدمين">
+                            <UserCircleIcon className="w-5 h-5"/>
+                        </Button>
+                    )}
                     <Button onClick={onSettingsClick} variant="secondary" className="!p-2" aria-label="الإعدادات">
                         <SettingsIcon className="w-5 h-5"/>
                     </Button>
@@ -108,74 +123,88 @@ const AdminPage: React.FC<AdminPageProps> = ({
                 </div>
             </header>
             <main className="p-4 sm:p-8 space-y-8">
-                 <div className="flex justify-between items-center">
-                    <h1 className="text-3xl font-bold">إدارة خطط الاشتراك</h1>
-                    <Button onClick={handleAddNew}>+ إضافة خطة جديدة</Button>
-                </div>
+                {adminView === 'dashboard' ? (
+                    <>
+                        {/* Original Dashboard Content (Plan Management and Users Table) */}
+                        <div className="flex justify-between items-center">
+                            <h1 className="text-3xl font-bold">إدارة خطط الاشتراك</h1>
+                            <Button onClick={handleAddNew}>+ إضافة خطة جديدة</Button>
+                        </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {plans.map(plan => (
-                        <div key={plan.id} className="p-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg flex flex-col">
-                            <div className="flex-grow">
-                                <h2 className="text-2xl font-bold text-blue-500">{plan.name}</h2>
-                                <p className="font-semibold text-lg my-2">{plan.price} ر.س / {plan.pricePeriod === 'monthly' ? 'شهرياً' : (plan.pricePeriod === 'yearly' ? 'سنوياً' : 'مرة واحدة')}</p>
-                                {plan.adminOnly && (
-                                    <span className="inline-block bg-red-100 text-red-700 text-xs font-semibold px-2 py-1 rounded-full">خاص بالمسؤولين</span>
-                                )}
-                                <ul className="mt-4 space-y-2 text-sm list-disc list-inside text-gray-700 dark:text-gray-300">
-                                {plan.features.map((feature, i) => <li key={i}>{feature}</li>)}
-                                <li className="font-semibold">{plan.limits.pages === -1 ? 'عدد لا نهائي من الصفحات' : `حتى ${plan.limits.pages} صفحة`}</li>
-                                </ul>
-                            </div>
-                            <div className="mt-6 flex gap-2 pt-4 border-t dark:border-gray-700">
-                            <Button variant="secondary" size="sm" onClick={() => handleEdit(plan)} className="w-full">
-                                <PencilSquareIcon className="w-4 h-4 ml-2"/>
-                                تعديل
-                            </Button>
-                            <Button variant="danger" size="sm" onClick={() => handleDeletePlan(plan.id)} className="w-full" disabled={plan.id === 'free'}>
-                                <TrashIcon className="w-4 h-4 ml-2"/>
-                                حذف
-                            </Button>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                            {plans.map(plan => (
+                                <div key={plan.id} className="p-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg flex flex-col">
+                                    <div className="flex-grow">
+                                        <h2 className="text-2xl font-bold text-blue-500">{plan.name}</h2>
+                                        <p className="font-semibold text-lg my-2">{plan.price} ر.س / {plan.pricePeriod === 'monthly' ? 'شهرياً' : (plan.pricePeriod === 'yearly' ? 'سنوياً' : 'مرة واحدة')}</p>
+                                        {plan.adminOnly && (
+                                            <span className="inline-block bg-red-100 text-red-700 text-xs font-semibold px-2 py-1 rounded-full">خاص بالمسؤولين</span>
+                                        )}
+                                        <ul className="mt-4 space-y-2 text-sm list-disc list-inside text-gray-700 dark:text-gray-300">
+                                        {plan.features.map((feature, i) => <li key={i}>{feature}</li>)}
+                                        <li className="font-semibold">{plan.limits.pages === -1 ? 'عدد لا نهائي من الصفحات' : `حتى ${plan.limits.pages} صفحة`}</li>
+                                        </ul>
+                                    </div>
+                                    <div className="mt-6 flex gap-2 pt-4 border-t dark:border-gray-700">
+                                    <Button variant="secondary" size="sm" onClick={() => handleEdit(plan)} className="w-full">
+                                        <PencilSquareIcon className="w-4 h-4 ml-2"/>
+                                        تعديل
+                                    </Button>
+                                    <Button variant="danger" size="sm" onClick={() => handleDeletePlan(plan.id)} className="w-full" disabled={plan.id === 'free'}>
+                                        <TrashIcon className="w-4 h-4 ml-2"/>
+                                        حذف
+                                    </Button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    
+                        <PlanEditorModal
+                            isOpen={isModalOpen}
+                            onClose={() => setIsModalOpen(false)}
+                            onSave={handleSavePlan}
+                            plan={editingPlan}
+                        />
+
+                        {/* Users Table - Keep this in dashboard view */}
+                        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg mt-10">
+                            <h2 className="text-2xl font-bold mb-4">المستخدمون ({allUsers.length})</h2>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+                                    <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+                                        <tr>
+                                            <th scope="col" className="px-6 py-3">البريد الإلكتروني</th>
+                                            <th scope="col" className="px-6 py-3">الاسم</th>
+                                            <th scope="col" className="px-6 py-3">الخطة</th>
+                                            <th scope="col" className="px-6 py-3">تاريخ التسجيل</th>
+                                            <th scope="col" className="px-6 py-3">آخر IP</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {allUsers.map(u => (
+                                            <tr key={u.uid} className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                                                <td className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">{u.email}</td>
+                                                <td className="px-6 py-4">{u.name || '-'}</td>
+                                                <td className="px-6 py-4">{plans.find(p => p.id === u.planId)?.name || u.planId}</td>
+                                                <td className="px-6 py-4">{new Date(u.createdAt).toLocaleDateString()}</td>
+                                                <td className="px-6 py-4">{u.lastLoginIp || '-'}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
-                    ))}
-                </div>
-            
-                <PlanEditorModal
-                    isOpen={isModalOpen}
-                    onClose={() => setIsModalOpen(false)}
-                    onSave={handleSavePlan}
-                    plan={editingPlan}
-                />
-
-                {/* Users Table */}
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg mt-10">
-                    <h2 className="text-2xl font-bold mb-4">المستخدمون ({allUsers.length})</h2>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
-                            <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
-                                <tr>
-                                    <th scope="col" className="px-6 py-3">البريد الإلكتروني</th>
-                                    <th scope="col" className="px-6 py-3">الاسم</th>
-                                    <th scope="col" className="px-6 py-3">الخطة</th>
-                                    <th scope="col" className="px-6 py-3">تاريخ التسجيل</th>
-                                    <th scope="col" className="px-6 py-3">آخر IP</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {allUsers.map(u => (
-                                    <tr key={u.uid} className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
-                                        <td className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">{u.email}</td>
-                                        <td className="px-6 py-4">{u.name || '-'}</td>
-                                        <td className="px-6 py-4">{plans.find(p => p.id === u.planId)?.name || u.planId}</td>
-                                        <td className="px-6 py-4">{new Date(u.createdAt).toLocaleDateString()}</td>
-                                        <td className="px-6 py-4">{u.lastLoginIp || '-'}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                    </>
+                ) : (
+                    {/* User Management View */}
+                    <UserManagementPage 
+                        allUsers={allUsers} 
+                        plans={plans} 
+                        // Pass necessary props to UserManagementPage
+                        // You might need to add props here for managing users and their pages
+                        // based on the implementation of UserManagementPage
+                    />
+                )}
             </main>
         </div>
     );
