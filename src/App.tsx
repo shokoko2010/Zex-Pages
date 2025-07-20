@@ -263,9 +263,6 @@ function App() {
                               setFbAccessToken={setFbAccessToken} 
                               userPlanId={userPlanId}
                             />
-                            <LoginPage onSignIn={handleSignIn} onSignUp = {handleSignUp} authError = {authError}
-                                setIsAdmin={setIsAdmin}
-                            />
                             <OnboardingTour
                                 isOpen={isTourOpen}
                                 onComplete={handleOnboardingComplete}
@@ -274,7 +271,7 @@ function App() {
                             />
                         </div>)
                     ) : (
-                        (<LoginPage setIsAdmin={setIsAdmin}/>)
+                        (<LoginPage setIsAdmin={setIsAdmin} onSignIn={handleSignIn} onSignUp = {handleSignUp} authError = {authError}/>)
                     )
                  } />
             </Routes>
