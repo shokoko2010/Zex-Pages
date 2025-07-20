@@ -268,6 +268,7 @@ export interface PlanLimits {
     pages: number; // -1 for unlimited
     aiText: boolean;
     aiImage: boolean;
+
     autoResponder: boolean;
     contentPlanner: boolean;
     bulkScheduling: boolean;
@@ -294,6 +295,7 @@ export interface AppUser {
   planId: string;
   createdAt: string; // ISO String
   onboardingCompleted?: boolean;
+  targets?: Target[];
   // Optional fields that might exist
   fbAccessToken?: string;
   favoriteTargetIds?: string[];

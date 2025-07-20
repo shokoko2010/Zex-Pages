@@ -12,6 +12,7 @@ import MoonIcon from './icons/MoonIcon';
 import StarIcon from './icons/StarIcon';
 import Squares2x2Icon from './icons/Squares2x2Icon';
 import ListBulletIcon from './icons/ListBulletIcon';
+import ArrowPathIcon from './icons/ArrowPathIcon'; // Import the refresh icon
 
 interface PageSelectorPageProps {
   targets: Target[];
@@ -30,6 +31,7 @@ interface PageSelectorPageProps {
   onToggleFavorite: (targetId: string) => void;
   isFacebookConnected: boolean;
   onConnectFacebook: () => void;
+  onRefreshPages: () => void; // Add refresh handler prop
 }
 
 const TargetCard: React.FC<{ target: Target; linkedInstagram: Target | null; onSelect: () => void; isFavorite: boolean; onToggleFavorite: (e: React.MouseEvent) => void; }> = ({ target, linkedInstagram, onSelect, isFavorite, onToggleFavorite }) => {
@@ -113,7 +115,8 @@ const PageSelectorPage: React.FC<PageSelectorPageProps> = ({
   favoriteTargetIds,
   onToggleFavorite,
   isFacebookConnected,
-  onConnectFacebook
+  onConnectFacebook,
+  onRefreshPages,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isPortfolioDropdownOpen, setIsPortfolioDropdownOpen] = useState(false);
@@ -180,17 +183,21 @@ const PageSelectorPage: React.FC<PageSelectorPageProps> = ({
     
     if (targets.length === 0 && !isLoading) {
       return (
-        <div className="text-center text-gray-500 dark:text-gray-400 p-8 border-2 border-dashed rounded-lg">
+        <div className="text-center text-gray-500 dark:text-gray-400 p-8 border-2 border-dashed rounded-lg bg-white dark:bg-gray-800">
           <h3 className="font-semibold text-xl text-gray-700 dark:text-gray-300 mb-2">لم يتم العثور على أي وجهات</h3>
-          <p className="text-sm mb-4">قد يكون هذا بسبب عدم منح التطبيق صلاحية الوصول لأي من صفحاتك.</p>
-          <div className="text-right bg-yellow-50 dark:bg-gray-700 p-3 rounded-md space-y-2">
-            <p className="font-bold text-yellow-800 dark:text-yellow-200">💡 الحل المقترح:</p>
-            <ol className="list-decimal list-inside text-sm space-y-1">
-              <li>قم بالضغط على زر "الربط مع فيسبوك" مرة أخرى.</li>
-              <li>في نافذة فيسبوك، انقر على "تعديل الوصول" (Edit Access).</li>
-              <li>تأكد من تفعيل وتحديد جميع الصفحات التي ترغب في إدارتها.</li>
-              <li>وافق على جميع الصلاحيات المطلوبة.</li>
-            </ol>
+          <p className="text-sm mb-4">لا توجد لديك أي صفحات محفوظة أو يمكن الوصول إليها حاليًا.</p>
+          <div className="flex justify-center items-center gap-4 mt-6">
+            <Button onClick={onRefreshPages}>
+                <ArrowPathIcon className="w-5 h-5 ml-2" />
+                تحديث الصفحات من فيسبوك
+            </Button>
+            <Button onClick={onConnectFacebook} variant="secondary">
+                إعادة ربط حساب فيسبوك
+            </Button>
+          </div>
+           <div className="mt-6 text-right bg-yellow-50 dark:bg-gray-700/50 p-3 rounded-md space-y-2 text-sm">
+            <p className="font-bold text-yellow-800 dark:text-yellow-200">💡 ملاحظة:</p>
+            <p>إذا كنت متأكدًا من وجود صفحات لديك، فقد تحتاج إلى تعديل الصلاحيات عند إعادة الربط لضمان وصول التطبيق إليها.</p>
           </div>
         </div>
       );
@@ -273,6 +280,9 @@ const PageSelectorPage: React.FC<PageSelectorPageProps> = ({
                             <SearchIcon className="w-5 h-5 text-gray-400" />
                         </div>
                     </div>
+                     <Button onClick={onRefreshPages} variant="secondary" className="!p-3" aria-label="تحديث الصفحات" title="تحديث الصفحات من فيسبوك">
+                        <ArrowPathIcon className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+                    </Button>
                      <div className="flex items-center bg-gray-100 dark:bg-gray-700 p-1 rounded-lg flex-shrink-0">
                         <button onClick={() => setViewMode('grid')} className={`p-2 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-white dark:bg-gray-900 text-blue-600 shadow' : 'text-gray-500'}`} title="عرض شبكي">
                             <Squares2x2Icon className="w-5 h-5"/>
