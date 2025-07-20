@@ -105,7 +105,6 @@ const App: React.FC = () => {
                    isAdmin: false,
                    planId: 'free',
                    createdAt: new Date().toISOString(),
-                   onboardingCompleted: false,
                    lastLoginIp: await getIpAddress(),
                };
                await userDocRef.set(userData, { merge: true });
@@ -328,12 +327,12 @@ const App: React.FC = () => {
       
       if (!user || !appUser) return <HomePage onSignIn={handleEmailSignIn} onSignUp={handleEmailSignUp} authError={authError} />;
       
+      const userPlan = plans.find(p => p.id === appUser.planId) || plans.find(p => p.id === 'free') || null;
+
       if (appUser.isAdmin) {
           return <AdminPage user={user} allUsers={allUsers} onLogout={handleLogout} onSettingsClick={() => setIsSettingsModalOpen(true)} theme={theme} onToggleTheme={handleToggleTheme} plans={plans} />;
       }
       
-      const userPlan = plans.find(p => p.id === appUser.planId) || plans.find(p => p.id === 'free') || null;
-
       if (selectedTarget) {
         return (
           <DashboardPage
@@ -379,6 +378,7 @@ const App: React.FC = () => {
           isFacebookConnected={!!appUser.fbAccessToken}
           onConnectFacebook={handleFacebookConnect}
           onRefreshPages={fetchFacebookData}
+          userPlan={userPlan} // Pass userPlan to PageSelectorPage
         />
       );
   };

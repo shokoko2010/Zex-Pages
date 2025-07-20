@@ -110,8 +110,10 @@ const PostComposer: React.FC<PostComposerProps> = ({
   const isAdmin = userPlan?.adminOnly; // Check if the user's plan is adminOnly
 
   const handleGenerateTextWithAI = async () => {
-      // Bypass AI limits if isAdmin is true
-      if (!isAdmin && !aiClient) return;
+      if (!aiClient) {
+          setAiTextError('ميزات الذكاء الاصطناعي معطلة. يرجى إدخال مفتاح Gemini API في الإعدادات لتفعيلها.');
+          return;
+      }
       if (!aiTopic.trim()) {
           setAiTextError('يرجى إدخال موضوع لتوليد منشور عنه.');
           return;
@@ -129,8 +131,7 @@ const PostComposer: React.FC<PostComposerProps> = ({
   };
 
   const handleGenerateImageDescription = async () => {
-    // Bypass AI limits if isAdmin is true
-    if (!isAdmin && !aiClient || !selectedImage) return;
+    if (!aiClient || !selectedImage) return;
     setIsGeneratingDesc(true);
     setAiTextError('');
     try {
@@ -154,12 +155,10 @@ const PostComposer: React.FC<PostComposerProps> = ({
     try {
       let base64Bytes: string;
       if (imageService === 'stability') {
-        // Bypass Stability AI key requirement if isAdmin is true (assuming Gemini is available for translation)
-        if (!isAdmin && !stabilityApiKey) throw new Error("مفتاح Stability AI API غير مكوّن. يرجى إضافته في الإعدادات.");
+        if (!stabilityApiKey) throw new Error("مفتاح Stability AI API غير مكوّن. يرجى إضافته في الإعدادات.");
         base64Bytes = await generateImageWithStabilityAI(stabilityApiKey, aiImagePrompt, imageStyle, imageAspectRatio, aiClient);
       } else { // 'gemini'
-        // Bypass Gemini key requirement if isAdmin is true
-        if (!isAdmin && !aiClient) throw new Error("مفتاح Gemini API غير مكوّن. يرجى إضافته في الإعدادات.");
+        if (!aiClient) throw new Error("مفتاح Gemini API غير مكوّن. يرجى إضافته في الإعدادات.");
         base64Bytes = await generateImageFromPrompt(aiClient, aiImagePrompt, imageStyle, imageAspectRatio);
       }
       const imageFile = base64ToFile(base64Bytes, `${aiImagePrompt.substring(0, 20).replace(/s/g, '_')}.jpeg`);
@@ -172,8 +171,7 @@ const PostComposer: React.FC<PostComposerProps> = ({
   };
   
   const handleSuggestTimeWithAI = async () => {
-    // Bypass AI limits if isAdmin is true
-    if (!isAdmin && !aiClient) return;
+    if (!aiClient) return;
     if (!postText.trim()) {
         setAiTimeError('اكتب نص المنشور أولاً لاقتراح وقت.');
         return;
@@ -192,8 +190,7 @@ const PostComposer: React.FC<PostComposerProps> = ({
   };
 
   const handleGenerateHashtags = async () => {
-    // Bypass AI limits if isAdmin is true
-    if (!isAdmin && !aiClient) return;
+    if (!aiClient) return;
     if (!postText.trim() && !selectedImage) {
         setAiHashtagError('اكتب نصًا أو أضف صورة أولاً لاقتراح هاشتاجات.');
         return;
@@ -218,7 +215,7 @@ ${hashtagString}` : hashtagString);
   };
 
   // AI Helper Text logic updated to consider isAdmin
-  const aiHelperText = !aiClient && !isAdmin ? (
+  const aiHelperText = !aiClient ? (
     <p className="text-yellow-600 dark:text-yellow-400 text-sm mt-2">
       ميزات الذكاء الاصطناعي معطلة. يرجى إدخال مفتاح Gemini API في الإعدادات لتفعيلها.
     </p>
@@ -260,8 +257,8 @@ ${hashtagString}` : hashtagString);
             مساعد النصوص بالذكاء الاصطناعي ✨
           </label>
           <div className="flex flex-col sm:flex-row gap-2">
-            <input id="ai-topic" type="text" value={aiTopic} onChange={(e) => setAiTopic(e.target.value)} placeholder="اكتب فكرة للمنشور، مثلاً: إطلاق منتج جديد" className="flex-grow p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 focus:ring-blue-500 focus:border-blue-500" disabled={isGeneratingText || (!aiClient && !isAdmin) || isViewer}/>
-            <Button onClick={handleGenerateTextWithAI} isLoading={isGeneratingText} disabled={(!aiClient && !isAdmin) || isViewer}><SparklesIcon className="w-5 h-5 ml-2"/>{isGeneratingText ? 'جاري التوليد...' : 'ولّد لي نصاً'}</Button>
+            <input id="ai-topic" type="text" value={aiTopic} onChange={(e) => setAiTopic(e.target.value)} placeholder="اكتب فكرة للمنشور، مثلاً: إطلاق منتج جديد" className="flex-grow p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 focus:ring-blue-500 focus:border-blue-500" disabled={isGeneratingText || !aiClient || isViewer}/>
+            <Button onClick={handleGenerateTextWithAI} isLoading={isGeneratingText} disabled={!aiClient || isViewer}><SparklesIcon className="w-5 h-5 ml-2"/>{isGeneratingText ? 'جاري التوليد...' : 'ولّد لي نصاً'}</Button>
           </div>
           {aiTextError && <p className="text-red-500 text-sm mt-2">{aiTextError}</p>}
           {aiHelperText}
@@ -273,7 +270,7 @@ ${hashtagString}` : hashtagString);
             <Button 
                 onClick={handleGenerateHashtags} 
                 isLoading={isGeneratingHashtags} 
-                disabled={(!aiClient && !isAdmin) || (!postText.trim() && !selectedImage) || isViewer}
+                disabled={!aiClient || (!postText.trim() && !selectedImage) || isViewer}
                 variant="secondary"
                 className="w-full sm:w-auto"
             >
@@ -293,7 +290,7 @@ ${hashtagString}` : hashtagString);
           <Button
               onClick={handleGenerateImageDescription}
               isLoading={isGeneratingDesc}
-              disabled={(!aiClient && !isAdmin) || !selectedImage || isGeneratingDesc || isViewer}
+              disabled={!aiClient || !selectedImage || isGeneratingDesc || isViewer}
               variant="secondary"
               size="sm"
           >
@@ -313,10 +310,10 @@ ${hashtagString}` : hashtagString);
           <label htmlFor="ai-image-prompt" className="block text-sm font-medium text-gray-700 dark:text-gray-300">مولّد الصور بالذكاء الاصطناعي 🤖</label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex bg-gray-200 dark:bg-gray-600 rounded-lg p-1">
-                <button onClick={() => setImageService('gemini')} disabled={(!aiClient && !isAdmin) || isViewer} className={`w-1/2 p-2 rounded-md text-sm font-semibold transition-colors ${imageService === 'gemini' ? 'bg-white dark:bg-gray-900 shadow text-purple-600' : 'text-gray-600 dark:text-gray-300'} disabled:opacity-50 disabled:cursor-not-allowed`}>
+                <button onClick={() => setImageService('gemini')} disabled={!aiClient || isViewer} className={`w-1/2 p-2 rounded-md text-sm font-semibold transition-colors ${imageService === 'gemini' ? 'bg-white dark:bg-gray-900 shadow text-purple-600' : 'text-gray-600 dark:text-gray-300'} disabled:opacity-50 disabled:cursor-not-allowed`}>
                     Gemini
                 </button>
-                <button onClick={() => setImageService('stability')} disabled={(!stabilityApiKey && !isAdmin) || isViewer} className={`w-1/2 p-2 rounded-md text-sm font-semibold transition-colors ${imageService === 'stability' ? 'bg-white dark:bg-gray-900 shadow text-purple-600' : 'text-gray-600 dark:text-gray-300'} disabled:opacity-50 disabled:cursor-not-allowed`}>
+                <button onClick={() => setImageService('stability')} disabled={!stabilityApiKey || isViewer} className={`w-1/2 p-2 rounded-md text-sm font-semibold transition-colors ${imageService === 'stability' ? 'bg-white dark:bg-gray-900 shadow text-purple-600' : 'text-gray-600 dark:text-gray-300'} disabled:opacity-50 disabled:cursor-not-allowed`}>
                     Stability AI
                 </button>
             </div>
@@ -336,21 +333,21 @@ ${hashtagString}` : hashtagString);
             </div>
           </div>
           <div className="flex flex-col sm:flex-row gap-2">
-            <input id="ai-image-prompt" type="text" value={aiImagePrompt} onChange={(e) => setAiImagePrompt(e.target.value)} placeholder="وصف الصورة، مثلاً: رائد فضاء يقرأ على المريخ" className="flex-grow p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 focus:ring-purple-500 focus:border-purple-500" disabled={isGeneratingImage || ((!aiClient && imageService === 'gemini') && !isAdmin) || ((!stabilityApiKey && imageService === 'stability') && !isAdmin) || isViewer}/>
+            <input id="ai-image-prompt" type="text" value={aiImagePrompt} onChange={(e) => setAiImagePrompt(e.target.value)} placeholder="وصف الصورة، مثلاً: رائد فضاء يقرأ على المريخ" className="flex-grow p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 focus:ring-purple-500 focus:border-purple-500" disabled={isGeneratingImage || ((imageService === 'gemini' && !aiClient) || (imageService === 'stability' && !stabilityApiKey)) || isViewer}/>
             <Button
               onClick={handleGenerateImageWithAI}
               isLoading={isGeneratingImage}
               className="bg-purple-600 hover:bg-purple-700 focus:ring-purple-500"
-              disabled={isViewer || isGeneratingImage || ((imageService === 'gemini' && !aiClient) && !isAdmin) || ((imageService === 'stability' && (!stabilityApiKey || !aiClient)) && !isAdmin)}
-              title={imageService === 'stability' && !aiClient && !isAdmin ? "يتطلب مفتاح Stability AI ومفتاح Gemini للترجمة" : ""}
+              disabled={isViewer || isGeneratingImage || (imageService === 'gemini' && !aiClient) || (imageService === 'stability' && !stabilityApiKey)}
+              title={imageService === 'stability' && !aiClient ? "تتطلب الترجمة التلقائية للغة العربية مفتاح Gemini API." : ""}
             >
                 <PhotoIcon className="w-5 h-5 ml-2"/>{isGeneratingImage ? 'جاري الإنشاء...' : 'إنشاء صورة'}
             </Button>
           </div>
           {aiImageError && <p className="text-red-500 text-sm mt-2">{aiImageError}</p>}
-          {(imageService === 'gemini' && !aiClient && !isAdmin) && <p className="text-yellow-600 dark:text-yellow-400 text-sm mt-2">يرجى إضافة مفتاح Gemini API في الإعدادات.</p>}
-          {(imageService === 'stability' && !stabilityApiKey && !isAdmin) && <p className="text-yellow-600 dark:text-yellow-400 text-sm mt-2">يرجى إضافة مفتاح Stability AI API في الإعدادات.</p>}
-          {(imageService === 'stability' && stabilityApiKey && !aiClient && !isAdmin) && <p className="text-yellow-600 dark:text-yellow-400 text-sm mt-2">تتطلب الترجمة التلقائية للغة العربية مفتاح Gemini API.</p>}
+          {(imageService === 'gemini' && !aiClient) && <p className="text-yellow-600 dark:text-yellow-400 text-sm mt-2">يرجى إضافة مفتاح Gemini API في الإعدادات.</p>}
+          {(imageService === 'stability' && !stabilityApiKey) && <p className="text-yellow-600 dark:text-yellow-400 text-sm mt-2">يرجى إضافة مفتاح Stability AI API في الإعدادات.</p>}
+          {(imageService === 'stability' && stabilityApiKey && !aiClient) && <p className="text-yellow-600 dark:text-yellow-400 text-sm mt-2">تتطلب الترجمة التلقائية للغة العربية مفتاح Gemini API.</p>}
       </div>
       
       {error && <p className="text-red-500 text-sm mt-2 p-3 bg-red-50 dark:bg-red-900/20 rounded-md">{error}</p>}
@@ -372,7 +369,7 @@ ${hashtagString}` : hashtagString);
         {isScheduled && (
             <div className="mt-3 flex flex-wrap items-center gap-2">
                 <input type="datetime-local" value={scheduleDate} onChange={e => onScheduleDateChange(e.target.value)} className="p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 focus:ring-blue-500 focus:border-blue-500" disabled={isViewer}/>
-                 <Button variant="secondary" onClick={handleSuggestTimeWithAI} isLoading={isSuggestingTime} disabled={(!postText.trim() && !isAdmin) || (!aiClient && !isAdmin) || isViewer}><WandSparklesIcon className="w-5 h-5 ml-2"/>اقترح أفضل وقت</Button>
+                 <Button variant="secondary" onClick={handleSuggestTimeWithAI} isLoading={isSuggestingTime} disabled={!aiClient || isViewer}><WandSparklesIcon className="w-5 h-5 ml-2"/>اقترح أفضل وقت</Button>
             </div>
         )}
         {aiTimeError && <p className="text-red-500 text-sm mt-2">{aiTimeError}</p>}
