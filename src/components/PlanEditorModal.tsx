@@ -91,7 +91,7 @@ const PlanEditorModal: React.FC<PlanEditorModalProps> = ({ isOpen, onClose, onSa
                 type="text"
                 id="id"
                 value={draftPlan.id}
-                onChange={e => setDraftPlan(p => ({ ...p, id: e.target.value.toLowerCase().replace(/\s/g, '-') }))}
+                onChange={e => setDraftPlan(p => ({ ...p, id: e.target.value.toLowerCase().replace(/s/g, '-') }))}
                 className="w-full px-4 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="e.g., free, pro"
                 disabled={!!plan}
@@ -156,9 +156,7 @@ const PlanEditorModal: React.FC<PlanEditorModalProps> = ({ isOpen, onClose, onSa
 ')}))}
               rows={6}
               className="w-full px-4 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-              placeholder="- Feature 1
-- Feature 2
-- Feature 3"
+              placeholder="- Feature 1&#10;- Feature 2&#10;- Feature 3"
             />
           </div>
 
