@@ -59,13 +59,12 @@ const PlanEditorModal: React.FC<PlanEditorModalProps> = ({ isOpen, onClose, onSa
 
   return (
     <div 
-      className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-start pt-8 pb-8 px-4 overflow-y-auto" 
+      className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4 overflow-y-auto" 
       onClick={onClose}
     >
       <div 
-        className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl p-6 w-full max-w-2xl mx-auto my-auto min-h-fit"
+        className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
-        style={{ marginTop: '2rem', marginBottom: '2rem' }}
       >
         <h2 className="text-2xl font-bold mb-6 text-gray-800 dark:text-white">
           {plan ? 'Edit Plan' : 'Add New Plan'}
