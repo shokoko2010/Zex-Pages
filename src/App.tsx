@@ -182,9 +182,9 @@ function App() {
     return (
         <Router>
             <Routes>
-                <Route path="/privacy-policy" element={<div> <LandingHeader/> <PrivacyPolicyPage/> <Footer/> </div>} />
-                <Route path="/admin" element={                     user?.isAdmin ? (
-                        <div>
+                <Route path="/privacy-policy" element={(<div> <LandingHeader/> <PrivacyPolicyPage/> <Footer/> </div>)} />
+                <Route path="/admin" element={                    user?.isAdmin ? (
+                        (<div>
                             <Header
                                 onLogout={handleLogout}
                                 isSimulationMode={false} // Replace with your actual simulation mode logic
@@ -192,15 +192,15 @@ function App() {
                                 onToggleTheme={handleToggleTheme}
                             />
                             <AdminPage/>
-                        </div>
+                        </div>)
                     ) : (
-                        <div className="flex justify-center items-center h-screen">
+                        (<div className="flex justify-center items-center h-screen">
                             <div className="text-red-500 font-bold text-2xl">ليس لديك صلاحية الوصول إلى هذه الصفحة.</div>
-                        </div>
-                    )}
+                        </div>)
+                    )
                  } />
                  <Route path="/users" element={                    user?.isAdmin ? (
-                        <div>
+                        (<div>
                             <Header
                                 onLogout={handleLogout}
                                 isSimulationMode={false} // Replace with your actual simulation mode logic
@@ -208,15 +208,15 @@ function App() {
                                 onToggleTheme={handleToggleTheme}
                             />
                             <UserManagementPage plans={plans} />
-                        </div>
+                        </div>)
                     ) : (
-                        <div className="flex justify-center items-center h-screen">
+                        (<div className="flex justify-center items-center h-screen">
                             <div className="text-red-500 font-bold text-2xl">ليس لديك صلاحية الوصول إلى هذه الصفحة.</div>
-                        </div>
-                    )}
+                        </div>)
+                    )
                  } />
                 <Route path="/analytics" element={                  user?.isAdmin ? (
-                    <div>
+                    (<div>
                       <Header
                           onLogout={handleLogout}
                           isSimulationMode={false} // Replace with your actual simulation mode logic
@@ -240,15 +240,15 @@ function App() {
                             contentTypeData={analyticsContentTypeData}
                             isGeneratingDeepAnalytics={isGeneratingDeepAnalytics}
                         />
-                    </div>
+                    </div>)
                   ) : (
-                    <div className="flex justify-center items-center h-screen">
+                    (<div className="flex justify-center items-center h-screen">
                       <div className="text-red-500 font-bold text-2xl">ليس لديك صلاحية الوصول إلى هذه الصفحة.</div>
-                    </div>
-                  )}
+                    </div>)
+                  )
                  } />
                 <Route path="/" element={                   user ? (
-                        <div>
+                        (<div>
                             <Header
                                 onLogout={handleLogout}
                                 isSimulationMode={false} // Replace with your actual simulation mode logic
@@ -272,10 +272,10 @@ function App() {
                                 hasConnectedFacebook={hasConnectedFacebook}
                                 hasSelectedTarget={hasSelectedTarget}
                             />
-                        </div>
+                        </div>)
                     ) : (
-                        <LoginPage setIsAdmin={setIsAdmin}/>
-                    )}
+                        (<LoginPage setIsAdmin={setIsAdmin}/>)
+                    )
                  } />
             </Routes>
         </Router>
