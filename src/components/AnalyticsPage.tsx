@@ -11,6 +11,7 @@ interface AnalyticsPageProps {
   summaryData: PerformanceSummaryData | null;
   aiSummary: string;
   isGeneratingSummary: boolean;
+  setIsGeneratingSummary: React.Dispatch<React.SetStateAction<boolean>>; // Added this line
   posts: PublishedPost[];
   isLoading: boolean;
   onFetchAnalytics: (postId: string) => void;
@@ -21,6 +22,7 @@ interface AnalyticsPageProps {
   heatmapData: HeatmapDataPoint[];
   contentTypeData: ContentTypePerformanceData[];
   isGeneratingDeepAnalytics: boolean;
+  setIsGeneratingDeepAnalytics: React.Dispatch<React.SetStateAction<boolean>>; // Added this line
   publishedPosts: PublishedPost[];
   publishedPostsLoading: boolean;
   analyticsPeriod: "7d" | "30d"; // Added this line
@@ -35,6 +37,7 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
   summaryData,
   aiSummary,
   isGeneratingSummary,
+  setIsGeneratingSummary, // Destructure the new prop
   posts,
   isLoading,
   onFetchAnalytics,
@@ -45,6 +48,7 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
   heatmapData,
   contentTypeData,
   isGeneratingDeepAnalytics,
+  setIsGeneratingDeepAnalytics, // Destructure the new prop
   publishedPosts,
   publishedPostsLoading,
   analyticsPeriod, // Destructure the new prop
