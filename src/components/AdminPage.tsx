@@ -23,6 +23,7 @@ interface AdminPageProps {
   onSettingsClick: () => void;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
+  onSelectTarget: (target: Target) => void; // New prop for selecting a target
 }
 
 const AdminPage: React.FC<AdminPageProps> = ({
@@ -34,6 +35,7 @@ const AdminPage: React.FC<AdminPageProps> = ({
   onSettingsClick,
   theme,
   onToggleTheme,
+  onSelectTarget, // Destructure onSelectTarget
 }) => {
     const [plans, setPlans] = useState<Plan[]>(initialPlans);
     const [isLoading, setIsLoading] = useState(false);
@@ -234,13 +236,13 @@ const AdminPage: React.FC<AdminPageProps> = ({
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {adminPages.map(page => (
-                                    <div key={page.id} className="border dark:border-gray-700 rounded-lg p-4 flex items-center space-x-4">
+                                    <Button key={page.id} onClick={() => onSelectTarget(page)} variant="secondary" className="border dark:border-gray-700 rounded-lg p-4 flex items-center space-x-4 text-left w-full">
                                         <img src={page.picture.data.url} alt={page.name} className="w-12 h-12 rounded-full object-cover" />
                                         <div>
                                             <h3 className="text-lg font-semibold">{page.name}</h3>
                                             <p className="text-sm text-gray-500 dark:text-gray-400">المنصة: {page.type === 'page' ? 'فيسبوك' : 'إنستغرام'}</p>
                                         </div>
-                                    </div>
+                                    </Button>
                                 ))}
                             </div>
                         )}

@@ -330,7 +330,7 @@ const App: React.FC = () => {
       const userPlan = plans.find(p => p.id === appUser.planId) || plans.find(p => p.id === 'free') || null;
 
       if (appUser.isAdmin) {
-          return <AdminPage user={user} appUser={appUser} allUsers={allUsers} onLogout={handleLogout} onSettingsClick={() => setIsSettingsModalOpen(true)} theme={theme} onToggleTheme={handleToggleTheme} plans={plans} />;
+          return <AdminPage user={user} appUser={appUser} allUsers={allUsers} onLogout={handleLogout} onSettingsClick={() => setIsSettingsModalOpen(true)} theme={theme} onToggleTheme={handleToggleTheme} plans={plans} onSelectTarget={setSelectedTarget} />;
       }
       
       if (selectedTarget) {
