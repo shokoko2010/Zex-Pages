@@ -16,6 +16,7 @@ import UserManagementPage from './UserManagementPage'; // Import UserManagementP
 
 interface AdminPageProps {
   user: User;
+  appUser: AppUser; // Add appUser to props
   allUsers: AppUser[];
   plans: Plan[];
   onLogout: () => void;
@@ -26,6 +27,7 @@ interface AdminPageProps {
 
 const AdminPage: React.FC<AdminPageProps> = ({
   user,
+  appUser, // Destructure appUser
   allUsers,
   plans: initialPlans,
   onLogout,
@@ -60,24 +62,12 @@ const AdminPage: React.FC<AdminPageProps> = ({
         setPlans(initialPlans.sort((a,b) => a.price - b.price));
     }, [initialPlans]);
 
-    // New useEffect to fetch admin's pages
+    // Corrected useEffect to use appUser.targets
     useEffect(() => {
-        const fetchAdminPages = async () => {
-            if (user && user.uid) {
-                try {
-                    const pagesCollection = db.collection('pages');
-                    const q = pagesCollection.where('userId', '==', user.uid);
-                    const querySnapshot = await q.get();
-                    const pagesList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Target));
-                    setAdminPages(pagesList);
-                } catch (error) {
-                    console.error("Error fetching admin pages: ", error);
-                }
-            }
-        };
-
-        fetchAdminPages();
-    }, [user]); // Rerun when user changes
+        if (appUser && appUser.targets) {
+            setAdminPages(appUser.targets);
+        }
+    }, [appUser]); // Rerun when appUser changes
 
 
     const handleEdit = (plan: Plan) => {
