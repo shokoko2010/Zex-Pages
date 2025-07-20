@@ -316,80 +316,80 @@ const App: React.FC = () => {
     } catch (error: any) {
         if (error.code === 'auth/credential-already-in-use') alert("هذا الحساب الفيسبوك مرتبط بالفعل بحساب آخر.");
         else alert(`فشل الاتصال بفيسبوك. السبب: ${error.message}`);
-    }\
+    }
   };
 
   const handleLogout = useCallback(async () => { await auth.signOut(); }, []);
 
-  const renderContent = () => {\
-      if (currentPath === '/privacy-policy.html') return <PrivacyPolicyPage />;\
-      if (loadingUser) return <div className="flex items-center justify-center min-h-screen">جاري التحميل...</div>;\
+  const renderContent = () => {
+      if (currentPath === '/privacy-policy.html') return <PrivacyPolicyPage />;
+      if (loadingUser) return <div className="flex items-center justify-center min-h-screen">جاري التحميل...</div>;
       
-      if (!user || !appUser) return <HomePage onSignIn={handleEmailSignIn} onSignUp={handleEmailSignUp} authError={authError} />;\
+      if (!user || !appUser) return <HomePage onSignIn={handleEmailSignIn} onSignUp={handleEmailSignUp} authError={authError} />;
       
-      const userPlan = plans.find(p => p.id === appUser.planId) || plans.find(p => p.id === 'free') || null;\
-\
-      if (appUser.isAdmin) {\
-          return <AdminPage user={user} appUser={appUser} allUsers={allUsers} onLogout={handleLogout} onSettingsClick={() => setIsSettingsModalOpen(true)} theme={theme} onToggleTheme={handleToggleTheme} plans={plans} />;\
-      }\
+      const userPlan = plans.find(p => p.id === appUser.planId) || plans.find(p => p.id === 'free') || null;
+
+      if (appUser.isAdmin) {
+          return <AdminPage user={user} appUser={appUser} allUsers={allUsers} onLogout={handleLogout} onSettingsClick={() => setIsSettingsModalOpen(true)} theme={theme} onToggleTheme={handleToggleTheme} plans={plans} />;
+      }
       
-      if (selectedTarget) {\
-        return (\
-          <DashboardPage\
-            user={user}\
-            isAdmin={appUser.isAdmin}\
-            userPlan={userPlan}\
-            plans={plans}\
-            allUsers={allUsers}\
-            managedTarget={selectedTarget}\
-            allTargets={targets}\
-            onChangePage={() => setSelectedTarget(null)}\
-            onLogout={handleLogout}\
-            isSimulationMode={isSimulation}\
-            aiClient={aiClient}\
-            stabilityApiKey={stabilityApiKey}\
-            onSettingsClick={() => setIsSettingsModalOpen(true)}\
-            fetchWithPagination={fetchWithPagination}\
-            onSyncHistory={handleFullHistorySync}\
-            syncingTargetId={syncingTargetId}\
-            theme={theme}\
-            onToggleTheme={handleToggleTheme}\
-            fbAccessToken={appUser.fbAccessToken || null} // Ensure it's not undefined\
-          />\
-        );\
-      }\
-\
-      return (\
-        <PageSelectorPage\
-          targets={targets}\
-          businesses={businesses}\
-          onLoadPagesFromBusiness={handleLoadPagesFromBusiness}\
-          loadingBusinessId={loadingBusinessId}\
-          loadedBusinessIds={loadedBusinessIds}\
-          isLoading={targetsLoading}\
-          error={targetsError}\
-          onSelectTarget={setSelectedTarget}\
-          onLogout={handleLogout}\
-          onSettingsClick={() => setIsSettingsModalOpen(true)}\
-          theme={theme}\
-          onToggleTheme={handleToggleTheme}\
-          favoriteTargetIds={favoriteTargetIds}\
-          onToggleFavorite={handleToggleFavorite}\
-          isFacebookConnected={!!appUser.fbAccessToken}\
-          onConnectFacebook={handleFacebookConnect}\
-          onRefreshPages={fetchFacebookData}\
-          userPlan={userPlan} // Pass userPlan to PageSelectorPage\
-        />\
-      );\
-  };\
-  \
-  return (\
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">\
-      <OnboardingTour isOpen={isTourOpen} onComplete={handleCompleteTour} hasConnectedFacebook={!!appUser?.fbAccessToken} hasSelectedTarget={!!selectedTarget} />\
-      <SettingsModal isOpen={isSettingsModalOpen} onClose={() => setIsSettingsModalOpen(false)} onSave={handleSaveKeys} currentApiKey={apiKey} currentStabilityApiKey={stabilityApiKey} />\
-      {renderContent()}\
-    </div>\
-  );\
-};\
-\
-export default App;\
+      if (selectedTarget) {
+        return (
+          <DashboardPage
+            user={user}
+            isAdmin={appUser.isAdmin}
+            userPlan={userPlan}
+            plans={plans}
+            allUsers={allUsers}
+            managedTarget={selectedTarget}
+            allTargets={targets}
+            onChangePage={() => setSelectedTarget(null)}
+            onLogout={handleLogout}
+            isSimulationMode={isSimulation}
+            aiClient={aiClient}
+            stabilityApiKey={stabilityApiKey}
+            onSettingsClick={() => setIsSettingsModalOpen(true)}
+            fetchWithPagination={fetchWithPagination}
+            onSyncHistory={handleFullHistorySync}
+            syncingTargetId={syncingTargetId}
+            theme={theme}
+            onToggleTheme={handleToggleTheme}
+            fbAccessToken={appUser.fbAccessToken || null} // Ensure it's not undefined
+          />
+        );
+      }
+
+      return (
+        <PageSelectorPage
+          targets={targets}
+          businesses={businesses}
+          onLoadPagesFromBusiness={handleLoadPagesFromBusiness}
+          loadingBusinessId={loadingBusinessId}
+          loadedBusinessIds={loadedBusinessIds}
+          isLoading={targetsLoading}
+          error={targetsError}
+          onSelectTarget={setSelectedTarget}
+          onLogout={handleLogout}
+          onSettingsClick={() => setIsSettingsModalOpen(true)}
+          theme={theme}
+          onToggleTheme={handleToggleTheme}
+          favoriteTargetIds={favoriteTargetIds}
+          onToggleFavorite={handleToggleFavorite}
+          isFacebookConnected={!!appUser.fbAccessToken}
+          onConnectFacebook={handleFacebookConnect}
+          onRefreshPages={fetchFacebookData}
+          userPlan={userPlan} // Pass userPlan to PageSelectorPage
+        />
+      );
+  };
+  
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+      <OnboardingTour isOpen={isTourOpen} onComplete={handleCompleteTour} hasConnectedFacebook={!!appUser?.fbAccessToken} hasSelectedTarget={!!selectedTarget} />
+      <SettingsModal isOpen={isSettingsModalOpen} onClose={() => setIsSettingsModalOpen(false)} onSave={handleSaveKeys} currentApiKey={apiKey} currentStabilityApiKey={stabilityApiKey} />
+      {renderContent()}
+    </div>
+  );
+};
+
+export default App;
