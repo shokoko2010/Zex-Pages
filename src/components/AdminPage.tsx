@@ -196,7 +196,7 @@ const AdminPage: React.FC<AdminPageProps> = ({
                         </div>
                     </>
                 ) : (
-                    {/* User Management View */}
+                    // Corrected JSX for User Management View
                     <UserManagementPage 
                         allUsers={allUsers} 
                         plans={plans} 
