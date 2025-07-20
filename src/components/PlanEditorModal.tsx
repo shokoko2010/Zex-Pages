@@ -150,15 +150,11 @@ const PlanEditorModal: React.FC<PlanEditorModalProps> = ({ isOpen, onClose, onSa
             </label>
             <textarea
               id="features"
-              value={draftPlan.features.join('
-')}
-              onChange={(e) => setDraftPlan(p => ({...p, features: e.target.value.split('
-')}))}
+              value={draftPlan.features.join('')}
+              onChange={(e) => setDraftPlan(p => ({...p, features: e.target.value.split('')}))}
               rows={6}
               className="w-full px-4 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-              placeholder={`- Feature 1
-- Feature 2
-- Feature 3`}
+              placeholder={`- Feature 1 - Feature 2 - Feature 3`}
             />
           </div>
 
