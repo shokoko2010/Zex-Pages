@@ -14,10 +14,9 @@ interface HomePageProps {
 const HomePage: React.FC<HomePageProps> = ({ apiKey, stabilityApiKey, favoriteTargetIds, fbAccessToken, setFbAccessToken, userPlanId }) => {
   return (
     <div className="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 min-h-screen flex flex-col">
-      <LandingHeader /*onLoginClick={() => {  }}*/ />
+      <LandingHeader />
       
       <main className="flex-grow flex items-center justify-center p-4">
-        {/*<LoginPage onSignIn={onSignIn} onSignUp={onSignUp} authError={authError} />*/}
       </main>
 
       <Footer />

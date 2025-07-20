@@ -103,9 +103,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ setIsAdmin }) => {
            )}
         </div>
         
-        {(formError || authError) && (
-            <p className="text-sm text-red-600 text-center">{formError || authError}</p>
-        )}
 
         <div>
           <Button

@@ -271,7 +271,7 @@ function App() {
                             />
                         </div>)
                     ) : (
-                        (<LoginPage setIsAdmin={setIsAdmin} onSignIn={handleSignIn} onSignUp = {handleSignUp} authError = {authError}/>)
+                        (<LoginPage setIsAdmin={setIsAdmin} onSignIn={handleSignIn} onSignUp={handleSignUp} authError={authError}/>)
                     )
                  } />
             </Routes>
