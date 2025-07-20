@@ -60,10 +60,10 @@ const PlanEditorModal: React.FC<PlanEditorModalProps> = ({ isOpen, onClose, onSa
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4" onClick={onClose}>
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl p-6 w-full max-w-2xl fade-in max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-2xl font-bold mb-4 text-gray-800 dark:text-white">{plan ? 'تعديل الخطة' : 'إضافة خطة جديدة'}</h2>
+        <h2 className="text-2xl font-bold mb-4 text-gray-800 dark:text-white">{plan ? 'Edit Plan' : 'Add New Plan'}</h2>
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div><label htmlFor="id" className="block text-sm font-medium">Plan ID</label><input type="text" id="id" value={draftPlan.id} onChange={e => setDraftPlan(p => ({ ...p, id: e.target.value.toLowerCase().replace(/s/g, '-') }))} className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" placeholder="e.g., free, pro" disabled={!!plan} /></div>
+            <div><label htmlFor="id" className="block text-sm font-medium">Plan ID</label><input type="text" id="id" value={draftPlan.id} onChange={e => setDraftPlan(p => ({ ...p, id: e.target.value.toLowerCase().replace(/\s/g, '-') }))} className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" placeholder="e.g., free, pro" disabled={!!plan} /></div>
             <div><label htmlFor="name" className="block text-sm font-medium">Plan Name</label><input type="text" id="name" value={draftPlan.name} onChange={e => setDraftPlan(p => ({ ...p, name: e.target.value }))} className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" placeholder="e.g., Free, Professional"/></div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -74,10 +74,8 @@ const PlanEditorModal: React.FC<PlanEditorModalProps> = ({ isOpen, onClose, onSa
             <label htmlFor="features" className="block text-sm font-medium">Features (one per line)</label>
             <textarea 
               id="features" 
-              value={draftPlan.features.join('
-')} 
-              onChange={e => setDraftPlan(p => ({...p, features: e.target.value.split('
-')}))} 
+              value={draftPlan.features.join('\n')} 
+              onChange={(e) => setDraftPlan(p => ({...p, features: e.target.value.split('\n')}))} 
               rows={5} 
               className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" 
               placeholder="- Feature 1..."
