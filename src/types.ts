@@ -276,8 +276,8 @@ export interface PlanLimits {
 }
 
 export interface Plan {
-  id: 'free' | 'pro' | 'super' | 'unlimited'; // Updated plan IDs
-  name: string; // 'Free', 'Pro', 'Super', 'Unlimited'
+  id: string; 
+  name: string; 
   price: number;
   pricePeriod: 'monthly' | 'yearly' | 'one-time';
   features: string[];
