@@ -19,6 +19,7 @@ interface AnalyticsPageProps {
   role: Role;
   userPlan: Plan | null;
   audienceGrowthData: AudienceGrowthData[];
+  setAudienceGrowthData: React.Dispatch<React.SetStateAction<AudienceGrowthData[]>>; // Added this line
   heatmapData: HeatmapDataPoint[];
   contentTypeData: ContentTypePerformanceData[];
   isGeneratingDeepAnalytics: boolean;
@@ -45,6 +46,7 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
   role,
   userPlan,
   audienceGrowthData,
+  setAudienceGrowthData, // Destructure the new prop
   heatmapData,
   contentTypeData,
   isGeneratingDeepAnalytics,
