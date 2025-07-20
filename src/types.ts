@@ -269,7 +269,8 @@ export interface PlanLimits {
     pages: number; // -1 for unlimited
     aiText: boolean;
     aiImage: boolean;
-
+    scheduledPosts: number; // -1 for unlimited
+    drafts: number; // -1 for unlimited
     autoResponder: boolean;
     contentPlanner: boolean;
     bulkScheduling: boolean;
