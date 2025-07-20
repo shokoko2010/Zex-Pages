@@ -211,27 +211,25 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
   const handleGenerateBulkPostFromText = async (id: string) => { /* ... unchanged ... */ };
   const handleScheduleAllBulk = async () => { /* ... unchanged ... */ };
   const handleFetchProfile = useCallback(async () => {
-  console.log("Retrieve and Improve with AI button clicked!");
-  // TODO: Implement actual fetching and processing logic here
-  setIsFetchingProfile(true); // Set loading state
-  try {
-    // Simulate some async work
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    console.log("Simulated fetching and processing complete.");
-    // You would add your actual logic here
-    // For example:
-    // const fetchedData = await fetchFacebookProfileData(managedTarget.id, fbAccessToken);
-    // const enhancedProfile = await enhanceProfileFromFacebookData(aiClient, fetchedData, pageProfile);
-    // handlePageProfileChange(enhancedProfile);
-    showNotification('success', 'Profile fetched and processed (simulated).');
-  } catch (error) {
-    console.error("Error fetching or processing profile:", error);
-    showNotification('error', 'Failed to fetch or process profile (simulated).');
-  } finally {
-    setIsFetchingProfile(false); // Unset loading state
-  }
-}, [managedTarget.id, isSimulationMode, aiClient, showNotification, pageProfile, handlePageProfileChange, fbAccessToken]);
-
+    console.log("Retrieve and Improve with AI button clicked! (Start)"); // Added log
+    setIsFetchingProfile(true); // Set loading state
+    console.log("setIsFetchingProfile(true) called"); // Added log
+    try {
+      console.log("Inside try block"); // Added log
+      // Simulate some async work
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log("Simulated fetching and processing complete."); // This log is already here
+      // ... rest of the try block
+    } catch (error) {
+      console.error("Error fetching or processing profile:", error); // This log is already here
+      // ... rest of the catch block
+    } finally {
+      console.log("Inside finally block"); // Added log
+      setIsFetchingProfile(false); // Unset loading state
+      console.log("setIsFetchingProfile(false) called"); // Added log
+    }
+  }, [managedTarget.id, isSimulationMode, aiClient, showNotification, pageProfile, handlePageProfileChange, fbAccessToken]);
+  
   const syncScheduledPosts = useCallback(async () => { /* ... unchanged ... */ }, [managedTarget, isSimulationMode, fetchWithPagination, showNotification, saveDataToFirestore]);
   
   useEffect(() => {
