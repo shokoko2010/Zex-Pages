@@ -13,8 +13,8 @@ const initialPlanLimits: PlanLimits = {
   pages: 1,
   aiText: true,
   aiImage: true,
-  scheduledPosts: 50, // Added missing property
-  drafts: 20, // Added missing property
+  scheduledPosts: 50,
+  drafts: 20,
   autoResponder: false,
   contentPlanner: false,
   bulkScheduling: false,
@@ -73,7 +73,7 @@ const PlanEditorModal: React.FC<PlanEditorModalProps> = ({ isOpen, onClose, onSa
           onClick={onClose}
           className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-xl font-semibold"
         >
-          ×
+          &times;
         </button>
 
         <h2 className="text-2xl font-bold mb-6 text-gray-800">
