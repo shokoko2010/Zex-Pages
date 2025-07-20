@@ -395,7 +395,8 @@ const App: React.FC = () => {
 
     } catch(error: any) {
       console.error(`Error loading pages for business ${businessId}:`, error);
-      alert(`فشل تحميل الصفحات من حافظة الأعمال.\nالسبب: ${error.message}`);
+      alert(`فشل تحميل الصفحات من حافظة الأعمال.
+السبب: ${error.message}`);
     } finally {
       setLoadingBusinessId(null);
     }
@@ -465,7 +466,10 @@ const App: React.FC = () => {
     } catch(error: any) {
       console.error("Error during full history sync:", error);
       const errorMessage = error instanceof Error ? error.message : "حدث خطأ غير متوقع أثناء المزامنة.";
-      alert(`فشلت المزامنة الكاملة للهدف ${pageTarget.name}.\nالسبب: ${errorMessage}\n\nقد تحتاج إلى تحديث صلاحيات الوصول وإعادة المحاولة.`);
+      alert(`فشلت المزامنة الكاملة للهدف ${pageTarget.name}.
+السبب: ${errorMessage}
+
+قد تحتاج إلى تحديث صلاحيات الوصول وإعادة المحاولة.`);
     } finally {
       setSyncingTargetId(null);
     }
@@ -552,7 +556,7 @@ const App: React.FC = () => {
         // Handle account exists with different credential error
         if (error.code === 'auth/account-exists-with-different-credential') {
             const email = error.email;
-            const pendingCred = firebase.auth.FacebookAuthProvider.credentialFromError(error);
+            const pendingCred = error.credential; // Get the credential directly from the error object
             
             if (email && pendingCred) {
                 // Show UI to inform user about the conflict and get their original login method
