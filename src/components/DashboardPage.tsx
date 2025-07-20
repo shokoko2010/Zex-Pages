@@ -159,7 +159,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [audienceGrowthData, setAudienceGrowthData] = useState<AudienceGrowthData[]>([]);
   const [heatmapData, setHeatmapData] = useState<HeatmapDataPoint[]>([]);
-  const [contentTypeData, setContentTypeData] = useState<ContentTypePerformanceData[]>([]);
+  const [contentTypeData, setContentTypePerformanceData] = useState<ContentTypePerformanceData[]>([]);
   const [isGeneratingDeepAnalytics, setIsGeneratingDeepAnalytics] = useState(false);
   const [inboxItems, setInboxItems] = useState<InboxItem[]>([]);
   const [isInboxLoading, setIsInboxLoading] = useState(true);
@@ -232,7 +232,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             setPublishedPosts(data.publishedPosts?.map((p:any) => ({...p, publishedAt: new Date(p.publishedAt)})) || []);
             setInboxItems(data.inboxItems?.map((i:any) => ({ ...i, timestamp: new Date(i.timestamp).toISOString() })) || []);
         } else {
-            const newProfile: PageProfile = { ...initialPageProfile, ownerUid: user.uid, members: [user.uid], team: [] };
+            const newProfile: PageProfile = { ...initialAutoResponderSettings, ownerUid: user.uid, members: [user.uid], team: [] };
             setPageProfile(newProfile);
             setCurrentUserRole('owner');
             await saveDataToFirestore({ 
@@ -284,15 +284,224 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
 
   const renderView = () => {
     switch (view) {
-      case 'composer': return <div className="grid grid-cols-1 lg:grid-cols-2 gap-8"><PostComposer {...{...}} /><PostPreview {...{...}} /></div>;
-      case 'calendar': return <ContentCalendar {...{...}} />;
-      case 'drafts': return <DraftsList {...{...}} />;
-      case 'bulk': return <BulkSchedulerPage {...{...}} />;
-      case 'planner': return <ContentPlannerPage {...{...}} />;
-      case 'inbox': return <InboxPage {...{...}} />;
-      case 'analytics': return <AnalyticsPage {...{...}} />;
-      case 'profile': return <PageProfilePage {...{...}} />;
-      default: return null;
+      case 'composer':
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <PostComposer
+              postText={postText}
+              setPostText={setPostText}
+              selectedImage={selectedImage}
+              setSelectedImage={setSelectedImage}
+              imagePreview={imagePreview}
+              setImagePreview={setImagePreview}
+              isScheduled={isScheduled}
+              setIsScheduled={setIsScheduled}
+              scheduleDate={scheduleDate}
+              setScheduleDate={setScheduleDate}
+              composerError={composerError}
+              setComposerError={setComposerError}
+              handlePublish={handlePublish}
+              handleSaveDraft={handleSaveDraft}
+              includeInstagram={includeInstagram}
+              setIncludeInstagram={setIncludeInstagram}
+              linkedInstagramTarget={linkedInstagramTarget}
+              editingScheduledPostId={editingScheduledPostId}
+              clearComposer={clearComposer}
+              userPlan={userPlan}
+              isSimulationMode={isSimulationMode}
+              aiClient={aiClient}
+              pageProfile={pageProfile}
+              stabilityApiKey={stabilityApiKey}
+              managedTarget={managedTarget}
+              generatePostSuggestion={generatePostSuggestion}
+              generateHashtags={generateHashtags}
+              generateDescriptionForImage={generateDescriptionForImage}
+              currentUserRole={currentUserRole}
+              scheduledPosts={scheduledPosts}
+              setScheduledPosts={setScheduledPosts}
+              showNotification={showNotification}
+              saveDataToFirestore={saveDataToFirestore}
+              createNewScheduledPost={createNewScheduledPost}
+            />
+            <PostPreview
+              postText={postText}
+              imagePreview={imagePreview}
+              managedTarget={managedTarget}
+              includeInstagram={includeInstagram}
+              scheduledAt={scheduleDate}
+              isScheduled={isScheduled}
+            />
+          </div>
+        );
+      case 'calendar':
+        return (
+          <ContentCalendar
+            scheduledPosts={scheduledPosts}
+            drafts={drafts}
+            handleEditScheduledPost={handleEditScheduledPost}
+            handleDeleteScheduledPost={handleDeleteScheduledPost}
+            handleLoadDraft={handleLoadDraft}
+            handleDeleteDraft={handleDeleteDraft}
+            targets={allTargets}
+            managedTarget={managedTarget}
+            userPlan={userPlan}
+            currentUserRole={currentUserRole}
+            handleApprovePost={handleApprovePost}
+            handleRejectPost={handleRejectPost}
+          />
+        );
+      case 'drafts':
+        return (
+          <DraftsList
+            drafts={drafts}
+            handleLoadDraft={handleLoadDraft}
+            handleDeleteDraft={handleDeleteDraft}
+            managedTarget={managedTarget}
+            userPlan={userPlan}
+            currentUserRole={currentUserRole}
+          />
+        );
+      case 'bulk':
+        return (
+          <BulkSchedulerPage
+            bulkPosts={bulkPosts}
+            setBulkPosts={setBulkPosts}
+            isSchedulingAll={isSchedulingAll}
+            setIsSchedulingAll={setIsSchedulingAll}
+            schedulingStrategy={schedulingStrategy}
+            setSchedulingStrategy={setSchedulingStrategy}
+            weeklyScheduleSettings={weeklyScheduleSettings}
+            setWeeklyScheduleSettings={setWeeklyScheduleSettings}
+            handleReschedule={handleReschedule}
+            handleAddBulkPosts={handleAddBulkPosts}
+            handleUpdateBulkPost={handleUpdateBulkPost}
+            handleRemoveBulkPost={handleRemoveBulkPost}
+            handleGenerateBulkDescription={handleGenerateBulkDescription}
+            handleGenerateBulkPostFromText={handleGenerateBulkPostFromText}
+            handleScheduleAllBulk={handleScheduleAllBulk}
+            managedTarget={managedTarget}
+            linkedInstagramTarget={linkedInstagramTarget}
+            bulkSchedulerTargets={bulkSchedulerTargets}
+            userPlan={userPlan}
+            isSimulationMode={isSimulationMode}
+            aiClient={aiClient}
+            pageProfile={pageProfile}
+            stabilityApiKey={stabilityApiKey}
+            currentUserRole={currentUserRole}
+            scheduledPosts={scheduledPosts}
+            setScheduledPosts={setScheduledPosts}
+            showNotification={showNotification}
+            saveDataToFirestore={saveDataToFirestore}
+            createNewScheduledPost={createNewScheduledPost}
+          />
+        );
+      case 'planner':
+        return (
+          <ContentPlannerPage
+            contentPlan={contentPlan}
+            setContentPlan={setContentPlan}
+            isGeneratingPlan={isGeneratingPlan}
+            setIsGeneratingPlan={setIsGeneratingPlan}
+            strategyHistory={strategyHistory}
+            setStrategyHistory={setStrategyHistory}
+            isSchedulingStrategy={isSchedulingStrategy}
+            setIsSchedulingStrategy={setIsSchedulingStrategy}
+            planError={planError}
+            setPlanError={setPlanError}
+            managedTarget={managedTarget}
+            linkedInstagramTarget={linkedInstagramTarget}
+            bulkSchedulerTargets={bulkSchedulerTargets}
+            userPlan={userPlan}
+            isSimulationMode={isSimulationMode}
+            aiClient={aiClient}
+            pageProfile={pageProfile}
+            currentUserRole={currentUserRole}
+            scheduledPosts={scheduledPosts}
+            setScheduledPosts={setScheduledPosts}
+            showNotification={showNotification}
+            saveDataToFirestore={saveDataToFirestore}
+            createNewScheduledPost={createNewScheduledPost}
+            generateContentPlan={generateContentPlan}
+            handleScheduleAllBulk={handleScheduleAllBulk}
+          />
+        );
+      case 'inbox':
+        return (
+          <InboxPage
+            inboxItems={inboxItems}
+            isInboxLoading={isInboxLoading}
+            autoResponderSettings={autoResponderSettings}
+            setAutoResponderSettings={setAutoResponderSettings}
+            repliedUsersPerPost={repliedUsersPerPost}
+            setRepliedUsersPerPost={setRepliedUsersPerPost}
+            managedTarget={managedTarget}
+            userPlan={userPlan}
+            isSimulationMode={isSimulationMode}
+            aiClient={aiClient}
+            pageProfile={pageProfile}
+            currentUserRole={currentUserRole}
+            showNotification={showNotification}
+            saveDataToFirestore={saveDataToFirestore}
+            generateSmartReplies={generateSmartReplies}
+            generateAutoReply={generateAutoReply}
+            fetchWithPagination={fetchWithPagination}
+            fbAccessToken={fbAccessToken}
+            isPolling={isPolling}
+            setIsPolling={setIsPolling}
+          />
+        );
+      case 'analytics':
+        return (
+          <AnalyticsPage
+            publishedPosts={publishedPosts}
+            publishedPostsLoading={publishedPostsLoading}
+            analyticsPeriod={analyticsPeriod}
+            setAnalyticsPeriod={setAnalyticsPeriod}
+            performanceSummaryText={performanceSummaryText}
+            setPerformanceSummaryText={setPerformanceSummaryText}
+            isGeneratingSummary={isGeneratingSummary}
+            setIsGeneratingSummary={setIsGeneratingSummary}
+            audienceGrowthData={audienceGrowthData}
+            setAudienceGrowthData={setAudienceGrowthData}
+            heatmapData={heatmapData}
+            setHeatmapData={setHeatmapData}
+            contentTypeData={contentTypeData}
+            setContentTypePerformanceData={setContentTypePerformanceData}
+            isGeneratingDeepAnalytics={isGeneratingDeepAnalytics}
+            setIsGeneratingDeepAnalytics={setIsGeneratingDeepAnalytics}
+            managedTarget={managedTarget}
+            userPlan={userPlan}
+            isSimulationMode={isSimulationMode}
+            aiClient={aiClient}
+            pageProfile={pageProfile}
+            currentUserRole={currentUserRole}
+            showNotification={showNotification}
+            saveDataToFirestore={saveDataToFirestore}
+            generatePerformanceSummary={generatePerformanceSummary}
+            generatePostInsights={generatePostInsights}
+            generateOptimalSchedule={generateOptimalSchedule}
+            generateBestPostingTimesHeatmap={generateBestPostingTimesHeatmap}
+            generateContentTypePerformance={generateContentTypePerformance}
+          />
+        );
+      case 'profile':
+        return (
+          <PageProfilePage
+            pageProfile={pageProfile}
+            handlePageProfileChange={handlePageProfileChange}
+            isFetchingProfile={isFetchingProfile}
+            handleFetchProfile={handleFetchProfile}
+            userPlan={userPlan}
+            isSimulationMode={isSimulationMode}
+            aiClient={aiClient}
+            managedTarget={managedTarget}
+            currentUserRole={currentUserRole}
+            showNotification={showNotification}
+            enhanceProfileFromFacebookData={enhanceProfileFromFacebookData}
+          />
+        );
+      default:
+        return null;
     }
   };
 
@@ -301,7 +510,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
 
   return (
     <>
-      <Header {...{...}} />
+      <Header user={user} managedTarget={managedTarget} allTargets={allTargets} onChangePage={onChangePage} onLogout={onLogout} onSettingsClick={onSettingsClick} theme={theme} onToggleTheme={onToggleTheme} />
       {notification && <div className={`...`}>{notification.message}</div>}
       <div className="flex flex-col md:flex-row min-h-[calc(100vh-68px)]">
         <aside className="w-full md:w-64 bg-white dark:bg-gray-800 p-4 border-r dark:border-gray-700/50 flex-shrink-0">
