@@ -277,7 +277,41 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
         console.log("setIsFetchingProfile(false) called");
     }
   }, [managedTarget.id, isSimulationMode, aiClient, showNotification, pageProfile, handlePageProfileChange, fbAccessToken]);
-  
+  const handleScheduleStrategy = useCallback(async () => {
+    if (!contentPlan || contentPlan.length === 0) {
+        showNotification('error', 'لا توجد خطة لتحويلها.');
+        return;
+    }
+
+    setIsSchedulingStrategy(true);
+    try {
+        // Step 1: Convert each plan item to a bulk post item
+        const newBulkItems: BulkPostItem[] = contentPlan.map((item, index) => ({
+            id: `bulk_strategy_${Date.now()}_${index}`,
+            text: item.body, // The post text comes from the plan's body
+            imageFile: undefined,
+            imagePreview: undefined,
+            hasImage: false, // No image is generated at this stage
+            scheduleDate: '', // Will be set by the reschedule function below
+            targetIds: [managedTarget.id], // Default to the current page
+        }));
+
+        // Step 2: Automatically assign dates to the new items
+        const scheduledBulkItems = rescheduleBulkPosts(newBulkItems);
+
+        // Step 3: Update the state and navigate the user
+        setBulkPosts(scheduledBulkItems);
+        showNotification('success', `تم تحويل ${scheduledBulkItems.length} منشورًا إلى الجدولة المجمعة بنجاح!`);
+        setView('bulk');
+
+    } catch (error: any) {
+        console.error("Error scheduling strategy:", error);
+        showNotification('error', `فشل تحويل الخطة: ${error.message}`);
+    } finally {
+        setIsSchedulingStrategy(false);
+    }
+  }, [contentPlan, managedTarget.id, rescheduleBulkPosts, showNotification]);
+
   const syncScheduledPosts = useCallback(async () => { /* ... unchanged ... */ }, [managedTarget, isSimulationMode, fetchWithPagination, showNotification, saveDataToFirestore]);
   
   useEffect(() => {
