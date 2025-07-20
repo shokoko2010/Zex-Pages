@@ -329,10 +329,7 @@ const App: React.FC = () => {
       
       const userPlan = plans.find(p => p.id === appUser.planId) || plans.find(p => p.id === 'free') || null;
 
-      if (appUser.isAdmin) {
-          return <AdminPage user={user} appUser={appUser} allUsers={allUsers} onLogout={handleLogout} onSettingsClick={() => setIsSettingsModalOpen(true)} theme={theme} onToggleTheme={handleToggleTheme} plans={plans} onSelectTarget={setSelectedTarget} />;
-      }
-      
+      // Prioritize selectedTarget for admins as well
       if (selectedTarget) {
         return (
           <DashboardPage
@@ -357,6 +354,10 @@ const App: React.FC = () => {
             fbAccessToken={appUser.fbAccessToken || null} // Ensure it's not undefined
           />
         );
+      }
+      
+      if (appUser.isAdmin) {
+          return <AdminPage user={user} appUser={appUser} allUsers={allUsers} onLogout={handleLogout} onSettingsClick={() => setIsSettingsModalOpen(true)} theme={theme} onToggleTheme={handleToggleTheme} plans={plans} onSelectTarget={setSelectedTarget} />;
       }
 
       return (
