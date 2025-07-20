@@ -109,8 +109,6 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
         <PublishedPostsList
           posts={publishedPosts} 
           isLoading={publishedPostsLoading} 
-          onFetchAnalytics={onFetchAnalytics} 
-          onGenerateInsights={onGenerateInsights} 
           role={currentUserRole} 
         />
       </div>
