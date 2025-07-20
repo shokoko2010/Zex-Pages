@@ -182,10 +182,9 @@ function App() {
     return (
         <Router>
             <Routes>
-                <Route path="/privacy-policy" element={<> <LandingHeader/> <PrivacyPolicyPage/> <Footer/> </>} />
-                <Route path="/admin" element={
-                    user?.isAdmin ? (
-                        <>
+                <Route path="/privacy-policy" element={<div> <LandingHeader/> <PrivacyPolicyPage/> <Footer/> </div>} />
+                <Route path="/admin" element={                     user?.isAdmin ? (
+                        <div>
                             <Header
                                 onLogout={handleLogout}
                                 isSimulationMode={false} // Replace with your actual simulation mode logic
@@ -193,16 +192,15 @@ function App() {
                                 onToggleTheme={handleToggleTheme}
                             />
                             <AdminPage/>
-                        </>
+                        </div>
                     ) : (
                         <div className="flex justify-center items-center h-screen">
                             <div className="text-red-500 font-bold text-2xl">ليس لديك صلاحية الوصول إلى هذه الصفحة.</div>
                         </div>
                     )}
-                } />
-                 <Route path="/users" element={
-                    user?.isAdmin ? (
-                        <>
+                 } />
+                 <Route path="/users" element={                    user?.isAdmin ? (
+                        <div>
                             <Header
                                 onLogout={handleLogout}
                                 isSimulationMode={false} // Replace with your actual simulation mode logic
@@ -210,16 +208,15 @@ function App() {
                                 onToggleTheme={handleToggleTheme}
                             />
                             <UserManagementPage plans={plans} />
-                        </>
+                        </div>
                     ) : (
                         <div className="flex justify-center items-center h-screen">
                             <div className="text-red-500 font-bold text-2xl">ليس لديك صلاحية الوصول إلى هذه الصفحة.</div>
                         </div>
                     )}
-                } />
-                <Route path="/analytics" element={
-                  user?.isAdmin ? (
-                    <>
+                 } />
+                <Route path="/analytics" element={                  user?.isAdmin ? (
+                    <div>
                       <Header
                           onLogout={handleLogout}
                           isSimulationMode={false} // Replace with your actual simulation mode logic
@@ -243,16 +240,15 @@ function App() {
                             contentTypeData={analyticsContentTypeData}
                             isGeneratingDeepAnalytics={isGeneratingDeepAnalytics}
                         />
-                    </>
+                    </div>
                   ) : (
                     <div className="flex justify-center items-center h-screen">
                       <div className="text-red-500 font-bold text-2xl">ليس لديك صلاحية الوصول إلى هذه الصفحة.</div>
                     </div>
                   )}
-                } />
-                <Route path="/" element={
-                    user ? (
-                        <>
+                 } />
+                <Route path="/" element={                   user ? (
+                        <div>
                             <Header
                                 onLogout={handleLogout}
                                 isSimulationMode={false} // Replace with your actual simulation mode logic
@@ -276,11 +272,11 @@ function App() {
                                 hasConnectedFacebook={hasConnectedFacebook}
                                 hasSelectedTarget={hasSelectedTarget}
                             />
-                        </>
+                        </div>
                     ) : (
                         <LoginPage setIsAdmin={setIsAdmin}/>
                     )}
-                } />
+                 } />
             </Routes>
         </Router>
     );
