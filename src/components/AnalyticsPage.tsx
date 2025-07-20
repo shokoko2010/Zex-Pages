@@ -21,7 +21,9 @@ interface AnalyticsPageProps {
   audienceGrowthData: AudienceGrowthData[];
   setAudienceGrowthData: React.Dispatch<React.SetStateAction<AudienceGrowthData[]>>; // Added this line
   heatmapData: HeatmapDataPoint[];
+  setHeatmapData: React.Dispatch<React.SetStateAction<HeatmapDataPoint[]>>; // Added this line
   contentTypeData: ContentTypePerformanceData[];
+  setContentTypePerformanceData: React.Dispatch<React.SetStateAction<ContentTypePerformanceData[]>>; // Added this line
   isGeneratingDeepAnalytics: boolean;
   setIsGeneratingDeepAnalytics: React.Dispatch<React.SetStateAction<boolean>>; // Added this line
   publishedPosts: PublishedPost[];
@@ -30,6 +32,17 @@ interface AnalyticsPageProps {
   setAnalyticsPeriod: React.Dispatch<React.SetStateAction<"7d" | "30d">>; // Added this line (based on how it's used in DashboardPage.tsx)
   performanceSummaryText: string; // Added this line
   setPerformanceSummaryText: React.Dispatch<React.SetStateAction<string>>; // Added this line
+  managedTarget: any; // You might want to define a proper type for this
+  isSimulationMode: boolean;
+  aiClient: any; // You might want to define a proper type for this
+  pageProfile: any; // You might want to define a proper type for this
+  currentUserRole: Role;
+  showNotification: (type: 'success' | 'error' | 'partial', message: string, onUndo?: () => void) => void;
+  generatePerformanceSummary: (ai: any, targetId: string, period: "7d" | "30d", posts: PublishedPost[]) => Promise<PerformanceSummaryData>;
+  generatePostInsights: (ai: any, post: PublishedPost) => Promise<PostAnalytics>;
+  generateOptimalSchedule: (ai: any, pageProfile: any, publishedPosts: PublishedPost[]) => Promise<any>; // Define return type
+  generateBestPostingTimesHeatmap: (ai: any, posts: PublishedPost[]) => Promise<HeatmapDataPoint[]>;
+  generateContentTypePerformance: (ai: any, posts: PublishedPost[]) => Promise<ContentTypePerformanceData[]>;
 }
 
 const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
@@ -48,7 +61,9 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
   audienceGrowthData,
   setAudienceGrowthData, // Destructure the new prop
   heatmapData,
+  setHeatmapData, // Destructure the new prop
   contentTypeData,
+  setContentTypePerformanceData, // Destructure the new prop
   isGeneratingDeepAnalytics,
   setIsGeneratingDeepAnalytics, // Destructure the new prop
   publishedPosts,
@@ -56,7 +71,18 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
   analyticsPeriod, // Destructure the new prop
   setAnalyticsPeriod, // Destructure the new prop
   performanceSummaryText, // Destructure the new prop
-  setPerformanceSummaryText // Destructure the new prop
+  setPerformanceSummaryText, // Destructure the new prop
+  managedTarget,
+  isSimulationMode,
+  aiClient,
+  pageProfile,
+  currentUserRole,
+  showNotification,
+  generatePerformanceSummary,
+  generatePostInsights,
+  generateOptimalSchedule,
+  generateBestPostingTimesHeatmap,
+  generateContentTypePerformance,
 }) => {
   const canViewDeepAnalytics = userPlan?.limits.deepAnalytics ?? false;
 
