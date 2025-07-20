@@ -26,6 +26,7 @@ interface AnalyticsPageProps {
   analyticsPeriod: "7d" | "30d"; // Added this line
   setAnalyticsPeriod: React.Dispatch<React.SetStateAction<"7d" | "30d">>; // Added this line (based on how it's used in DashboardPage.tsx)
   performanceSummaryText: string; // Added this line
+  setPerformanceSummaryText: React.Dispatch<React.SetStateAction<string>>; // Added this line
 }
 
 const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
@@ -48,7 +49,8 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
   publishedPostsLoading,
   analyticsPeriod, // Destructure the new prop
   setAnalyticsPeriod, // Destructure the new prop
-  performanceSummaryText // Destructure the new prop
+  performanceSummaryText, // Destructure the new prop
+  setPerformanceSummaryText // Destructure the new prop
 }) => {
   const canViewDeepAnalytics = userPlan?.limits.deepAnalytics ?? false;
 
