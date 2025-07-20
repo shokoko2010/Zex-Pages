@@ -452,7 +452,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
             isSchedulingStrategy={isSchedulingStrategy}
             error={planError}
             role={currentUserRole}
-            onScheduleStrategy={handleScheduleAllBulk}
+            onScheduleStrategy={handleScheduleStrategy}
             aiClient={aiClient}
             onGeneratePlan={async (request, images) => {
                 setIsGeneratingPlan(true);
