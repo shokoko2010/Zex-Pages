@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Target, PublishedPost, Draft, ScheduledPost, BulkPostItem, ContentPlanItem, StrategyRequest, WeeklyScheduleSettings, PageProfile, PerformanceSummaryData, StrategyHistoryItem, InboxItem, AutoResponderSettings, PostAnalytics, Plan, Role, AppUser, AudienceGrowthData, HeatmapDataPoint, ContentTypePerformanceData } from '../types';
+import { Target, PublishedPost, Draft, ScheduledPost, BulkPostItem, ContentPlanItem, StrategyRequest, WeeklyScheduleSettings, PageProfile, PerformanceSummaryData, StrategyHistoryItem, InboxItem, AutoResponderSettings, PostAnalytics, Plan, Role, AppUser, AudienceGrowthData, HeatmapDataPoint, ContentTypePerformanceData, User } from '../types';
 import Header from './Header';
 import PostComposer from './PostComposer';
 import PostPreview from './PostPreview';
@@ -15,7 +15,6 @@ import { generateContentPlan, generatePerformanceSummary, generateOptimalSchedul
 import PageProfilePage from './PageProfilePage';
 import Button from './ui/Button';
 import { db } from '../services/firebaseService';
-import type { User } from '../services/firebaseService';
 
 // Icons
 import PencilSquareIcon from './icons/PencilSquareIcon';
@@ -118,14 +117,21 @@ const createNewScheduledPost = (
     return {
         id: editingScheduledPostId && target.id === managedTarget.id ? editingScheduledPostId : `local_${Date.now()}_${target.id}`,
         text: postText, imageFile: selectedImage || undefined, imageUrl: imagePreview || undefined,
-        hasImage: !!selectedImage || !!imagePreview, scheduledAt: new Date(scheduleDate),
-        isReminder: target.type === 'instagram', targetId: target.id,
+        hasImage: !!selectedImage || !!imagePreview,
+        scheduledAt: new Date(scheduleDate),
+        isReminder: target.type === 'instagram',
+        targetId: target.id,
         targetInfo: { name: target.name, avatarUrl: target.picture.data.url, type: target.type },
-        isSynced: false, status: postStatus,
+        isSynced: false,
+        status: postStatus,
     };
 };
 
-const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, plans, allUsers, managedTarget, allTargets, onChangePage, onLogout, isSimulationMode, aiClient, stabilityApiKey, onSettingsClick, fetchWithPagination, onSyncHistory, syncingTargetId, theme, onToggleTheme, fbAccessToken }) => {
+const DashboardPage: React.FC<DashboardPageProps> = ({
+    user, isAdmin, userPlan, plans, allUsers, managedTarget, allTargets, onChangePage, onLogout,
+    isSimulationMode, aiClient, stabilityApiKey, onSettingsClick, fetchWithPagination, onSyncHistory,
+    syncingTargetId, theme, onToggleTheme, fbAccessToken
+}) => {
   const [view, setView] = useState<DashboardView>('composer');
   const [postText, setPostText] = useState('');
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -283,171 +289,110 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
   }, [view, userPlan?.limits.deepAnalytics, aiClient, publishedPosts, showNotification]);
 
   const renderView = () => {
+    const linkedInstagramTarget = allTargets.find(t => t.type === 'instagram' && t.parentPageId === managedTarget.id) || null; // Re-declare locally for renderView
     switch (view) {
       case 'composer':
         return (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <PostComposer
               postText={postText}
-              setPostText={setPostText}
+              onPostTextChange={setPostText}
               selectedImage={selectedImage}
-              setSelectedImage={setSelectedImage}
+              onImageChange={(e) => setSelectedImage(e.target.files ? e.target.files[0] : null)}
+              onImageGenerated={setSelectedImage}
               imagePreview={imagePreview}
-              setImagePreview={setImagePreview}
               isScheduled={isScheduled}
-              setIsScheduled={setIsScheduled}
+              onIsScheduledChange={setIsScheduled}
               scheduleDate={scheduleDate}
-              setScheduleDate={setScheduleDate}
-              composerError={composerError}
-              setComposerError={setComposerError}
-              handlePublish={handlePublish}
-              handleSaveDraft={handleSaveDraft}
+              onScheduleDateChange={setScheduleDate}
+              error={composerError}
+              onPublish={handlePublish}
+              onSaveDraft={handleSaveDraft}
               includeInstagram={includeInstagram}
-              setIncludeInstagram={setIncludeInstagram}
+              onIncludeInstagramChange={setIncludeInstagram}
               linkedInstagramTarget={linkedInstagramTarget}
               editingScheduledPostId={editingScheduledPostId}
-              clearComposer={clearComposer}
               userPlan={userPlan}
               isSimulationMode={isSimulationMode}
               aiClient={aiClient}
               pageProfile={pageProfile}
               stabilityApiKey={stabilityApiKey}
               managedTarget={managedTarget}
-              generatePostSuggestion={generatePostSuggestion}
-              generateHashtags={generateHashtags}
-              generateDescriptionForImage={generateDescriptionForImage}
-              currentUserRole={currentUserRole}
-              scheduledPosts={scheduledPosts}
-              setScheduledPosts={setScheduledPosts}
-              showNotification={showNotification}
-              saveDataToFirestore={saveDataToFirestore}
-              createNewScheduledPost={createNewScheduledPost}
+              role={currentUserRole}
             />
             <PostPreview
               postText={postText}
               imagePreview={imagePreview}
-              managedTarget={managedTarget}
-              includeInstagram={includeInstagram}
-              scheduledAt={scheduleDate}
-              isScheduled={isScheduled}
+              type={includeInstagram && linkedInstagramTarget ? 'instagram' : 'facebook'}
+              pageName={managedTarget.name}
+              pageAvatar={managedTarget.picture.data.url}
             />
           </div>
         );
       case 'calendar':
         return (
           <ContentCalendar
-            scheduledPosts={scheduledPosts}
-            drafts={drafts}
-            handleEditScheduledPost={handleEditScheduledPost}
-            handleDeleteScheduledPost={handleDeleteScheduledPost}
-            handleLoadDraft={handleLoadDraft}
-            handleDeleteDraft={handleDeleteDraft}
+            posts={scheduledPosts}
+            onEdit={handleEditScheduledPost}
+            onDelete={handleDeleteScheduledPost}
             targets={allTargets}
             managedTarget={managedTarget}
             userPlan={userPlan}
-            currentUserRole={currentUserRole}
-            handleApprovePost={handleApprovePost}
-            handleRejectPost={handleRejectPost}
+            role={currentUserRole}
+            onApprove={handleApprovePost}
+            onReject={handleRejectPost}
+            onSync={() => onSyncHistory(managedTarget)}
+            isSyncing={!!syncingTargetId}
           />
         );
       case 'drafts':
         return (
           <DraftsList
             drafts={drafts}
-            handleLoadDraft={handleLoadDraft}
-            handleDeleteDraft={handleDeleteDraft}
-            managedTarget={managedTarget}
-            userPlan={userPlan}
-            currentUserRole={currentUserRole}
+            onLoad={handleLoadDraft}
+            onDelete={handleDeleteDraft}
+            role={currentUserRole}
           />
         );
       case 'bulk':
         return (
           <BulkSchedulerPage
             bulkPosts={bulkPosts}
-            setBulkPosts={setBulkPosts}
-            isSchedulingAll={isSchedulingAll}
-            setIsSchedulingAll={setIsSchedulingAll}
-            schedulingStrategy={schedulingStrategy}
-            setSchedulingStrategy={setSchedulingStrategy}
-            weeklyScheduleSettings={weeklyScheduleSettings}
-            setWeeklyScheduleSettings={setWeeklyScheduleSettings}
-            handleReschedule={handleReschedule}
-            handleAddBulkPosts={handleAddBulkPosts}
-            handleUpdateBulkPost={handleUpdateBulkPost}
-            handleRemoveBulkPost={handleRemoveBulkPost}
-            handleGenerateBulkDescription={handleGenerateBulkDescription}
-            handleGenerateBulkPostFromText={handleGenerateBulkPostFromText}
-            handleScheduleAllBulk={handleScheduleAllBulk}
-            managedTarget={managedTarget}
-            linkedInstagramTarget={linkedInstagramTarget}
-            bulkSchedulerTargets={bulkSchedulerTargets}
-            userPlan={userPlan}
-            isSimulationMode={isSimulationMode}
-            aiClient={aiClient}
-            pageProfile={pageProfile}
-            stabilityApiKey={stabilityApiKey}
+            onSchedulingStrategyChange={setSchedulingStrategy}
+            onWeeklyScheduleSettingsChange={setWeeklyScheduleSettings}
+            onReschedule={handleReschedule}
+            onAddPosts={handleAddBulkPosts}
+            onUpdatePost={handleUpdateBulkPost}
+            onRemovePost={handleRemoveBulkPost}
+            onGenerateDescription={handleGenerateBulkDescription}
+            onGeneratePostFromText={handleGenerateBulkPostFromText}
+            onScheduleAll={handleScheduleAllBulk}
+            targets={bulkSchedulerTargets}
             currentUserRole={currentUserRole}
-            scheduledPosts={scheduledPosts}
-            setScheduledPosts={setScheduledPosts}
-            showNotification={showNotification}
-            saveDataToFirestore={saveDataToFirestore}
-            createNewScheduledPost={createNewScheduledPost}
           />
         );
       case 'planner':
         return (
           <ContentPlannerPage
-            contentPlan={contentPlan}
-            setContentPlan={setContentPlan}
-            isGeneratingPlan={isGeneratingPlan}
-            setIsGeneratingPlan={setIsGeneratingPlan}
+            plan={contentPlan}
+            isGenerating={isGeneratingPlan}
             strategyHistory={strategyHistory}
-            setStrategyHistory={setStrategyHistory}
             isSchedulingStrategy={isSchedulingStrategy}
-            setIsSchedulingStrategy={setIsSchedulingStrategy}
-            planError={planError}
-            setPlanError={setPlanError}
-            managedTarget={managedTarget}
-            linkedInstagramTarget={linkedInstagramTarget}
-            bulkSchedulerTargets={bulkSchedulerTargets}
-            userPlan={userPlan}
-            isSimulationMode={isSimulationMode}
-            aiClient={aiClient}
-            pageProfile={pageProfile}
-            currentUserRole={currentUserRole}
-            scheduledPosts={scheduledPosts}
-            setScheduledPosts={setScheduledPosts}
-            showNotification={showNotification}
-            saveDataToFirestore={saveDataToFirestore}
-            createNewScheduledPost={createNewScheduledPost}
-            generateContentPlan={generateContentPlan}
-            handleScheduleAllBulk={handleScheduleAllBulk}
+            error={planError}
+            role={currentUserRole}
+            onScheduleStrategy={handleScheduleAllBulk}
           />
         );
       case 'inbox':
         return (
           <InboxPage
-            inboxItems={inboxItems}
-            isInboxLoading={isInboxLoading}
+            items={inboxItems}
+            isLoading={isInboxLoading}
             autoResponderSettings={autoResponderSettings}
-            setAutoResponderSettings={setAutoResponderSettings}
             repliedUsersPerPost={repliedUsersPerPost}
-            setRepliedUsersPerPost={setRepliedUsersPerPost}
-            managedTarget={managedTarget}
-            userPlan={userPlan}
-            isSimulationMode={isSimulationMode}
-            aiClient={aiClient}
-            pageProfile={pageProfile}
             currentUserRole={currentUserRole}
-            showNotification={showNotification}
-            saveDataToFirestore={saveDataToFirestore}
-            generateSmartReplies={generateSmartReplies}
-            generateAutoReply={generateAutoReply}
-            fetchWithPagination={fetchWithPagination}
-            fbAccessToken={fbAccessToken}
-            isPolling={isPolling}
-            setIsPolling={setIsPolling}
+            isSyncing={isPolling}
+            onSync={() => setIsPolling(true)}
           />
         );
       case 'analytics':
@@ -487,17 +432,18 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
       case 'profile':
         return (
           <PageProfilePage
-            pageProfile={pageProfile}
-            handlePageProfileChange={handlePageProfileChange}
+            profile={pageProfile}
+            onProfileChange={handlePageProfileChange}
             isFetchingProfile={isFetchingProfile}
-            handleFetchProfile={handleFetchProfile}
+            onFetchProfile={handleFetchProfile}
             userPlan={userPlan}
             isSimulationMode={isSimulationMode}
             aiClient={aiClient}
             managedTarget={managedTarget}
-            currentUserRole={currentUserRole}
+            role={currentUserRole}
             showNotification={showNotification}
             enhanceProfileFromFacebookData={enhanceProfileFromFacebookData}
+            user={user}
           />
         );
       default:
@@ -510,8 +456,14 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
 
   return (
     <>
-      <Header user={user} managedTarget={managedTarget} allTargets={allTargets} onChangePage={onChangePage} onLogout={onLogout} onSettingsClick={onSettingsClick} theme={theme} onToggleTheme={onToggleTheme} />
-      {notification && <div className={`...`}>{notification.message}</div>}
+      <Header pageName={managedTarget.name} onChangePage={onChangePage} onLogout={onLogout} onSettingsClick={onSettingsClick} theme={theme} onToggleTheme={onToggleTheme} />
+      {notification && <div className={`fixed bottom-4 right-4 p-4 rounded-md text-white text-sm z-50 ${
+        notification.type === 'success' ? 'bg-green-500' : notification.type === 'error' ? 'bg-red-500' : 'bg-yellow-500'}`}>
+        {notification.message}
+        {notification.onUndo && (
+          <button onClick={() => { notification.onUndo?.(); setNotification(null); }} className="ml-4 underline">تراجع</button>
+        )}
+      </div>}
       <div className="flex flex-col md:flex-row min-h-[calc(100vh-68px)]">
         <aside className="w-full md:w-64 bg-white dark:bg-gray-800 p-4 border-r dark:border-gray-700/50 flex-shrink-0">
           <nav className="space-y-2">
@@ -520,7 +472,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             <NavItem icon={<BrainCircuitIcon className="w-5 h-5" />} label="استراتيجيات المحتوى" active={view === 'planner'} onClick={() => handleSetView('planner')} disabled={!isAllowed('contentPlanner')} disabledTooltip={`متاحة في الخطط الأعلى من ${planName}`} />
             <NavItem icon={<CalendarIcon className="w-5 h-5" />} label="تقويم المحتوى" active={view === 'calendar'} onClick={() => setView('calendar')} />
             <NavItem icon={<ArchiveBoxIcon className="w-5 h-5" />} label="المسودات" active={view === 'drafts'} onClick={() => setView('drafts')} />
-            <NavItem icon={<InboxArrowDownIcon className="w-5 h-5" />} label="صندوق الوارد" active={view === 'inbox'} onClick={() => handleSetView('inbox')} disabled={!isAllowed('autoResponder')} disabledTooltip={`متاحة في الخطط الأعلى من ${planName}`} />
+            <NavItem icon={<InboxArrowDownIcon className="w-5 h-5" />} label="صندوق الوارد" active={view === 'inbox'} onClick={() => handleSetView('inbox')} disabled={!isAllowed('autoResponder')} disabledTooltip={`متاحة في الخطط الأعلى من ${planName}`} isPolling={isPolling} notificationCount={inboxItems.filter(item => item.status === 'new').length} />
             <NavItem icon={<ChartBarIcon className="w-5 h-5" />} label="التحليلات" active={view === 'analytics'} onClick={() => setView('analytics')} />
             <NavItem icon={<UserCircleIcon className="w-5 h-5" />} label="ملف الصفحة" active={view === 'profile'} onClick={() => setView('profile')} />
           </nav>
