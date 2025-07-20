@@ -7,11 +7,12 @@ import SearchIcon from './icons/SearchIcon';
 
 interface UserManagementPageProps {
   plans: Plan[];
+  allUsers: AppUser[]; // Added allUsers prop
 }
 
-const UserManagementPage: React.FC<UserManagementPageProps> = ({ plans }) => {
-  const [users, setUsers] = useState<AppUser[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+const UserManagementPage: React.FC<UserManagementPageProps> = ({ plans, allUsers: initialUsers }) => { // Use initialUsers to receive the prop
+  const [users, setUsers] = useState<AppUser[]>(initialUsers); // Initialize with the prop
+  const [isLoading, setIsLoading] = useState(false); // Loading state for operations within this component, fetching initial users is done by parent
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [userPlanChanges, setUserPlanChanges] = useState<Record<string, string>>({});
@@ -19,24 +20,16 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({ plans }) => {
 
   const plansMap = useMemo(() => new Map(plans.map(p => [p.id, p.name])), [plans]);
 
+  // Effect to update users state when initialUsers prop changes (if the parent refetches users)
   useEffect(() => {
-    const fetchUsers = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const usersCollection = db.collection('users');
-        const usersSnapshot = await usersCollection.get();
-        const usersList = usersSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as AppUser));
-        setUsers(usersList);
-      } catch (e) {
-        console.error("Error fetching users:", e);
-        setError("فشل تحميل بيانات المستخدمين.");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchUsers();
-  }, []);
+    setUsers(initialUsers);
+  }, [initialUsers]);
+
+  // Removed fetchUsers useEffect as users are passed as a prop
+  // useEffect(() => {
+  //   const fetchUsers = async () => { /* ... */ };
+  //   fetchUsers();
+  // }, []);
 
   const handlePlanSelectionChange = (uid: string, newPlanId: string) => {
     setUserPlanChanges(prev => ({
@@ -86,7 +79,8 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({ plans }) => {
     ).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
   }, [users, searchTerm]);
   
-  if (isLoading) return <div className="text-center p-10">جاري تحميل المستخدمين...</div>;
+  // Adjusted loading check to use the passed isLoading state or internal updating state
+  // if (isLoading) return <div className="text-center p-10">جاري تحميل المستخدمين...</div>;
   if (error) return <div className="text-center p-10 text-red-500">{error}</div>;
 
   return (
