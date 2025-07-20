@@ -327,7 +327,30 @@ const App: React.FC = () => {
       
       if (!user || !appUser) return <HomePage onSignIn={handleEmailSignIn} onSignUp={handleEmailSignUp} authError={authError} />;
       
-      const userPlan = plans.find(p => p.id === appUser.planId) || plans.find(p => p.id === 'free') || null;
+      let userPlan = plans.find(p => p.id === appUser.planId) || plans.find(p => p.id === 'free') || null;
+
+      // If admin, grant all features
+      if (appUser.isAdmin) {
+          userPlan = {
+            id: 'admin',
+            name: 'Admin Plan',
+            price: 0,
+            pricePeriod: 'monthly',
+            features: ['All features for admin'],
+            limits: {
+              pages: -1, // Unlimited
+              teamMembers: -1, // Unlimited
+              scheduledPosts: -1, // Unlimited
+              drafts: -1, // Unlimited
+              bulkScheduling: true,
+              contentPlanner: true,
+              deepAnalytics: true,
+              autoResponder: true,
+              contentApprovalWorkflow: false, // Admins don't need approval for themselves
+            },
+            adminOnly: true,
+          };
+      }
 
       // Prioritize selectedTarget for admins as well
       if (selectedTarget) {
