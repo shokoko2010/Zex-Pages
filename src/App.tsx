@@ -17,7 +17,7 @@ import AdminPage from './components/AdminPage';
 import UserManagementPage from './components/UserManagementPage';
 import AnalyticsPage from './components/AnalyticsPage';
 
-import { AppUser } from './types';
+import { AppUser, Plan, PerformanceSummaryData, PublishedPost, Role, AudienceGrowthData, HeatmapDataPoint, ContentTypePerformanceData } from './types';
 import { getIpAddress } from './utils';
 
 
@@ -31,16 +31,105 @@ function App() {
     const [isAdmin, setIsAdmin] = useState<boolean>(false);
     const [isTourOpen, setIsTourOpen] = useState(false);
     const [userPlanId, setUserPlanId] = useState<string>('free');
+    const [theme, setTheme] = useState<'light' | 'dark'>('light');
+    const [plans, setPlans] = useState<Plan[]>([]);
+    const [hasConnectedFacebook, setHasConnectedFacebook] = useState<boolean>(false);
+    const [hasSelectedTarget, setHasSelectedTarget] = useState<boolean>(false);
+    const [authError, setAuthError] = useState<string | null>(null);
+
+    // Analytics Page Props
+    const [analyticsPeriod, setAnalyticsPeriod] = useState<'7d' | '30d'>('7d');
+    const [analyticsSummaryData, setAnalyticsSummaryData] = useState<PerformanceSummaryData | null>(null);
+    const [analyticsAISummary, setAnalyticsAISummary] = useState<string>('');
+    const [isGeneratingAnalyticsSummary, setIsGeneratingAnalyticsSummary] = useState<boolean>(false);
+    const [analyticsPosts, setAnalyticsPosts] = useState<PublishedPost[]>([]);
+    const [isAnalyticsLoading, setIsAnalyticsLoading] = useState<boolean>(false);
+    const [analyticsAudienceGrowthData, setAnalyticsAudienceGrowthData] = useState<AudienceGrowthData[]>([]);
+    const [analyticsHeatmapData, setAnalyticsHeatmapData] = useState<HeatmapDataPoint[]>([]);
+    const [analyticsContentTypeData, setAnalyticsContentTypeData] = useState<ContentTypePerformanceData[]>([]);
+    const [isGeneratingDeepAnalytics, setIsGeneratingDeepAnalytics] = useState<boolean>(false);
+
+    const handleAnalyticsPeriodChange = (period: '7d' | '30d') => {
+        setAnalyticsPeriod(period);
+    };
+
+    const handleFetchAnalytics = (postId: string) => {
+        // Implement your fetch analytics logic here
+        console.log('Fetch analytics clicked for post:', postId);
+    };
+
+    const handleGenerateInsights = (postId: string) => {
+        // Implement your generate insights logic here
+        console.log('Generate insights clicked for post:', postId);
+    };
+
+     const handleSignIn = async (email: string, password: string) => {
+        try {
+            const auth = getAuth();
+            await signInWithEmailAndPassword(auth, email, password);
+            setAuthError(null);
+        } catch (error: any) {
+            setAuthError(error.message);
+        }
+    };
+
+    const handleSignUp = async (email: string, password: string) => {
+        try {
+            const auth = getAuth();
+            await createUserWithEmailAndPassword(auth, email, password);
+            setAuthError(null);
+        } catch (error: any) {
+            setAuthError(error.message);
+        }
+    };
+
+    const handleLogout = () => {
+        // Implement your logout logic here
+        console.log('Logout clicked');
+    };
+
+    const handleToggleTheme = () => {
+        setTheme(theme === 'light' ? 'dark' : 'light');
+    };
+
+    const handleOnboardingComplete = () => {
+        setIsTourOpen(false);
+    };
+
+     const fetchPlans = async () => {
+        try {
+            const plansCollection = db.collection('plans');
+            const plansSnapshot = await plansCollection.get();
+            const plansList = plansSnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            } as Plan));
+            setPlans(plansList);
+        } catch (error) {
+            console.error("Error fetching plans:", error);
+            // Handle error appropriately
+        }
+    };
 
     useEffect(() => {
         initializeApp(firebaseConfig);
+        fetchPlans();
 
         const auth = getAuth();
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             if (currentUser) {
 
+                const initialAppUser: AppUser = {
+                    uid: currentUser.uid,
+                    email: currentUser.email!,
+                    isAdmin: false,
+                    planId: 'free',
+                    createdAt: new Date().toISOString(),
+                    name: currentUser.displayName || '',
+                    photoURL: currentUser.photoURL || ''
+                };
 
-                 setUser(currentUser);
+                 setUser(initialAppUser);
                  const userDocRef = db.collection('users').doc(currentUser.uid);
                  const userDoc = await userDocRef.get();
                  let userData;
@@ -68,7 +157,7 @@ function App() {
                         onboardingCompleted: false,
                         lastLoginIp: ip,
                         name: currentUser.displayName || '',
-                        photoURL: currentUser.photoURL || '',
+                        photoURL: currentUser.photoURL || ''
                     };
 
                     await userDocRef.set(newUserDoc);
@@ -101,7 +190,12 @@ function App() {
                 <Route exact path="/admin">
                     {user?.isAdmin ? (
                         <>
-                            <Header user={user}/>
+                            <Header
+                                onLogout={handleLogout}
+                                isSimulationMode={false} // Replace with your actual simulation mode logic
+                                theme={theme}
+                                onToggleTheme={handleToggleTheme}
+                            />
                             <AdminPage/>
                         </>
                     ) : (
@@ -113,8 +207,13 @@ function App() {
                  <Route exact path="/users">
                     {user?.isAdmin ? (
                         <>
-                            <Header user={user}/>
-                            <UserManagementPage/>
+                            <Header
+                                onLogout={handleLogout}
+                                isSimulationMode={false} // Replace with your actual simulation mode logic
+                                theme={theme}
+                                onToggleTheme={handleToggleTheme}
+                            />
+                            <UserManagementPage plans={plans} />
                         </>
                     ) : (
                         <div className="flex justify-center items-center h-screen">
@@ -125,8 +224,29 @@ function App() {
                 <Route exact path="/analytics">
                   {user?.isAdmin ? (
                     <>
-                      <Header user={user} />
-                      <AnalyticsPage />
+                      <Header
+                          onLogout={handleLogout}
+                          isSimulationMode={false} // Replace with your actual simulation mode logic
+                          theme={theme}
+                          onToggleTheme={handleToggleTheme}
+                      />
+                      <AnalyticsPage
+                            period={analyticsPeriod}
+                            onPeriodChange={handleAnalyticsPeriodChange}
+                            summaryData={analyticsSummaryData}
+                            aiSummary={analyticsAISummary}
+                            isGeneratingSummary={isGeneratingAnalyticsSummary}
+                            posts={analyticsPosts}
+                            isLoading={isAnalyticsLoading}
+                            onFetchAnalytics={handleFetchAnalytics}
+                            onGenerateInsights={handleGenerateInsights}
+                            role={'owner'} // Replace with your actual role logic
+                            userPlan={plans[0] || null} // Replace with your actual user plan logic
+                            audienceGrowthData={analyticsAudienceGrowthData}
+                            heatmapData={analyticsHeatmapData}
+                            contentTypeData={analyticsContentTypeData}
+                            isGeneratingDeepAnalytics={isGeneratingDeepAnalytics}
+                        />
                     </>
                   ) : (
                     <div className="flex justify-center items-center h-screen">
@@ -137,9 +257,29 @@ function App() {
                 <Route path="/">
                     {user ? (
                         <>
-                            <Header user={user} />
-                            <HomePage apiKey={apiKey} stabilityApiKey={stabilityApiKey} favoriteTargetIds={favoriteTargetIds} fbAccessToken={fbAccessToken} setFbAccessToken={setFbAccessToken} userPlanId={userPlanId}/>
-                            <OnboardingTour isTourOpen={isTourOpen} setIsTourOpen={setIsTourOpen}/>
+                            <Header
+                                onLogout={handleLogout}
+                                isSimulationMode={false} // Replace with your actual simulation mode logic
+                                theme={theme}
+                                onToggleTheme={handleToggleTheme}
+                            />
+                            <HomePage 
+                              apiKey={apiKey} 
+                              stabilityApiKey={stabilityApiKey} 
+                              favoriteTargetIds={favoriteTargetIds} 
+                              fbAccessToken={fbAccessToken} 
+                              setFbAccessToken={setFbAccessToken} 
+                              userPlanId={userPlanId}
+                              onSignIn={handleSignIn}
+                              onSignUp={handleSignUp}
+                              authError={authError}
+                            />
+                            <OnboardingTour
+                                isOpen={isTourOpen}
+                                onComplete={handleOnboardingComplete}
+                                hasConnectedFacebook={hasConnectedFacebook}
+                                hasSelectedTarget={hasSelectedTarget}
+                            />
                         </>
                     ) : (
                         <LoginPage setIsAdmin={setIsAdmin}/>

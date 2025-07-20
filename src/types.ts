@@ -299,6 +299,8 @@ export interface AppUser {
   geminiApiKey?: string;
   stabilityApiKey?: string;
   lastLoginIp?: string;
+  name?: string;
+  photoURL?: string;
 }
 
 

@@ -4,10 +4,10 @@ import React from 'react';
 import Button from './ui/Button';
 
 interface LandingHeaderProps {
-    onLoginClick: () => void;
+    //onLoginClick: () => void; Remove the onLoginClick prop
 }
 
-const LandingHeader: React.FC<LandingHeaderProps> = ({ onLoginClick }) => {
+const LandingHeader: React.FC<LandingHeaderProps> = ({ /*onLoginClick*/ }) => {
     return (
         <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm sticky top-0 z-40 border-b border-gray-200 dark:border-gray-700/50">
             <div className="container mx-auto px-4 sm:px-6 lg:px-8">
