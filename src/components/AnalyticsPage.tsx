@@ -6,18 +6,14 @@ import ContentTypePerformanceChart from './ContentTypePerformanceChart';
 import { PerformanceSummaryData, PublishedPost, AudienceGrowthData, HeatmapDataPoint, ContentTypePerformanceData, Role, Plan, PostAnalytics } from '../types';
 
 interface AnalyticsPageProps {
-  period: '7d' | '30d'; 
-  onPeriodChange: (period: '7d' | '30d') => void; 
-  summaryData: PerformanceSummaryData | null; // Keep as nullable as per AnalyticsSummaryDashboardProps
-  aiSummary: string; 
+  publishedPosts: PublishedPost[];
+  publishedPostsLoading: boolean;
+  analyticsPeriod: "7d" | "30d";
+  setAnalyticsPeriod: React.Dispatch<React.SetStateAction<"7d" | "30d">>;
+  performanceSummaryText: string;
+  setPerformanceSummaryText: React.Dispatch<React.SetStateAction<string>>; 
   isGeneratingSummary: boolean;
   setIsGeneratingSummary: React.Dispatch<React.SetStateAction<boolean>>; 
-  posts: PublishedPost[]; // Keep for PublishedPostsList
-  isLoading: boolean; // Keep for PublishedPostsList
-  onFetchAnalytics: (postId: string) => void; 
-  onGenerateInsights: (postId: string) => void; 
-  role: Role; // Keep for PublishedPostsList
-  userPlan: Plan | null;
   audienceGrowthData: AudienceGrowthData[];
   setAudienceGrowthData: React.Dispatch<React.SetStateAction<AudienceGrowthData[]>>; 
   heatmapData: HeatmapDataPoint[];
@@ -26,38 +22,39 @@ interface AnalyticsPageProps {
   setContentTypePerformanceData: React.Dispatch<React.SetStateAction<ContentTypePerformanceData[]>>; 
   isGeneratingDeepAnalytics: boolean;
   setIsGeneratingDeepAnalytics: React.Dispatch<React.SetStateAction<boolean>>; 
-  publishedPosts: PublishedPost[];
-  publishedPostsLoading: boolean;
-  analyticsPeriod: "7d" | "30d"; 
-  setAnalyticsPeriod: React.Dispatch<React.SetStateAction<"7d" | "30d">>; 
-  performanceSummaryText: string; 
-  setPerformanceSummaryText: React.Dispatch<React.SetStateAction<string>>; 
   managedTarget: any; // You might want to define a proper type for this
+  userPlan: Plan | null;
   isSimulationMode: boolean;
   aiClient: any; // You might want to define a proper type for this
   pageProfile: any; // You might want to define a proper type for this
-  currentUserRole: Role; 
+  currentUserRole: Role;
   showNotification: (type: 'success' | 'error' | 'partial', message: string, onUndo?: () => void) => void;
-  generatePerformanceSummary: (ai: any, summaryData: PerformanceSummaryData, pageProfile: any, period: "7d" | "30d") => Promise<string>; // Updated signature - removed | null
-  generatePostInsights: (ai: any, postText: string, analytics: PostAnalytics, comments: { message: string; }[]) => Promise<{ performanceSummary: string; sentiment: { positive: number; negative: number; neutral: number; }; }>; // Updated signature
+  generatePerformanceSummary: (ai: any, summaryData: PerformanceSummaryData, pageProfile: any, period: "7d" | "30d") => Promise<string>; 
+  generatePostInsights: (ai: any, postText: string, analytics: PostAnalytics, comments: { message: string; }[]) => Promise<{ performanceSummary: string; sentiment: { positive: number; negative: number; neutral: number; }; }>; 
   generateOptimalSchedule: (ai: any, pageProfile: any, publishedPosts: PublishedPost[]) => Promise<any>; // Define return type
   generateBestPostingTimesHeatmap: (ai: any, posts: PublishedPost[]) => Promise<HeatmapDataPoint[]>;
   generateContentTypePerformance: (ai: any, posts: PublishedPost[]) => Promise<ContentTypePerformanceData[]>;
+  // Removed props that are not passed from DashboardPage
+  // period: '7d' | '30d'; 
+  // onPeriodChange: (period: '7d' | '30d') => void; 
+  // summaryData: PerformanceSummaryData | null; 
+  // aiSummary: string; 
+  // posts: PublishedPost[]; 
+  // isLoading: boolean; 
+  // onFetchAnalytics: (postId: string) => void; 
+  // onGenerateInsights: (postId: string) => void; 
+  // role: Role; 
 }
 
 const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
-  period,
-  onPeriodChange,
-  summaryData,
-  aiSummary,
+  publishedPosts,
+  publishedPostsLoading,
+  analyticsPeriod,
+  setAnalyticsPeriod,
+  performanceSummaryText,
+  setPerformanceSummaryText,
   isGeneratingSummary,
   setIsGeneratingSummary,
-  posts,
-  isLoading,
-  onFetchAnalytics,
-  onGenerateInsights,
-  role,
-  userPlan,
   audienceGrowthData,
   setAudienceGrowthData,
   heatmapData,
@@ -66,13 +63,8 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
   setContentTypePerformanceData,
   isGeneratingDeepAnalytics,
   setIsGeneratingDeepAnalytics,
-  publishedPosts,
-  publishedPostsLoading,
-  analyticsPeriod,
-  setAnalyticsPeriod,
-  performanceSummaryText,
-  setPerformanceSummaryText,
   managedTarget,
+  userPlan,
   isSimulationMode,
   aiClient,
   pageProfile,
@@ -88,11 +80,12 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
 
   return (
     <div className="space-y-8 fade-in">
+      {/* AnalyticsSummaryDashboard expects period, onPeriodChange, summaryData, aiSummary */}
       <AnalyticsSummaryDashboard
-        period={analyticsPeriod} 
-        onPeriodChange={setAnalyticsPeriod} 
-        summaryData={summaryData} 
-        aiSummary={performanceSummaryText} 
+        period={analyticsPeriod} // Using analyticsPeriod
+        onPeriodChange={setAnalyticsPeriod} // Using setAnalyticsPeriod
+        summaryData={null} // summaryData is not passed, using null or fetching here
+        aiSummary={performanceSummaryText} // Using performanceSummaryText
         isGeneratingSummary={isGeneratingSummary}
       />
 
