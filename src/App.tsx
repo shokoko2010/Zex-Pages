@@ -525,7 +525,11 @@ const App: React.FC = () => {
   };
   
   const handleFacebookConnect = async () => {
-    if (!user) return;
+    if (!user) {
+      alert("يجب أن تسجل الدخول أولاً قبل ربط حساب فيسبوك.");
+      return;
+    }
+
     const facebookProvider = new firebase.auth.FacebookAuthProvider();
     // Add all required Facebook API scopes
     facebookProvider.addScope('email');
@@ -542,17 +546,25 @@ const App: React.FC = () => {
     facebookProvider.addScope('instagram_manage_messages');
     
     try {
-        const result = await auth.signInWithPopup(facebookProvider);
+        const result = await user.linkWithPopup(facebookProvider); // Use linkWithPopup
         const credential = result.credential as firebase.auth.OAuthCredential;
         if (credential?.accessToken) {
           setFbAccessToken(credential.accessToken);
           // Save the token to Firestore for persistence
           const userDocRef = db.collection('users').doc(user.uid);
           await userDocRef.set({ fbAccessToken: credential.accessToken }, { merge: true });
+          alert("تم ربط حساب فيسبوك بنجاح!");
         }
-    } catch (error) {
+    } catch (error: any) {
         console.error("Facebook connect error:", error);
-        alert(`فشل الاتصال بفيسبوك. السبب: ${error}`);
+        if (error.code === 'auth/credential-already-in-use') {
+          alert("هذا الحساب الفيسبوك مرتبط بالفعل بحساب آخر. يرجى استخدام حساب فيسبوك آخر أو تسجيل الدخول بالحساب المرتبط.");
+        } else if (error.code === 'auth/popup-closed-by-user') {
+          alert("تم إغلاق نافذة تسجيل الدخول إلى فيسبوك.");
+        }
+        else {
+          alert(`فشل الاتصال بفيسبوك. السبب: ${error.message}`);
+        }
     }
   };
 
