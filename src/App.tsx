@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Route, Switch, useHistory } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, useNavigate } from 'react-router-dom';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, FacebookAuthProvider, signInWithPopup, linkWithCredential, unlink } from "firebase/auth";
 import { getFirestore } from 'firebase/firestore';
@@ -181,14 +181,10 @@ function App() {
 
     return (
         <Router>
-            <Switch>
-                <Route exact path="/privacy-policy">
-                    <LandingHeader/>
-                    <PrivacyPolicyPage/>
-                    <Footer/>
-                </Route>
-                <Route exact path="/admin">
-                    {user?.isAdmin ? (
+            <Routes>
+                <Route path="/privacy-policy" element={<> <LandingHeader/> <PrivacyPolicyPage/> <Footer/> </>} />
+                <Route path="/admin" element={
+                    user?.isAdmin ? (
                         <>
                             <Header
                                 onLogout={handleLogout}
@@ -203,9 +199,9 @@ function App() {
                             <div className="text-red-500 font-bold text-2xl">ليس لديك صلاحية الوصول إلى هذه الصفحة.</div>
                         </div>
                     )}
-                </Route>
-                 <Route exact path="/users">
-                    {user?.isAdmin ? (
+                } />
+                 <Route path="/users" element={
+                    user?.isAdmin ? (
                         <>
                             <Header
                                 onLogout={handleLogout}
@@ -220,9 +216,9 @@ function App() {
                             <div className="text-red-500 font-bold text-2xl">ليس لديك صلاحية الوصول إلى هذه الصفحة.</div>
                         </div>
                     )}
-                </Route>
-                <Route exact path="/analytics">
-                  {user?.isAdmin ? (
+                } />
+                <Route path="/analytics" element={
+                  user?.isAdmin ? (
                     <>
                       <Header
                           onLogout={handleLogout}
@@ -253,9 +249,9 @@ function App() {
                       <div className="text-red-500 font-bold text-2xl">ليس لديك صلاحية الوصول إلى هذه الصفحة.</div>
                     </div>
                   )}
-                </Route>
-                <Route path="/">
-                    {user ? (
+                } />
+                <Route path="/" element={
+                    user ? (
                         <>
                             <Header
                                 onLogout={handleLogout}
@@ -284,8 +280,8 @@ function App() {
                     ) : (
                         <LoginPage setIsAdmin={setIsAdmin}/>
                     )}
-                </Route>
-            </Switch>
+                } />
+            </Routes>
         </Router>
     );
 }
