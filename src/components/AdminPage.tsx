@@ -49,7 +49,8 @@ const AdminPage: React.FC = () => {
             return;
         }
         const planRef = db.collection('plans').doc(plan.id);
-        await planRef.set(plan, { merge: true });
+        // Ensure adminOnly is saved correctly
+        await planRef.set({...plan, adminOnly: plan.adminOnly ?? false }, { merge: true });
         setIsModalOpen(false);
         fetchPlans();
     };
@@ -82,6 +83,9 @@ const AdminPage: React.FC = () => {
                         <div className="flex-grow">
                             <h2 className="text-2xl font-bold text-blue-500">{plan.name}</h2>
                             <p className="font-semibold text-lg my-2">{plan.price} ر.س / {plan.pricePeriod === 'monthly' ? 'شهرياً' : (plan.pricePeriod === 'yearly' ? 'سنوياً' : 'مرة واحدة')}</p>
+                            {plan.adminOnly && (
+                                <span className="text-sm font-semibold text-red-500">خاص بالمسؤولين فقط</span>
+                            )}
                             <ul className="mt-4 space-y-2 text-sm list-disc list-inside text-gray-700 dark:text-gray-300">
                                {plan.features.map((feature, i) => <li key={i}>{feature}</li>)}
                                <li className="font-semibold">{plan.limits.pages === -1 ? 'عدد لا نهائي من الصفحات' : `حتى ${plan.limits.pages} صفحة`}</li>

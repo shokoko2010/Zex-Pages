@@ -276,13 +276,14 @@ export interface PlanLimits {
 }
 
 export interface Plan {
-  id: string; // 'free', 'pro', 'super'
-  name: string; // 'Free', 'Pro', 'Super'
+  id: 'free' | 'pro' | 'super' | 'unlimited'; // Updated plan IDs
+  name: string; // 'Free', 'Pro', 'Super', 'Unlimited'
   price: number;
   pricePeriod: 'monthly' | 'yearly' | 'one-time';
   features: string[];
   limits: PlanLimits;
   createdAt?: string; // ISO date string
+  adminOnly?: boolean; // New field for admin-only plans
 }
 
 // --- Type for User documents in Firestore ---
