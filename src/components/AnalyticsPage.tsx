@@ -34,16 +34,6 @@ interface AnalyticsPageProps {
   generateOptimalSchedule: (ai: any, pageProfile: any, publishedPosts: PublishedPost[]) => Promise<any>; // Define return type
   generateBestPostingTimesHeatmap: (ai: any, posts: PublishedPost[]) => Promise<HeatmapDataPoint[]>;
   generateContentTypePerformance: (ai: any, posts: PublishedPost[]) => Promise<ContentTypePerformanceData[]>;
-  // Removed props that are not passed from DashboardPage
-  // period: '7d' | '30d'; 
-  // onPeriodChange: (period: '7d' | '30d') => void; 
-  // summaryData: PerformanceSummaryData | null; 
-  // aiSummary: string; 
-  // posts: PublishedPost[]; 
-  // isLoading: boolean; 
-  // onFetchAnalytics: (postId: string) => void; 
-  // onGenerateInsights: (postId: string) => void; 
-  // role: Role; 
 }
 
 const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
@@ -103,8 +93,8 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
         <DeepAnalyticsSection
           publishedPosts={publishedPosts}
           publishedPostsLoading={publishedPostsLoading}
-          onFetchAnalytics={onFetchAnalytics}
-          onGenerateInsights={onGenerateInsights}
+          onFetchAnalytics={onFetchAnalytics} 
+          onGenerateInsights={onGenerateInsights} 
           isGeneratingDeepAnalytics={isGeneratingDeepAnalytics}
           role={currentUserRole} 
         />
