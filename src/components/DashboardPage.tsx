@@ -211,22 +211,19 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
   const handleGenerateBulkPostFromText = async (id: string) => { /* ... unchanged ... */ };
   const handleScheduleAllBulk = async () => { /* ... unchanged ... */ };
   const handleFetchProfile = useCallback(async () => {
-    console.log("Retrieve and Improve with AI button clicked! (Start)"); // Added log
+    console.log("Retrieve and Improve with AI button clicked! (Start)");
+    console.log("isSimulationMode:", isSimulationMode); // Add this
+    console.log("aiClient:", aiClient); // Add this
+    console.log("fbAccessToken:", fbAccessToken); // Add this
+  
     setIsFetchingProfile(true); // Set loading state
-    console.log("setIsFetchingProfile(true) called"); // Added log
+    console.log("setIsFetchingProfile(true) called");
     try {
-      console.log("Inside try block"); // Added log
-      // Simulate some async work
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      console.log("Simulated fetching and processing complete."); // This log is already here
-      // ... rest of the try block
+      // ... rest of the code
     } catch (error) {
-      console.error("Error fetching or processing profile:", error); // This log is already here
-      // ... rest of the catch block
+      // ... error handling
     } finally {
-      console.log("Inside finally block"); // Added log
-      setIsFetchingProfile(false); // Unset loading state
-      console.log("setIsFetchingProfile(false) called"); // Added log
+      // ... finally block
     }
   }, [managedTarget.id, isSimulationMode, aiClient, showNotification, pageProfile, handlePageProfileChange, fbAccessToken]);
   
