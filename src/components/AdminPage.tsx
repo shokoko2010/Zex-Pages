@@ -148,7 +148,7 @@ const AdminPage: React.FC<AdminPageProps> = ({
             </header>
             <main className="p-4 sm:p-8 space-y-8">
                 {adminView === 'dashboard' ? (
-                    <>
+                    <
                         {/* Original Dashboard Content (Plan Management and Users Table) */}
                         <div className="flex justify-between items-center">
                             <h1 className="text-3xl font-bold">إدارة خطط الاشتراك</h1>
@@ -240,7 +240,7 @@ const AdminPage: React.FC<AdminPageProps> = ({
                                         <img src={page.picture.data.url} alt={page.name} className="w-12 h-12 rounded-full object-cover" />
                                         <div>
                                             <h3 className="text-lg font-semibold">{page.name}</h3>
-                                            <p className="text-sm text-gray-500 dark:text-gray-400">المنصة: {page.type === 'page' ? 'فيسبوك' : 'إنستغرام'}</p>
+                                            <p className="text-sm text-gray-500 dark:text-gray-400">المنصة: {page.type === 'facebook' ? 'فيسبوك' : 'إنستغرام'}</p>
                                         </div>
                                     </Button>
                                 ))}

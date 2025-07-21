@@ -144,7 +144,7 @@ const PageSelectorPage: React.FC<PageSelectorPageProps> = ({
   }, [targets]);
 
   const sortedAndFilteredTargets = useMemo(() => {
-    const primaryTargets = targets.filter(t => t.type === 'page');
+    const primaryTargets = targets.filter(t => t.type === 'facebook');
     const filtered = primaryTargets.filter(target =>
         target.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
@@ -212,7 +212,7 @@ const PageSelectorPage: React.FC<PageSelectorPageProps> = ({
             {viewMode === 'grid' ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {sortedAndFilteredTargets.map(target => {
-                        const linkedInstagram = target.type === 'page' ? instagramAccountsByParentId.get(target.id) : null;
+                        const linkedInstagram = target.type === 'facebook' ? instagramAccountsByParentId.get(target.id) : null;
                         return (
                             <TargetCard
                                 key={target.id}
@@ -231,7 +231,7 @@ const PageSelectorPage: React.FC<PageSelectorPageProps> = ({
             ) : (
                 <div className="space-y-3">
                     {sortedAndFilteredTargets.map(target => {
-                        const linkedInstagram = target.type === 'page' ? instagramAccountsByParentId.get(target.id) : null;
+                        const linkedInstagram = target.type === 'facebook' ? instagramAccountsByParentId.get(target.id) : null;
                         return (
                             <TargetListItem
                                 key={target.id}

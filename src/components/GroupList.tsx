@@ -83,7 +83,7 @@ const TargetList: React.FC<TargetListProps> = ({
                 {targets.map(target => {
                     const getBadgeStyle = () => {
                         switch (target.type) {
-                            case 'page':
+                            case 'facebook':
                                 return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300';
                             case 'instagram':
                                 return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300';
@@ -94,7 +94,7 @@ const TargetList: React.FC<TargetListProps> = ({
 
                      const getTypeText = () => {
                         switch (target.type) {
-                            case 'page': return 'صفحة';
+                            case 'facebook': return 'صفحة';
                             case 'instagram': return 'انستجرام';
                             default: return 'غير معروف';
                         }

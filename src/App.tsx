@@ -18,7 +18,7 @@ const MAX_PUBLISHED_POSTS_TO_STORE_SYNC = 100;
 const MAX_INBOX_ITEMS_TO_STORE_SYNC = 200;
 
 const MOCK_TARGETS: Target[] = [
-    { id: '1', name: 'صفحة تجريبية 1', type: 'page', access_token: 'DUMMY_TOKEN_1', picture: { data: { url: 'https://via.placeholder.com/150/4B79A1/FFFFFF?text=Page1' } } },
+    { id: '1', name: 'صفحة تجريبية 1', type: 'facebook', access_token: 'DUMMY_TOKEN_1', picture: { data: { url: 'https://via.placeholder.com/150/4B79A1/FFFFFF?text=Page1' } } },
     { id: 'ig1', name: 'Zex Pages IG (@zex_pages_ig)', type: 'instagram', parentPageId: '1', access_token: 'DUMMY_TOKEN_1', picture: { data: { url: 'https://via.placeholder.com/150/E4405F/FFFFFF?text=IG' } } }
 ];
 
@@ -272,7 +272,7 @@ const App: React.FC = () => {
     try {
         const allPagesData = await fetchWithPagination('/me/accounts?fields=id,name,access_token,picture{url}&limit=100');
         const allTargetsMap = new Map<string, Target>();
-        allPagesData.forEach(p => allTargetsMap.set(p.id, { ...p, type: 'page' }));
+        allPagesData.forEach(p => allTargetsMap.set(p.id, { ...p, type: 'facebook' }));
         const igAccounts = await fetchInstagramAccounts(Array.from(allTargetsMap.values()));
         igAccounts.forEach(ig => allTargetsMap.set(ig.id, ig));
         const finalTargets = Array.from(allTargetsMap.values());
@@ -297,7 +297,7 @@ const App: React.FC = () => {
       const ownedPages = await fetchWithPagination(`/${businessId}/owned_pages?fields=id,name,access_token,picture{url}&limit=100`);
       const igAccounts = await fetchInstagramAccounts(ownedPages);
       const newTargetsMap = new Map<string, Target>();
-      ownedPages.forEach(p => newTargetsMap.set(p.id, { ...p, type: 'page' }));
+      ownedPages.forEach(p => newTargetsMap.set(p.id, { ...p, type: 'facebook' }));
       igAccounts.forEach(ig => newTargetsMap.set(ig.id, ig));
       
       setTargets(prevTargets => {

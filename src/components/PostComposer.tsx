@@ -352,7 +352,7 @@ ${hashtagString}` : hashtagString);
       
       {error && <p className="text-red-500 text-sm mt-2 p-3 bg-red-50 dark:bg-red-900/20 rounded-md">{error}</p>}
       
-      {managedTarget.type === 'page' && <div className="p-4 border rounded-lg dark:border-gray-700">
+      {managedTarget.type === 'facebook' && <div className="p-4 border rounded-lg dark:border-gray-700">
         <div className="flex items-center">
             <input id="include-ig-checkbox" type="checkbox" checked={includeInstagram} onChange={e => onIncludeInstagramChange(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer" disabled={!linkedInstagramTarget || isViewer} />
             <label htmlFor="include-ig-checkbox" className="mr-2 text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1"><InstagramIcon className="w-4 h-4"/> النشر على انستجرام أيضاً</label>
