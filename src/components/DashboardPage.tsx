@@ -11,7 +11,7 @@ import BulkSchedulerPage from './BulkSchedulerPage';
 import ContentPlannerPage from './ContentPlannerPage';
 import InboxPage from './InboxPage';
 import { GoogleGenAI } from '@google/genai';
-import { generateContentPlan, generatePerformanceSummary, generateOptimalSchedule, generatePostInsights, enhanceProfileFromFacebookData, generateSmartReplies, generateAutoReply, generatePostSuggestion, generateHashtags, generateDescriptionForImage, generateBestPostingTimesHeatmap, generateContentTypePerformance, generateImage } from '../services/geminiService';
+import { generateContentPlan, generatePerformanceSummary, generateOptimalSchedule, generatePostInsights, enhanceProfileFromFacebookData, generateSmartReplies, generateAutoReply, generatePostSuggestion, generateHashtags, generateDescriptionForImage, generateBestPostingTimesHeatmap, generateContentTypePerformance, generateImageFromPrompt } from '../services/geminiService';
 import PageProfilePage from './PageProfilePage';
 import Button from './ui/Button';
 import { db } from '../services/firebaseService';
@@ -199,7 +199,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
     // This is a simplified rescheduling logic.
     // In a real application, you'd calculate actual dates based on strategy and settings.
     return postsToReschedule.map(post => ({ ...post, scheduleDate: '' })); // Clear dates for now
-  }, [schedulingStrategy, weeklyScheduleSettings]);
+  }, []);
 
 
   const handleReschedule = () => setBulkPosts(prev => rescheduleBulkPosts(prev));
@@ -230,7 +230,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
       setBulkPosts(prev => [...prev, newTextPost]);
     }
     showNotification('success', files ? `تمت إضافة ${files.length} منشورات جديدة للجدولة.` : 'تمت إضافة منشور نصي فارغ.');
-  }, [rescheduleBulkPosts, showNotification, managedTarget.id]);
+  }, [showNotification, managedTarget.id]);
 
 
   const handleUpdateBulkPost = (id: string, updates: Partial<BulkPostItem>) => {
@@ -276,7 +276,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
     }
     try {
         showNotification('partial', 'جاري توليد الصورة... قد يستغرق هذا بعض الوقت.');
-        const imageUrl = await generateImage(aiClient, stabilityApiKey, text);
+        const imageUrl = await generateImageFromPrompt(aiClient, stabilityApiKey, text);
         const response = await fetch(imageUrl);
         const blob = await response.blob();
         const generatedFile = new File([blob], `generated_image_${id}.png`, { type: 'image/png' });

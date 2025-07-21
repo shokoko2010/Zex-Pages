@@ -19,11 +19,11 @@ interface BulkSchedulerPageProps {
   pageProfile: PageProfile;       // Added for AI context
 
   // AI-powered content generation for individual bulk posts:
-  onGeneratePostFromText: (id: string) => Promise<void>;
-  onGenerateImageFromText: (id: string) => Promise<void>; // New: Generate image based on text
+  onGeneratePostFromText: (id: string, text: string) => Promise<void>; // Added text argument
+  onGenerateImageFromText: (id: string, text: string) => Promise<void>; // Added text argument
   onGeneratePostFromImage: (id: string, imageFile: File) => Promise<void>; // New: Generate text based on image
   onAddImageManually: (id: string, file: File) => void; // New: Manually add image to a post
-  onGenerateDescriptionFromImage: (id: string) => Promise<void>; // Renamed from onGenerateDescription
+  // Removed onGenerateDescriptionFromImage: (id: string) => Promise<void>;
 
   schedulingStrategy: 'even' | 'weekly';
   onSchedulingStrategyChange: (strategy: 'even' | 'weekly') => void;
@@ -48,7 +48,7 @@ const BulkSchedulerPage: React.FC<BulkSchedulerPageProps> = ({
   onGenerateImageFromText,
   onGeneratePostFromImage,
   onAddImageManually,
-  onGenerateDescriptionFromImage,
+  // Removed onGenerateDescriptionFromImage,
   schedulingStrategy,
   onSchedulingStrategyChange,
   weeklyScheduleSettings,
@@ -153,11 +153,10 @@ const BulkSchedulerPage: React.FC<BulkSchedulerPageProps> = ({
                 aiClient={aiClient}
                 stabilityApiKey={stabilityApiKey}
                 pageProfile={pageProfile}
-                onGeneratePostFromText={onGeneratePostFromText}
-                onGenerateImageFromText={onGenerateImageFromText}
+                onGeneratePostFromText={(id, text) => onGeneratePostFromText(id, text)} // Pass text argument
+                onGenerateImageFromText={(id, text) => onGenerateImageFromText(id, text)} // Pass text argument
                 onGeneratePostFromImage={onGeneratePostFromImage}
                 onAddImageManually={onAddImageManually}
-                onGenerateDescriptionFromImage={onGenerateDescriptionFromImage}
                 role={role}
               />
             ))}

@@ -8,9 +8,9 @@ import PhotoIcon from './icons/PhotoIcon';
 import { GoogleGenAI } from '@google/genai';
 import FacebookIcon from './icons/FacebookIcon';
 import InstagramIcon from './icons/InstagramIcon';
-import ArrowUpTrayIcon from './icons/ArrowUpTrayIcon';
+import ArrowDownTrayIcon from './icons/ArrowDownTrayIcon'; // Changed from ArrowUpTrayIcon
 import WandSparklesIcon from './icons/WandSparklesIcon';
-import { generateDescriptionForImage, generatePostSuggestion, generateImage } from '../services/geminiService'; // Import new functions
+import { generateDescriptionForImage, generatePostSuggestion, generateImageFromPrompt } from '../services/geminiService'; // Changed generateImage to generateImageFromPrompt
 
 interface BulkPostItemCardProps {
   item: BulkPostItem;
@@ -80,7 +80,8 @@ const BulkPostItemCard: React.FC<BulkPostItemCardProps> = ({
   const handleGenerateImageClick = async () => {
     setIsGeneratingImage(true);
     try {
-      await onGenerateImageFromText(item.id, item.text || '');
+      // Pass a default value for style and aspectRatio if not available from props
+      await onGenerateImageFromText(item.id, item.text || ''); 
     } finally {
       setIsGeneratingImage(false);
     }
@@ -145,11 +146,11 @@ const BulkPostItemCard: React.FC<BulkPostItemCardProps> = ({
               className="hidden"
             />
             <Button
-              variant="secondary"
+              variant="secondary" // Changed from "outline"
               onClick={() => fileInputRef.current?.click()}
               disabled={isViewer}
             >
-              <ArrowUpTrayIcon className="w-4 h-4 mr-2" />
+              <ArrowDownTrayIcon className="w-4 h-4 mr-2" /> {/* Changed from ArrowUpTrayIcon */}
               أضف صورة يدوياً
             </Button>
           </div>
@@ -161,7 +162,7 @@ const BulkPostItemCard: React.FC<BulkPostItemCardProps> = ({
                 onClick={handleGenerateImageClick}
                 isLoading={isGeneratingImage}
                 disabled={!canGenerateImage || isGeneratingImage}
-                variant="outline"
+                variant="secondary" // Changed from "outline"
                 className="text-blue-600 border-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:border-blue-400 dark:hover:bg-blue-900/30"
               >
                 <WandSparklesIcon className="w-4 h-4 ml-2" />
@@ -173,7 +174,7 @@ const BulkPostItemCard: React.FC<BulkPostItemCardProps> = ({
                 onClick={handleGeneratePostClick}
                 isLoading={isGeneratingPost}
                 disabled={!canGeneratePost || isGeneratingPost}
-                variant="outline"
+                variant="secondary" // Changed from "outline"
                 className="text-purple-600 border-purple-600 hover:bg-purple-50 dark:text-purple-400 dark:border-purple-400 dark:hover:bg-purple-900/30"
               >
                 <SparklesIcon className="w-4 h-4 ml-2" />
