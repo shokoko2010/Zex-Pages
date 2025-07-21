@@ -5,7 +5,7 @@ import Button from './ui/Button';
 import BulkPostItemCard from './BulkPostItemCard';
 import BulkSchedulingOptions from './BulkSchedulingOptions';
 import { GoogleGenAI } from '@google/genai';
-import { generateImageFromPrompt, generateImageWithStabilityAI } from '../services/geminiService'; // Import both functions
+import { generateImageFromPrompt, generateImageWithStabilityAI } from '../services/geminiService';
 import { base64ToFile } from '../utils';
 
 interface BulkSchedulerPageProps {
@@ -19,7 +19,7 @@ interface BulkSchedulerPageProps {
   aiClient: GoogleGenAI | null;
   stabilityApiKey: string | null;
   pageProfile: PageProfile;
-  showNotification: (message: string, type: 'success' | 'error' | 'info') => void;
+  showNotification: (type: 'success' | 'error' | 'partial', message: string, onUndo?: () => void) => void;
 
   onGeneratePostFromText: (id: string, text: string) => Promise<void>;
   onGenerateImageFromText: (id: string, text: string, service: 'gemini' | 'stability') => Promise<void>;
@@ -99,13 +99,13 @@ const BulkSchedulerPage: React.FC<BulkSchedulerPageProps> = ({
       let base64;
       if (service === 'gemini') {
         if (!aiClient) {
-          showNotification("Gemini API client is not configured.", 'error');
+          showNotification('error', 'Gemini API client is not configured.');
           return;
         }
         base64 = await generateImageFromPrompt(aiClient, text, 'standard', '1:1');
       } else if (service === 'stability') {
         if (!stabilityApiKey) {
-          showNotification("Stability AI API key is not configured.", 'error');
+          showNotification('error', 'Stability AI API key is not configured.');
           return;
         }
         base64 = await generateImageWithStabilityAI(stabilityApiKey, text, 'standard', '1:1', aiClient); // Pass aiClient for translation
@@ -114,11 +114,11 @@ const BulkSchedulerPage: React.FC<BulkSchedulerPageProps> = ({
       if (base64) {
         const imageFile = base64ToFile(base64, `generated_image_${id}.png`);
         onUpdatePost(id, { imageFile, imagePreview: URL.createObjectURL(imageFile), hasImage: true });
-        showNotification("Image generated successfully!", 'success');
+        showNotification('success', `تم توليد الصورة بنجاح باستخدام ${service === 'gemini' ? 'Gemini' : 'Stability AI'}!`);
       }
     } catch (error: any) {
       console.error(`Error generating image with ${service}:`, error);
-      showNotification(`Failed to generate image: ${error.message}`, 'error');
+      showNotification('error', `فشل توليد الصورة: ${error.message}`);
     }
   }, [aiClient, stabilityApiKey, onUpdatePost, showNotification]);
 
@@ -135,7 +135,7 @@ const BulkSchedulerPage: React.FC<BulkSchedulerPageProps> = ({
         >
           <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-4">الجدولة المجمعة للمنشورات</h2>
           <p className="text-gray-600 dark:text-gray-400 mb-6">
-            اسحب وأفلت صورًا متعددة هنا، أو اخترها يدويًا.
+            اسحب وأفلت صورًا متعددة هنا، أو اخترها يدوياً.
           </p>
           <input
             type="file"
