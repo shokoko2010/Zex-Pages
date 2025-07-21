@@ -11,7 +11,7 @@ import BulkSchedulerPage from './BulkSchedulerPage';
 import ContentPlannerPage from './ContentPlannerPage';
 import InboxPage from './InboxPage';
 import { GoogleGenAI } from '@google/genai';
-import { generateContentPlan, generatePerformanceSummary, generateOptimalSchedule, generatePostInsights, enhanceProfileFromFacebookData, generateSmartReplies, generatePostSuggestion, generateHashtags, generateDescriptionForImage, generateBestPostingTimesHeatmap, generateContentTypePerformance } from '../services/geminiService';
+import { generateContentPlan, generatePerformanceSummary, generateOptimalSchedule, generatePostInsights, enhanceProfileFromFacebookData, generateSmartReplies, generateAutoReply, generatePostSuggestion, generateHashtags, generateDescriptionForImage, generateBestPostingTimesHeatmap, generateContentTypePerformance } from '../services/geminiService';
 import PageProfilePage from './PageProfilePage';
 import Button from './ui/Button';
 import { db } from '../services/firebaseService';
@@ -154,12 +154,16 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
   const bulkSchedulerTargets = useMemo(() => [managedTarget, ...(linkedInstagramTarget ? [linkedInstagramTarget] : [])], [managedTarget, linkedInstagramTarget]);
 
   useEffect(() => {
-      setImagePreview(selectedImage ? URL.createObjectURL(selectedImage) : null);
-      return () => { if (imagePreview) URL.revokeObjectURL(imagePreview); };
+    if (selectedImage) {
+      const newUrl = URL.createObjectURL(selectedImage);
+      setImagePreview(newUrl);
+      return () => URL.revokeObjectURL(newUrl);
+    }
+    setImagePreview(null);
   }, [selectedImage]);
 
   const clearComposer = useCallback(() => {
-    setPostText(''); setSelectedImage(null); setImagePreview(null);
+    setPostText(''); setSelectedImage(null);
     setScheduleDate(''); setComposerError(''); setIsScheduled(false);
     setIncludeInstagram(!!linkedInstagramTarget); setEditingScheduledPostId(null);
   }, [linkedInstagramTarget]);
@@ -227,9 +231,10 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
         const dataRef = getTargetDataRef();
         setPublishedPostsLoading(true); setIsInboxLoading(true);
         const docSnap = await dataRef.get();
+        let loadedProfile: PageProfile;
         if (docSnap.exists) {
             const data = docSnap.data()!;
-            const loadedProfile: PageProfile = { ...initialPageProfile, ...(data.pageProfile || {}) };
+            loadedProfile = { ...initialPageProfile, ...(data.pageProfile || {}) };
             if (!loadedProfile.ownerUid) {
                 loadedProfile.ownerUid = user.uid;
                 loadedProfile.members = [user.uid];
@@ -242,23 +247,31 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
             setPublishedPosts(data.publishedPosts?.map((p:any) => ({...p, publishedAt: new Date(p.publishedAt)})) || []);
             setInboxItems(data.inboxItems?.map((i:any) => ({ ...i, timestamp: new Date(i.timestamp).toISOString() })) || []);
         } else {
-            const newProfile: PageProfile = { ...initialPageProfile, ownerUid: user.uid, members: [user.uid], team: [] };
-            setPageProfile(newProfile);
+            loadedProfile = { ...initialPageProfile, ownerUid: user.uid, members: [user.uid], team: [] };
+            setPageProfile(loadedProfile);
             setCurrentUserRole('owner');
             setAutoResponderSettings(initialAutoResponderSettings);
             setDrafts([]); setScheduledPosts([]); setPublishedPosts([]); setInboxItems([]);
         }
-        await saveDataToFirestore({ id: managedTarget.id, name: managedTarget.name, pictureUrl: managedTarget.picture.data.url, accessToken: managedTarget.access_token, userId: user.uid, pageProfile: pageProfile });
+        await saveDataToFirestore({ 
+            id: managedTarget.id, 
+            name: managedTarget.name, 
+            pictureUrl: managedTarget.picture.data.url, 
+            accessToken: managedTarget.access_token, 
+            userId: user.uid, 
+            pageProfile: loadedProfile 
+        });
         clearComposer();
         setPublishedPostsLoading(false);
         setIsInboxLoading(false);
     };
     loadDataFromFirestore();
-  }, [managedTarget, user.uid]);
+  }, [managedTarget.id, user.uid, getTargetDataRef, clearComposer, saveDataToFirestore]);
     
+  const isAllowed = (feature: keyof Plan['limits']) => isAdmin || (userPlan?.limits[feature] ?? false);
+  const planName = userPlan?.name || 'Free';
+
   const handleSetView = (newView: DashboardView) => {
-    const isAllowed = (feature: keyof Plan['limits']) => userPlan?.limits[feature] ?? false;
-    const planName = userPlan?.name || 'Free';
     const featureMap: Partial<Record<DashboardView, { key: keyof Plan['limits'], name: string }>> = {
         'bulk': { key: 'bulkScheduling', name: 'الجدولة المجمعة' },
         'planner': { key: 'contentPlanner', name: 'استراتيجيات المحتوى' },
@@ -280,7 +293,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
             <PostComposer
               postText={postText} onPostTextChange={setPostText} selectedImage={selectedImage}
               onImageChange={(e) => setSelectedImage(e.target.files ? e.target.files[0] : null)}
-              onImageGenerated={setSelectedImage} onImageRemove={() => { setSelectedImage(null); setImagePreview(null); }}
+              onImageGenerated={setSelectedImage} onImageRemove={() => setSelectedImage(null)}
               imagePreview={imagePreview} isScheduled={isScheduled} onIsScheduledChange={setIsScheduled}
               scheduleDate={scheduleDate} onScheduleDateChange={setScheduleDate} error={composerError}
               onPublish={handlePublish} onSaveDraft={handleSaveDraft} includeInstagram={includeInstagram}
@@ -306,7 +319,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
             onGeneratePlan={async (request, images) => {
                 setIsGeneratingPlan(true); setPlanError(null);
                 try {
-                    const generatedPlan = await generateContentPlan(aiClient!, request, pageProfile, images);
+                    if (!aiClient) throw new Error("AI Client is not configured.");
+                    const generatedPlan = await generateContentPlan(aiClient, request, pageProfile, images);
                     setContentPlan(generatedPlan);
                     await onSavePlan(managedTarget.id, generatedPlan, request);
                     showNotification('success', 'تم إنشاء الخطة وحفظها في السجل بنجاح!');
@@ -345,11 +359,11 @@ ${planItem.body}`);
         <aside className="w-full md:w-64 bg-white dark:bg-gray-800 p-4 border-r dark:border-gray-700/50 flex-shrink-0">
           <nav className="space-y-2">
             <NavItem icon={<PencilSquareIcon className="w-5 h-5" />} label="إنشاء منشور" active={view === 'composer'} onClick={() => setView('composer')} />
-            <NavItem icon={<QueueListIcon className="w-5 h-5" />} label="الجدولة المجمعة" active={view === 'bulk'} onClick={() => handleSetView('bulk')} disabled={!isAdmin && !isAllowed('bulkScheduling')} disabledTooltip={!isAdmin ? `متاحة في الخطط الأعلى من ${planName}` : undefined} />
-            <NavItem icon={<BrainCircuitIcon className="w-5 h-5" />} label="استراتيجيات المحتوى" active={view === 'planner'} onClick={() => handleSetView('planner')} disabled={!isAdmin && !isAllowed('contentPlanner')} disabledTooltip={!isAdmin ? `متاحة في الخطط الأعلى من ${planName}` : undefined} />
+            <NavItem icon={<QueueListIcon className="w-5 h-5" />} label="الجدولة المجمعة" active={view === 'bulk'} onClick={() => handleSetView('bulk')} disabled={!isAllowed('bulkScheduling')} disabledTooltip={!isAllowed('bulkScheduling') ? `متاحة في الخطط الأعلى من ${planName}` : undefined} />
+            <NavItem icon={<BrainCircuitIcon className="w-5 h-5" />} label="استراتيجيات المحتوى" active={view === 'planner'} onClick={() => handleSetView('planner')} disabled={!isAllowed('contentPlanner')} disabledTooltip={!isAllowed('contentPlanner') ? `متاحة في الخطط الأعلى من ${planName}` : undefined} />
             <NavItem icon={<CalendarIcon className="w-5 h-5" />} label="تقويم المحتوى" active={view === 'calendar'} onClick={() => setView('calendar')} />
             <NavItem icon={<ArchiveBoxIcon className="w-5 h-5" />} label="المسودات" active={view === 'drafts'} onClick={() => setView('drafts')} />
-            <NavItem icon={<InboxArrowDownIcon className="w-5 h-5" />} label="صندوق الوارد" active={view === 'inbox'} onClick={() => handleSetView('inbox')} disabled={!isAdmin && !isAllowed('autoResponder')} disabledTooltip={!isAdmin ? `متاحة في الخطط الأعلى من ${planName}` : undefined} isPolling={isPolling} notificationCount={inboxItems.filter(item => item.status === 'new').length} />
+            <NavItem icon={<InboxArrowDownIcon className="w-5 h-5" />} label="صندوق الوارد" active={view === 'inbox'} onClick={() => handleSetView('inbox')} disabled={!isAllowed('autoResponder')} disabledTooltip={!isAllowed('autoResponder') ? `متاحة في الخطط الأعلى من ${planName}` : undefined} isPolling={isPolling} notificationCount={inboxItems.filter(item => item.status === 'new').length} />
             <NavItem icon={<ChartBarIcon className="w-5 h-5" />} label="التحليلات" active={view === 'analytics'} onClick={() => setView('analytics')} />
             <NavItem icon={<UserCircleIcon className="w-5 h-5" />} label="ملف الصفحة" active={view === 'profile'} onClick={() => setView('profile')} />
           </nav>
