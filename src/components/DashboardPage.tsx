@@ -165,12 +165,6 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
     setImagePreview(null);
   }, [selectedImage]);
 
-  const clearComposer = useCallback(() => {
-    setPostText(''); setSelectedImage(null);
-    setScheduleDate(''); setComposerError(''); setIsScheduled(false);
-    setIncludeInstagram(!!linkedInstagramTarget); setEditingScheduledPostId(null);
-  }, [linkedInstagramTarget]);
-
   const showNotification = useCallback((type: 'success' | 'error' | 'partial', message: string, onUndo?: () => void) => {
     setNotification({ type, message, onUndo });
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
@@ -271,26 +265,43 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
     }
   }, [aiClient, pageProfile, showNotification, bulkPosts]);
 
-  const handleGenerateImageFromText = useCallback(async (id: string, text: string) => {
+  const handleGenerateImageFromText = useCallback(async (id: string, text: string, service: 'gemini' | 'stability') => {
     const postToUpdate = bulkPosts.find(p => p.id === id);
-    if (!aiClient || !postToUpdate) { // Removed stabilityApiKey from check
-        showNotification('error', 'AI Client not configured or post not found.');
+    if (!postToUpdate) {
+        showNotification('error', 'Post not found.');
         return;
     }
     try {
-        showNotification('partial', 'جاري توليد الصورة... قد يستغرق هذا بعض الوقت.');
-        // Use Gemini's generateImageFromPrompt exclusively
-        const imageUrl = await generateImageFromPrompt(aiClient, text, 'vibrant', '16:9'); // Added default style and aspectRatio
-        const response = await fetch(imageUrl);
-        const blob = await response.blob();
-        const generatedFile = new File([blob], `generated_image_${id}.png`, { type: 'image/png' });
+        showNotification('partial', `جاري توليد الصورة باستخدام ${service === 'gemini' ? 'Gemini' : 'Stability AI'}... قد يستغرق هذا بعض الوقت.`);
+        let base64;
+        if (service === 'gemini') {
+             if (!aiClient) {
+                showNotification('error', 'Gemini API client is not configured.');
+                return;
+            }
+            base64 = await generateImageFromPrompt(aiClient, text, 'standard', '1:1');
+        } else if (service === 'stability') {
+            if (!stabilityApiKey) {
+                showNotification('error', 'Stability AI API key is not configured.');
+                return;
+            }
+            base64 = await generateImageWithStabilityAI(stabilityApiKey, text, 'standard', '1:1', aiClient);
+        }
 
-        handleUpdateBulkPost(id, { imageFile: generatedFile, hasImage: true, imagePreview: imageUrl });
-        showNotification('success', 'تم توليد الصورة بنجاح من النص!');
+        if (base64) {
+            // Assuming generateImageWithStabilityAI also returns base64 or a URL
+            const imageUrl = base64; // Or process base64 if it's raw data
+            const response = await fetch(imageUrl);
+            const blob = await response.blob();
+            const generatedFile = new File([blob], `generated_image_${id}.png`, { type: 'image/png' });
+
+            handleUpdateBulkPost(id, { imageFile: generatedFile, hasImage: true, imagePreview: imageUrl });
+            showNotification('success', `تم توليد الصورة بنجاح باستخدام ${service === 'gemini' ? 'Gemini' : 'Stability AI'}!`);
+        }
     } catch (error: any) {
         showNotification('error', `فشل توليد الصورة: ${error.message}`);
     }
-  }, [aiClient, showNotification, bulkPosts]); // Removed stabilityApiKey from dependency array
+  }, [aiClient, stabilityApiKey, showNotification, bulkPosts]);
 
 
   const handleGeneratePostFromImage = useCallback(async (id: string, imageFile: File) => {
@@ -421,7 +432,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
       case 'drafts':
         return <DraftsList drafts={drafts} onLoad={handleLoadDraft} onDelete={handleDeleteDraft} role={currentUserRole} />;
       case 'bulk':
-        return <BulkSchedulerPage bulkPosts={bulkPosts} onSchedulingStrategyChange={setSchedulingStrategy} onWeeklyScheduleSettingsChange={setWeeklyScheduleSettings} onReschedule={handleReschedule} onAddPosts={handleAddBulkPosts} onUpdatePost={handleUpdateBulkPost} onRemovePost={handleRemoveBulkPost} onGeneratePostFromText={handleGenerateBulkPostFromText} onGenerateImageFromText={handleGenerateImageFromText} onGeneratePostFromImage={handleGeneratePostFromImage} onAddImageManually={handleAddImageManually} onScheduleAll={handleScheduleAllBulk} targets={bulkSchedulerTargets} aiClient={aiClient} stabilityApiKey={stabilityApiKey} pageProfile={pageProfile} isSchedulingAll={isSchedulingAll} schedulingStrategy={schedulingStrategy} weeklyScheduleSettings={weeklyScheduleSettings} role={currentUserRole}/>;
+        return <BulkSchedulerPage bulkPosts={bulkPosts} onSchedulingStrategyChange={setSchedulingStrategy} onWeeklyScheduleSettingsChange={setWeeklyScheduleSettings} onReschedule={handleReschedule} onAddPosts={handleAddBulkPosts} onUpdatePost={handleUpdateBulkPost} onRemovePost={handleRemoveBulkPost} onGeneratePostFromText={handleGenerateBulkPostFromText} onGenerateImageFromText={handleGenerateImageFromText} onGeneratePostFromImage={handleGeneratePostFromImage} onAddImageManually={handleAddImageManually} onScheduleAll={handleScheduleAllBulk} targets={bulkSchedulerTargets} aiClient={aiClient} stabilityApiKey={stabilityApiKey} pageProfile={pageProfile} isSchedulingAll={isSchedulingAll} schedulingStrategy={schedulingStrategy} weeklyScheduleSettings={weeklyScheduleSettings} role={currentUserRole} showNotification={showNotification} />;
       case 'planner':
         return (
           <ContentPlannerPage
@@ -456,7 +467,7 @@ ${planItem.body}`);
       case 'inbox':
         return <InboxPage items={inboxItems} isLoading={isInboxLoading} autoResponderSettings={autoResponderSettings} onAutoResponderSettingsChange={(settings) => {setAutoResponderSettings(settings); saveDataToFirestore({ autoResponderSettings: settings });}} repliedUsersPerPost={repliedUsersPerPost} currentUserRole={currentUserRole} isSyncing={isPolling} onSync={() => setIsPolling(true)} onReply={async ()=>{return true}} onMarkAsDone={()=>{}} onGenerateSmartReplies={async ()=>{return []}} onFetchMessageHistory={async ()=>{return []}} aiClient={aiClient} role={currentUserRole} />;
       case 'analytics':
-        return <AnalyticsPage publishedPosts={publishedPosts} publishedPostsLoading={publishedPostsLoading} analyticsPeriod={analyticsPeriod} setAnalyticsPeriod={setAnalyticsPeriod} performanceSummaryText={performanceSummaryText} setPerformanceSummaryText={setPerformanceSummaryText} isGeneratingSummary={isGeneratingSummary} setIsGeneratingSummary={setIsGeneratingSummary} audienceGrowthData={audienceGrowthData} setAudienceGrowthData={setAudienceGrowthData} heatmapData={heatmapData} setHeatmapData={setHeatmapData} contentTypeData={contentTypeData} setContentTypePerformanceData={setContentTypePerformanceData} isGeneratingDeepAnalytics={isGeneratingDeepAnalytics} setIsGeneratingDeepAnalytics={setIsGeneratingDeepAnalytics} managedTarget={managedTarget} userPlan={userPlan} isSimulationMode={isSimulationMode} aiClient={aiClient} pageProfile={pageProfile} currentUserRole={currentUserRole} showNotification={showNotification} generatePerformanceSummary={generatePerformanceSummary} generatePostInsights={generatePostInsights} generateOptimalSchedule={async ()=>{return {days:[],time:''}}} generateBestPostingTimesHeatmap={generateBestPostingTimesHeatmap} generateContentTypePerformance={generateContentTypePerformance} />;
+        return <AnalyticsPage publishedPosts={publishedPosts} publishedPostsLoading={publishedPostsLoading} analyticsPeriod={analyticsPeriod} setAnalyticsPeriod={setAnalyticsPeriod} performanceSummaryText={performanceSummaryText} setPerformanceSummaryText={setPerformanceSummaryText} isGeneratingSummary={isGeneratingSummary} setIsGeneratingSummary={setIsGeneratingSummary} audienceGrowthData={audienceGrowthData} setAudienceGrowthData={setAudienceGrowthData} heatmapData={heatmapData} setHeatmapData={setHeatmapData} contentTypeData={contentTypeData} setContentTypePerformanceData={setContentTypePerformanceData} isGeneratingDeepAnalytics={setIsGeneratingDeepAnalytics} setIsGeneratingDeepAnalytics={setIsGeneratingDeepAnalytics} managedTarget={managedTarget} userPlan={userPlan} isSimulationMode={isSimulationMode} aiClient={aiClient} pageProfile={pageProfile} currentUserRole={currentUserRole} showNotification={showNotification} generatePerformanceSummary={generatePerformanceSummary} generatePostInsights={generatePostInsights} generateOptimalSchedule={async ()=>{return {days:[],time:''}}} generateBestPostingTimesHeatmap={generateBestPostingTimesHeatmap} generateContentTypePerformance={generateContentTypePerformance} />;
       case 'profile':
         return <PageProfilePage profile={pageProfile} onProfileChange={handlePageProfileChange} isFetchingProfile={isFetchingProfile} onFetchProfile={handleFetchProfile} role={currentUserRole} user={user} />;
       default: return null;
