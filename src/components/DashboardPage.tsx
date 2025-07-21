@@ -150,6 +150,10 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
   const [repliedUsersPerPost, setRepliedUsersPerPost] = useState<Record<string, string[]>>({});
   const [isPolling, setIsPolling] = useState(false);
 
+  console.log('aiClient:', aiClient);
+  console.log('stabilityApiKey:', stabilityApiKey);
+  console.log('currentUserRole:', currentUserRole);
+
   const linkedInstagramTarget = useMemo(() => allTargets.find(t => t.type === 'instagram' && t.parentPageId === managedTarget.id) || null, [managedTarget, allTargets]);
   const bulkSchedulerTargets = useMemo(() => [managedTarget, ...(linkedInstagramTarget ? [linkedInstagramTarget] : [])], [managedTarget, linkedInstagramTarget]);
 
@@ -270,13 +274,14 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
 
   const handleGenerateImageFromText = useCallback(async (id: string, text: string) => {
     const postToUpdate = bulkPosts.find(p => p.id === id);
-    if (!aiClient || !stabilityApiKey || !postToUpdate) {
-        showNotification('error', 'AI/Stability AI Client not configured or post not found.');
+    if (!aiClient || !postToUpdate) { // Removed stabilityApiKey from check
+        showNotification('error', 'AI Client not configured or post not found.');
         return;
     }
     try {
         showNotification('partial', 'جاري توليد الصورة... قد يستغرق هذا بعض الوقت.');
-        const imageUrl = await generateImageFromPrompt(aiClient, stabilityApiKey, text);
+        // Use Gemini's generateImageFromPrompt exclusively
+        const imageUrl = await generateImageFromPrompt(aiClient, text, 'vibrant', '16:9'); // Added default style and aspectRatio
         const response = await fetch(imageUrl);
         const blob = await response.blob();
         const generatedFile = new File([blob], `generated_image_${id}.png`, { type: 'image/png' });
@@ -286,7 +291,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
     } catch (error: any) {
         showNotification('error', `فشل توليد الصورة: ${error.message}`);
     }
-  }, [aiClient, stabilityApiKey, showNotification, bulkPosts]);
+  }, [aiClient, showNotification, bulkPosts]); // Removed stabilityApiKey from dependency array
 
 
   const handleGeneratePostFromImage = useCallback(async (id: string, imageFile: File) => {
