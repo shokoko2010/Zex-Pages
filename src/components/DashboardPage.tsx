@@ -439,11 +439,11 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
         );
       case 'calendar':
-        return <ContentCalendar posts={scheduledPosts} onEdit={handleEditScheduledPost} onDelete={handleDeleteScheduledPost} managedTarget={managedTarget} userPlan={userPlan} role={currentUserRole} onApprove={handleApprovePost} onReject={handleRejectPost} onSync={() => onSyncHistory(managedTarget)} isSyncing={!!syncingTargetId} />;
+        return <ContentCalendar posts={scheduledPosts} onEdit={handleEditScheduledPost} onDelete={handleDeleteScheduledPost} managedTarget={managedTarget} userPlan={userPlan} role={currentUserRole} onApprove={handleApprovePost} onReject={handleRejectPost} onSync={() => onSyncHistory(managedTarget)} isSyncing={!!syncingTargetId} />
       case 'drafts':
-        return <DraftsList drafts={drafts} onLoad={handleLoadDraft} onDelete={handleDeleteDraft} role={currentUserRole} />;
+        return <DraftsList drafts={drafts} onLoad={handleLoadDraft} onDelete={handleDeleteDraft} role={currentUserRole} />
       case 'bulk':
-        return <BulkSchedulerPage bulkPosts={bulkPosts} onSchedulingStrategyChange={setSchedulingStrategy} onWeeklyScheduleSettingsChange={setWeeklyScheduleSettings} onReschedule={handleReschedule} onAddPosts={handleAddBulkPosts} onUpdatePost={handleUpdateBulkPost} onRemovePost={handleRemoveBulkPost} onGeneratePostFromText={handleGenerateBulkPostFromText} onGenerateImageFromText={handleGenerateImageFromText} onGeneratePostFromImage={handleGeneratePostFromImage} onAddImageManually={handleAddImageManually} onScheduleAll={handleScheduleAllBulk} targets={bulkSchedulerTargets} aiClient={aiClient} stabilityApiKey={stabilityApiKey} pageProfile={pageProfile} isSchedulingAll={isSchedulingAll} schedulingStrategy={schedulingStrategy} weeklyScheduleSettings={weeklyScheduleSettings} role={currentUserRole} showNotification={showNotification} />;
+        return <BulkSchedulerPage bulkPosts={bulkPosts} onSchedulingStrategyChange={setSchedulingStrategy} onWeeklyScheduleSettingsChange={setWeeklyScheduleSettings} onReschedule={handleReschedule} onAddPosts={handleAddBulkPosts} onUpdatePost={handleUpdateBulkPost} onRemovePost={handleRemoveBulkPost} onGeneratePostFromText={handleGenerateBulkPostFromText} onGenerateImageFromText={handleGenerateImageFromText} onGeneratePostFromImage={handleGeneratePostFromImage} onAddImageManually={handleAddImageManually} onScheduleAll={handleScheduleAllBulk} targets={bulkSchedulerTargets} aiClient={aiClient} stabilityApiKey={stabilityApiKey} pageProfile={pageProfile} isSchedulingAll={isSchedulingAll} schedulingStrategy={schedulingStrategy} weeklyScheduleSettings={weeklyScheduleSettings} role={currentUserRole} showNotification={showNotification} />
       case 'planner':
         return (
           <ContentPlannerPage
@@ -476,4 +476,44 @@ ${planItem.body}`);
           />
         );
       case 'inbox':
-        return <InboxPage items={inboxItems} isLoading={isInboxLoading} autoResponderSettings={autoResponderSettings} onAutoResponderSettingsChange={(settings) => {setAutoResponderSettings(settings); saveDataToFirestore({ autoResponderSettings: settings });}} repliedUsersPerPost={repliedUsersPerPost} currentUserRole={currentUserRole} isSyncing={isPolling}
+        return <InboxPage items={inboxItems} isLoading={isInboxLoading} autoResponderSettings={autoResponderSettings} onAutoResponderSettingsChange={(settings) => {setAutoResponderSettings(settings); saveDataToFirestore({ autoResponderSettings: settings });}} repliedUsersPerPost={repliedUsersPerPost} currentUserRole={currentUserRole} isSyncing={isPolling} onSync={() => setIsPolling(true)} onReply={async ()=>{return true}} onMarkAsDone={()=>{}} onGenerateSmartReplies={async ()=>{return []}} onFetchMessageHistory={async ()=>{return []}} aiClient={aiClient} role={currentUserRole} />
+      case 'analytics':
+        return <AnalyticsPage publishedPosts={publishedPosts} publishedPostsLoading={publishedPostsLoading} analyticsPeriod={analyticsPeriod} setAnalyticsPeriod={setAnalyticsPeriod} performanceSummaryText={performanceSummaryText} setPerformanceSummaryText={setPerformanceSummaryText} isGeneratingSummary={isGeneratingSummary} setIsGeneratingSummary={setIsGeneratingSummary} audienceGrowthData={audienceGrowthData} setAudienceGrowthData={setAudienceGrowthData} heatmapData={heatmapData} setHeatmapData={setHeatmapData} contentTypeData={contentTypeData} setContentTypePerformanceData={setContentTypePerformanceData} isGeneratingDeepAnalytics={isGeneratingDeepAnalytics} setIsGeneratingDeepAnalytics={setIsGeneratingDeepAnalytics} managedTarget={managedTarget} userPlan={userPlan} isSimulationMode={isSimulationMode} aiClient={aiClient} pageProfile={pageProfile} currentUserRole={currentUserRole} showNotification={showNotification} generatePerformanceSummary={generatePerformanceSummary} generatePostInsights={generatePostInsights} generateOptimalSchedule={async ()=>{return {days:[],time:''}}} generateBestPostingTimesHeatmap={generateBestPostingTimesHeatmap} generateContentTypePerformance={generateContentTypePerformance} />
+      case 'profile':
+        return <PageProfilePage profile={pageProfile} onProfileChange={handlePageProfileChange} isFetchingProfile={isFetchingProfile} onFetchProfile={handleFetchProfile} role={currentUserRole} user={user} />
+      default: return null;
+    }
+  }
+
+  return (
+    <>
+      <Header pageName={managedTarget.name} onChangePage={onChangePage} onLogout={onLogout} onSettingsClick={onSettingsClick} theme={theme} onToggleTheme={onToggleTheme} />
+      {notification && <div className={`fixed bottom-4 right-4 p-4 rounded-md text-white text-sm z-50 ${notification.type === 'success' ? 'bg-green-500' : notification.type === 'error' ? 'bg-red-500' : 'bg-yellow-500'}`}>{notification.message}</div>}
+      <div className="flex flex-col md:flex-row min-h-[calc(100vh-68px)]">
+        <aside className="w-full md:w-64 bg-white dark:bg-gray-800 p-4 border-r dark:border-gray-700/50 flex-shrink-0">
+          <nav className="space-y-2">
+            <NavItem icon={<PencilSquareIcon className="w-5 h-5" />} label="إنشاء منشور" active={view === 'composer'} onClick={() => setView('composer')} />
+            <NavItem icon={<QueueListIcon className="w-5 h-5" />} label="الجدولة المجمعة" active={view === 'bulk'} onClick={() => handleSetView('bulk')} disabled={!isAllowed('bulkScheduling')} disabledTooltip={!isAllowed('bulkScheduling') ? `متاحة في الخطط الأعلى من ${planName}` : undefined} />
+            <NavItem icon={<BrainCircuitIcon className="w-5 h-5" />} label="استراتيجيات المحتوى" active={view === 'planner'} onClick={() => handleSetView('planner')} disabled={!isAllowed('contentPlanner')} disabledTooltip={!isAllowed('contentPlanner') ? `متاحة في الخطط الأعلى من ${planName}` : undefined} />
+            <NavItem icon={<CalendarIcon className="w-5 h-5" />} label="تقويم المحتوى" active={view === 'calendar'} onClick={() => setView('calendar')} />
+            <NavItem icon={<ArchiveBoxIcon className="w-5 h-5" />} label="المسودات" active={view === 'drafts'} onClick={() => setView('drafts')} />
+            <NavItem icon={<InboxArrowDownIcon className="w-5 h-5" />} label="صندوق الوارد" active={view === 'inbox'} onClick={() => handleSetView('inbox')} disabled={!isAllowed('autoResponder')} disabledTooltip={!isAllowed('autoResponder') ? `متاحة في الخطط الأعلى من ${planName}` : undefined} isPolling={isPolling} notificationCount={inboxItems.filter(item => item.status === 'new').length} />
+            <NavItem icon={<ChartBarIcon className="w-5 h-5" />} label="التحليلات" active={view === 'analytics'} onClick={() => setView('analytics')} />
+            <NavItem icon={<UserCircleIcon className="w-5 h-5" />} label="ملف الصفحة" active={view === 'profile'} onClick={() => setView('profile')} />
+          </nav>
+          <div className="mt-8 pt-4 border-t dark:border-gray-700">
+                <Button onClick={() => onSyncHistory(managedTarget)} isLoading={!!syncingTargetId} variant="secondary" className="w-full" disabled={currentUserRole === 'viewer'} title={currentUserRole === 'viewer' ? 'لا تملك صلاحية المزامنة' : undefined}>
+                    <ArrowPathIcon className="w-5 h-5 ml-2" />
+                    {syncingTargetId ? 'جاري المزامنة...' : 'مزامنة السجل الكامل'}
+                </Button>
+          </div>
+        </aside>
+        <main className="flex-grow min-w-0 p-4 sm:p-6 lg:p-8 bg-gray-50 dark:bg-gray-900 overflow-y-auto">
+          {renderView()}
+        </main>
+      </div>
+    </>
+  );
+};
+
+export default DashboardPage;
