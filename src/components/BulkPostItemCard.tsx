@@ -22,7 +22,7 @@ interface BulkPostItemCardProps {
   pageProfile: PageProfile;       // Added
 
   onGeneratePostFromText: (id: string, text: string) => Promise<void>; 
-  onGenerateImageFromText: (id: string, text: string) => Promise<void>; 
+  onGenerateImageFromText: (id: string, text: string, service: 'gemini' | 'stability') => Promise<void>; 
   onGeneratePostFromImage: (id: string, imageFile: File) => Promise<void>; 
   onAddImageManually: (id: string, file: File) => void; 
   role: Role;
@@ -81,7 +81,7 @@ const BulkPostItemCard: React.FC<BulkPostItemCardProps> = ({
     setIsGeneratingImage(true);
     try {
       // Pass a default value for style and aspectRatio if not available from props
-      await onGenerateImageFromText(item.id, item.text || ''); 
+      await onGenerateImageFromText(item.id, item.text || '', 'gemini'); // Specify Gemini service
     } finally {
       setIsGeneratingImage(false);
     }
@@ -89,7 +89,8 @@ const BulkPostItemCard: React.FC<BulkPostItemCardProps> = ({
 
   const isViewer = role === 'viewer';
   const hasContent = item.text && item.text.length > 0;
-  const canGenerateImage = aiClient && stabilityApiKey && hasContent && !item.hasImage && !isViewer;
+  // Updated canGenerateImage logic to only require aiClient for Gemini
+  const canGenerateImage = aiClient && hasContent && !item.hasImage && !isViewer;
   const canGeneratePost = aiClient && !isViewer && (hasContent || item.hasImage); // Corrected logic
   const canAddManualImage = !item.hasImage && !isViewer;
 
@@ -157,16 +158,17 @@ const BulkPostItemCard: React.FC<BulkPostItemCardProps> = ({
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
-            {canGenerateImage && (
+            {/* Gemini Image Generation Button */}
+            {aiClient && hasContent && !item.hasImage && !isViewer && (
               <Button
                 onClick={handleGenerateImageClick}
                 isLoading={isGeneratingImage}
-                disabled={!canGenerateImage || isGeneratingImage}
-                variant="secondary" // Changed from "outline"
+                disabled={!aiClient || !hasContent || item.hasImage || isGeneratingImage || isViewer}
+                variant="secondary"
                 className="text-blue-600 border-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:border-blue-400 dark:hover:bg-blue-900/30"
               >
                 <WandSparklesIcon className="w-4 h-4 ml-2" />
-                {isGeneratingImage ? 'جاري التوليد...' : 'ولد صورة من النص'}
+                {isGeneratingImage ? 'جاري التوليد...' : 'ولد صورة من النص (Gemini)'}
               </Button>
             )}
             {canGeneratePost && (
@@ -189,7 +191,7 @@ const BulkPostItemCard: React.FC<BulkPostItemCardProps> = ({
         )}
          {aiClient && !stabilityApiKey && canGenerateImage && (
             <p className="text-yellow-600 dark:text-yellow-400 text-sm mt-2">
-                مفتاح Stability AI API غير مكوّن. لا يمكن توليد الصور بالذكاء الاصطناعي.
+                مفتاح Stability AI API غير مكوّن. لا يمكن توليد الصور بالذكاء الاصطناعي باستخدام Stability AI.
             </p>
         )}
       </div>

@@ -5,6 +5,8 @@ import Button from './ui/Button';
 import BulkPostItemCard from './BulkPostItemCard';
 import BulkSchedulingOptions from './BulkSchedulingOptions';
 import { GoogleGenAI } from '@google/genai';
+import { generateImageFromPrompt } from '../services/geminiService'; // Import generateImageFromPrompt
+import { base64ToFile } from '../utils'; // Assuming you have a utility for base64 to File conversion
 
 interface BulkSchedulerPageProps {
   bulkPosts: BulkPostItem[];
@@ -20,7 +22,8 @@ interface BulkSchedulerPageProps {
 
   // AI-powered content generation for individual bulk posts:
   onGeneratePostFromText: (id: string, text: string) => Promise<void>; // Added text argument
-  onGenerateImageFromText: (id: string, text: string) => Promise<void>; // Added text argument
+  // Modified onGenerateImageFromText to include service type
+  onGenerateImageFromText: (id: string, text: string, service: 'gemini' | 'stability') => Promise<void>; 
   onGeneratePostFromImage: (id: string, imageFile: File) => Promise<void>; // New: Generate text based on image
   onAddImageManually: (id: string, file: File) => void; // New: Manually add image to a post
   // Removed onGenerateDescriptionFromImage: (id: string) => Promise<void>;
@@ -45,7 +48,7 @@ const BulkSchedulerPage: React.FC<BulkSchedulerPageProps> = ({
   stabilityApiKey,
   pageProfile,
   onGeneratePostFromText,
-  onGenerateImageFromText,
+  onGenerateImageFromText: onGenerateImageFromTextProp, // Renamed to avoid conflict
   onGeneratePostFromImage,
   onAddImageManually,
   // Removed onGenerateDescriptionFromImage,
@@ -91,6 +94,24 @@ const BulkSchedulerPage: React.FC<BulkSchedulerPageProps> = ({
       onAddPosts(e.dataTransfer.files);
     }
   };
+
+  // New handler for generating image from text using Gemini
+  const handleGenerateImageFromTextGemini = useCallback(async (id: string, text: string) => {
+    if (!aiClient) {
+      console.error("AI Client not configured.");
+      return;
+    }
+    try {
+      // Assuming generateImageFromPrompt now returns a base64 string or similar
+      const base64 = await generateImageFromPrompt(aiClient, text, 'standard', '1:1'); // Added default style and aspect ratio
+      const imageFile = base64ToFile(base64, `generated_image_${id}.png`); // Use the utility function
+      onUpdatePost(id, { imageFile, imagePreview: URL.createObjectURL(imageFile), hasImage: true });
+    } catch (error) {
+      console.error("Error generating image with Gemini:", error);
+      // Handle error (e.g., show a notification) - you might need a showNotification prop
+    }
+  }, [aiClient, onUpdatePost]);
+
 
   return (
     <div className="space-y-8 fade-in">
@@ -153,8 +174,9 @@ const BulkSchedulerPage: React.FC<BulkSchedulerPageProps> = ({
                 aiClient={aiClient}
                 stabilityApiKey={stabilityApiKey}
                 pageProfile={pageProfile}
-                onGeneratePostFromText={(id, text) => onGeneratePostFromText(id, text)} // Pass text argument
-                onGenerateImageFromText={(id, text) => onGenerateImageFromText(id, text)} // Pass text argument
+                onGeneratePostFromText={onGeneratePostFromText}
+                // Pass the new Gemini-specific handler
+                onGenerateImageFromText={handleGenerateImageFromTextGemini}
                 onGeneratePostFromImage={onGeneratePostFromImage}
                 onAddImageManually={onAddImageManually}
                 role={role}
