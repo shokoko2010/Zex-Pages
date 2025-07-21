@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { BulkPostItem, Target, Role, PageProfile } from '../types';
 import Button from './ui/Button';
 import TrashIcon from './icons/TrashIcon';
@@ -8,9 +8,9 @@ import PhotoIcon from './icons/PhotoIcon';
 import { GoogleGenAI } from '@google/genai';
 import FacebookIcon from './icons/FacebookIcon';
 import InstagramIcon from './icons/InstagramIcon';
-import ArrowDownTrayIcon from './icons/ArrowDownTrayIcon'; // Changed from ArrowUpTrayIcon
+import ArrowDownTrayIcon from './icons/ArrowDownTrayIcon';
 import WandSparklesIcon from './icons/WandSparklesIcon';
-import { generateDescriptionForImage, generatePostSuggestion, generateImageFromPrompt } from '../services/geminiService'; // Changed generateImage to generateImageFromPrompt
+import { generateDescriptionForImage, generatePostSuggestion, generateImageFromPrompt } from '../services/geminiService';
 
 interface BulkPostItemCardProps {
   item: BulkPostItem;
@@ -18,13 +18,13 @@ interface BulkPostItemCardProps {
   onRemove: (id: string) => void;
   targets: Target[];
   aiClient: GoogleGenAI | null;
-  stabilityApiKey: string | null; // Added
-  pageProfile: PageProfile;       // Added
+  stabilityApiKey: string | null;
+  pageProfile: PageProfile;
 
-  onGeneratePostFromText: (id: string, text: string) => Promise<void>; 
-  onGenerateImageFromText: (id: string, text: string, service: 'gemini' | 'stability') => Promise<void>; 
-  onGeneratePostFromImage: (id: string, imageFile: File) => Promise<void>; 
-  onAddImageManually: (id: string, file: File) => void; 
+  onGeneratePostFromText: (id: string, text: string) => Promise<void>;
+  onGenerateImageFromText: (id: string, text: string, service: 'gemini' | 'stability') => Promise<void>;
+  onGeneratePostFromImage: (id: string, imageFile: File) => Promise<void>;
+  onAddImageManually: (id: string, file: File) => void;
   role: Role;
 }
 
@@ -77,11 +77,10 @@ const BulkPostItemCard: React.FC<BulkPostItemCardProps> = ({
     }
   };
 
-  const handleGenerateImageClick = async () => {
+  const handleGenerateImageClick = async (service: 'gemini' | 'stability') => {
     setIsGeneratingImage(true);
     try {
-      // Pass a default value for style and aspectRatio if not available from props
-      await onGenerateImageFromText(item.id, item.text || '', 'gemini'); // Specify Gemini service
+      await onGenerateImageFromText(item.id, item.text || '', service);
     } finally {
       setIsGeneratingImage(false);
     }
@@ -89,9 +88,9 @@ const BulkPostItemCard: React.FC<BulkPostItemCardProps> = ({
 
   const isViewer = role === 'viewer';
   const hasContent = item.text && item.text.length > 0;
-  // Updated canGenerateImage logic to only require aiClient for Gemini
-  const canGenerateImage = aiClient && hasContent && !item.hasImage && !isViewer;
-  const canGeneratePost = aiClient && !isViewer && (hasContent || item.hasImage); // Corrected logic
+  const canGenerateGeminiImage = aiClient && hasContent && !item.hasImage && !isViewer;
+  const canGenerateStabilityImage = stabilityApiKey && hasContent && !item.hasImage && !isViewer;
+  const canGeneratePost = aiClient && !isViewer && (hasContent || item.hasImage);
   const canAddManualImage = !item.hasImage && !isViewer;
 
 
@@ -126,17 +125,17 @@ const BulkPostItemCard: React.FC<BulkPostItemCardProps> = ({
           <div className="mb-2 relative w-32 h-32 rounded-md overflow-hidden">
             <img src={item.imagePreview} alt="Post preview" className="w-full h-full object-cover" />
             {!isViewer && (
-                 <button 
-                    onClick={() => onUpdate(item.id, { imageFile: undefined, imagePreview: undefined, hasImage: false })} 
+                 <button
+                    onClick={() => onUpdate(item.id, { imageFile: undefined, imagePreview: undefined, hasImage: false })}
                     className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1 text-xs"
                  >
                     &times;
                  </button>
             )}
-           
+
           </div>
         )}
-        
+
         {canAddManualImage && (
           <div className="flex items-center space-x-2 mb-2">
             <input
@@ -147,11 +146,11 @@ const BulkPostItemCard: React.FC<BulkPostItemCardProps> = ({
               className="hidden"
             />
             <Button
-              variant="secondary" // Changed from "outline"
+              variant="secondary"
               onClick={() => fileInputRef.current?.click()}
               disabled={isViewer}
             >
-              <ArrowDownTrayIcon className="w-4 h-4 mr-2" /> {/* Changed from ArrowUpTrayIcon */}
+              <ArrowDownTrayIcon className="w-4 h-4 mr-2" />
               أضف صورة يدوياً
             </Button>
           </div>
@@ -159,11 +158,11 @@ const BulkPostItemCard: React.FC<BulkPostItemCardProps> = ({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
             {/* Gemini Image Generation Button */}
-            {aiClient && hasContent && !item.hasImage && !isViewer && (
+            {canGenerateGeminiImage && (
               <Button
-                onClick={handleGenerateImageClick}
+                onClick={() => handleGenerateImageClick('gemini')}
                 isLoading={isGeneratingImage}
-                disabled={!aiClient || !hasContent || item.hasImage || isGeneratingImage || isViewer}
+                disabled={!canGenerateGeminiImage || isGeneratingImage || isViewer}
                 variant="secondary"
                 className="text-blue-600 border-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:border-blue-400 dark:hover:bg-blue-900/30"
               >
@@ -171,12 +170,27 @@ const BulkPostItemCard: React.FC<BulkPostItemCardProps> = ({
                 {isGeneratingImage ? 'جاري التوليد...' : 'ولد صورة من النص (Gemini)'}
               </Button>
             )}
+
+            {/* Stability AI Image Generation Button */}
+            {canGenerateStabilityImage && (
+              <Button
+                onClick={() => handleGenerateImageClick('stability')}
+                isLoading={isGeneratingImage}
+                disabled={!canGenerateStabilityImage || isGeneratingImage || isViewer}
+                variant="secondary"
+                className="text-green-600 border-green-600 hover:bg-green-50 dark:text-green-400 dark:border-green-400 dark:hover:bg-green-900/30"
+              >
+                <WandSparklesIcon className="w-4 h-4 ml-2" />
+                {isGeneratingImage ? 'جاري التوليد...' : 'ولد صورة من النص (Stability AI)'}
+              </Button>
+            )}
+
             {canGeneratePost && (
               <Button
                 onClick={handleGeneratePostClick}
                 isLoading={isGeneratingPost}
                 disabled={!canGeneratePost || isGeneratingPost}
-                variant="secondary" // Changed from "outline"
+                variant="secondary"
                 className="text-purple-600 border-purple-600 hover:bg-purple-50 dark:text-purple-400 dark:border-purple-400 dark:hover:bg-purple-900/30"
               >
                 <SparklesIcon className="w-4 h-4 ml-2" />
@@ -184,15 +198,20 @@ const BulkPostItemCard: React.FC<BulkPostItemCardProps> = ({
               </Button>
             )}
         </div>
-        {!aiClient && (
+        {!aiClient && !stabilityApiKey && (
             <p className="text-yellow-600 dark:text-yellow-400 text-sm mt-2">
-                مفتاح Gemini API غير مكوّن. لا يمكن توليد صور أو نصوص بالذكاء الاصطناعي.
+                لا يتوفر أي مفتاح API لتوليد الصور أو النصوص بالذكاء الاصطناعي.
             </p>
         )}
-         {aiClient && !stabilityApiKey && canGenerateImage && (
+         {aiClient && !stabilityApiKey && canGenerateGeminiImage && !canGenerateStabilityImage && (
             <p className="text-yellow-600 dark:text-yellow-400 text-sm mt-2">
                 مفتاح Stability AI API غير مكوّن. لا يمكن توليد الصور بالذكاء الاصطناعي باستخدام Stability AI.
             </p>
+        )}
+        {!aiClient && stabilityApiKey && canGenerateStabilityImage && !canGenerateGeminiImage && (
+             <p className="text-yellow-600 dark:text-yellow-400 text-sm mt-2">
+                 مفتاح Gemini API غير مكوّن. لا يمكن توليد النصوص أو الصور بالذكاء الاصطناعي باستخدام Gemini.
+             </p>
         )}
       </div>
 

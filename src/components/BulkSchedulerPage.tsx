@@ -5,28 +5,26 @@ import Button from './ui/Button';
 import BulkPostItemCard from './BulkPostItemCard';
 import BulkSchedulingOptions from './BulkSchedulingOptions';
 import { GoogleGenAI } from '@google/genai';
-import { generateImageFromPrompt } from '../services/geminiService'; // Import generateImageFromPrompt
-import { base64ToFile } from '../utils'; // Assuming you have a utility for base64 to File conversion
+import { generateImageFromPrompt, generateImageWithStabilityAI } from '../services/geminiService'; // Import both functions
+import { base64ToFile } from '../utils';
 
 interface BulkSchedulerPageProps {
   bulkPosts: BulkPostItem[];
-  onAddPosts: (files: FileList | null) => void; // Allow null for text-only posts
+  onAddPosts: (files: FileList | null) => void;
   onUpdatePost: (id: string, updates: Partial<BulkPostItem>) => void;
   onRemovePost: (id: string) => void;
   onScheduleAll: () => Promise<void>;
   isSchedulingAll: boolean;
   targets: Target[];
   aiClient: GoogleGenAI | null;
-  stabilityApiKey: string | null; // Added for image generation
-  pageProfile: PageProfile;       // Added for AI context
+  stabilityApiKey: string | null;
+  pageProfile: PageProfile;
+  showNotification: (message: string, type: 'success' | 'error' | 'info') => void;
 
-  // AI-powered content generation for individual bulk posts:
-  onGeneratePostFromText: (id: string, text: string) => Promise<void>; // Added text argument
-  // Modified onGenerateImageFromText to include service type
-  onGenerateImageFromText: (id: string, text: string, service: 'gemini' | 'stability') => Promise<void>; 
-  onGeneratePostFromImage: (id: string, imageFile: File) => Promise<void>; // New: Generate text based on image
-  onAddImageManually: (id: string, file: File) => void; // New: Manually add image to a post
-  // Removed onGenerateDescriptionFromImage: (id: string) => Promise<void>;
+  onGeneratePostFromText: (id: string, text: string) => Promise<void>;
+  onGenerateImageFromText: (id: string, text: string, service: 'gemini' | 'stability') => Promise<void>;
+  onGeneratePostFromImage: (id: string, imageFile: File) => Promise<void>;
+  onAddImageManually: (id: string, file: File) => void;
 
   schedulingStrategy: 'even' | 'weekly';
   onSchedulingStrategyChange: (strategy: 'even' | 'weekly') => void;
@@ -47,11 +45,11 @@ const BulkSchedulerPage: React.FC<BulkSchedulerPageProps> = ({
   aiClient,
   stabilityApiKey,
   pageProfile,
+  showNotification,
   onGeneratePostFromText,
   onGenerateImageFromText: onGenerateImageFromTextProp, // Renamed to avoid conflict
   onGeneratePostFromImage,
   onAddImageManually,
-  // Removed onGenerateDescriptionFromImage,
   schedulingStrategy,
   onSchedulingStrategyChange,
   weeklyScheduleSettings,
@@ -65,7 +63,7 @@ const BulkSchedulerPage: React.FC<BulkSchedulerPageProps> = ({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       onAddPosts(e.target.files);
-      e.target.value = ''; // Reset file input
+      e.target.value = '';
     }
   };
 
@@ -95,28 +93,40 @@ const BulkSchedulerPage: React.FC<BulkSchedulerPageProps> = ({
     }
   };
 
-  // New handler for generating image from text using Gemini
-  const handleGenerateImageFromTextGemini = useCallback(async (id: string, text: string) => {
-    if (!aiClient) {
-      console.error("AI Client not configured.");
-      return;
-    }
+  // Modified handler to handle both Gemini and Stability AI
+  const handleGenerateImageFromText = useCallback(async (id: string, text: string, service: 'gemini' | 'stability') => {
     try {
-      // Assuming generateImageFromPrompt now returns a base64 string or similar
-      const base64 = await generateImageFromPrompt(aiClient, text, 'standard', '1:1'); // Added default style and aspect ratio
-      const imageFile = base64ToFile(base64, `generated_image_${id}.png`); // Use the utility function
-      onUpdatePost(id, { imageFile, imagePreview: URL.createObjectURL(imageFile), hasImage: true });
-    } catch (error) {
-      console.error("Error generating image with Gemini:", error);
-      // Handle error (e.g., show a notification) - you might need a showNotification prop
+      let base64;
+      if (service === 'gemini') {
+        if (!aiClient) {
+          showNotification("Gemini API client is not configured.", 'error');
+          return;
+        }
+        base64 = await generateImageFromPrompt(aiClient, text, 'standard', '1:1');
+      } else if (service === 'stability') {
+        if (!stabilityApiKey) {
+          showNotification("Stability AI API key is not configured.", 'error');
+          return;
+        }
+        base64 = await generateImageWithStabilityAI(stabilityApiKey, text, 'standard', '1:1', aiClient); // Pass aiClient for translation
+      }
+
+      if (base64) {
+        const imageFile = base64ToFile(base64, `generated_image_${id}.png`);
+        onUpdatePost(id, { imageFile, imagePreview: URL.createObjectURL(imageFile), hasImage: true });
+        showNotification("Image generated successfully!", 'success');
+      }
+    } catch (error: any) {
+      console.error(`Error generating image with ${service}:`, error);
+      showNotification(`Failed to generate image: ${error.message}`, 'error');
     }
-  }, [aiClient, onUpdatePost]);
+  }, [aiClient, stabilityApiKey, onUpdatePost, showNotification]);
 
 
   return (
     <div className="space-y-8 fade-in">
       {!isViewer && (
-        <div 
+        <div
           className={`p-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg border-2 border-dashed ${isDragging ? 'border-blue-500 bg-blue-50 dark:bg-gray-700/50' : 'border-gray-300 dark:border-gray-600'} transition-all duration-300`}
           onDragEnter={handleDragEnter}
           onDragOver={handleDragEvents}
@@ -145,7 +155,7 @@ const BulkSchedulerPage: React.FC<BulkSchedulerPageProps> = ({
                {/* Button for adding a new text-only post for AI generation */}
               <Button
                 size="lg"
-                onClick={() => onAddPosts(null)} // Pass null to signify adding a text-only post
+                onClick={() => onAddPosts(null)}
                 variant="secondary"
               >
                 إنشاء منشور نصي فارغ
@@ -175,8 +185,7 @@ const BulkSchedulerPage: React.FC<BulkSchedulerPageProps> = ({
                 stabilityApiKey={stabilityApiKey}
                 pageProfile={pageProfile}
                 onGeneratePostFromText={onGeneratePostFromText}
-                // Pass the new Gemini-specific handler
-                onGenerateImageFromText={handleGenerateImageFromTextGemini}
+                onGenerateImageFromText={handleGenerateImageFromText}
                 onGeneratePostFromImage={onGeneratePostFromImage}
                 onAddImageManually={onAddImageManually}
                 role={role}
@@ -200,7 +209,7 @@ const BulkSchedulerPage: React.FC<BulkSchedulerPageProps> = ({
                   onClick={onScheduleAll}
                   isLoading={isSchedulingAll}
                   className="w-full"
-                  disabled={isViewer}
+                  disabled={bulkPosts.length === 0 || isSchedulingAll}
                 >
                   {isSchedulingAll ? 'جاري الجدولة...' : `جدولة كل المنشورات (${bulkPosts.length})`}
                 </Button>
