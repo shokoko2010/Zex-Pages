@@ -148,7 +148,7 @@ const AdminPage: React.FC<AdminPageProps> = ({
             </header>
             <main className="p-4 sm:p-8 space-y-8">
                 {adminView === 'dashboard' ? (
-                    <
+                    <>
                         {/* Original Dashboard Content (Plan Management and Users Table) */}
                         <div className="flex justify-between items-center">
                             <h1 className="text-3xl font-bold">إدارة خطط الاشتراك</h1>
@@ -220,7 +220,6 @@ const AdminPage: React.FC<AdminPageProps> = ({
                         </div>
                     </>
                 ) : adminView === 'userManagement' ? (
-                    // Corrected JSX for User Management View
                     <UserManagementPage 
                         allUsers={allUsers} 
                         plans={plans} 
