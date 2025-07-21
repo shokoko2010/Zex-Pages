@@ -332,19 +332,13 @@ export const generateImageWithStabilityAI = async (apiKey: string, prompt: strin
 
     const responseJSON = await response.json();
 
-    if (responseJSON.artifacts && responseJSON.artifacts.length > 0) {
-        const artifact = responseJSON.artifacts[0];
-        if (artifact.finishReason === 'SUCCESS' && artifact.base64) {
-            return artifact.base64;
-        }
-        if (artifact.finishReason === 'CONTENT_FILTERED') {
-            throw new Error("خطأ Stability AI: تم حظر الموجه لأسباب تتعلق بالسلامة. حاول تغيير وصف الصورة.");
-        }
-        throw new Error(`فشل إنشاء الصورة. السبب من Stability AI: ${artifact.finishReason}`);
-    }
-
-    console.error("Unexpected successful response from Stability AI:", responseJSON);
-    throw new Error("فشل إنشاء الصورة. لم يتم العثور على بيانات الصورة في الاستجابة من Stability AI.");
+    if (responseJSON.image && responseJSON.finish_reason === 'SUCCESS') {
+      return responseJSON.image; // Return the base64 image data directly
+  }
+  if (responseJSON.finish_reason === 'CONTENT_FILTERED') {
+      throw new Error("خطأ Stability AI: تم حظر الموجه لأسباب تتعلق بالسلامة. حاول تغيير وصف الصورة.");
+  }
+  throw new Error(`فشل إنشاء الصورة. السبب من Stability AI: ${responseJSON.finish_reason}`);
 }
 
 
