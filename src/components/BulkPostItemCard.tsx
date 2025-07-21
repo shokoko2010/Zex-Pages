@@ -215,7 +215,7 @@ const BulkPostItemCard: React.FC<BulkPostItemCardProps> = ({
                 className="form-checkbox h-4 w-4 text-blue-600 rounded mr-2"
                 disabled={isViewer}
               />
-              {target.type === 'facebook' && <FacebookIcon className="w-4 h-4 mr-1" />}
+              {target.type !== 'instagram' && <FacebookIcon className="w-4 h-4 mr-1" />} {/* Fixed comparison here */}
               {target.type === 'instagram' && <InstagramIcon className="w-4 h-4 mr-1" />}
               {target.name}
             </label>
