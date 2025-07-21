@@ -7,7 +7,7 @@ declare global {
 export interface Target {
   id: string;
   name:string;
-  type: 'page' | 'instagram';
+  type: 'facebook' | 'instagram'; // Changed 'page' to 'facebook'
   access_token?: string;
   picture: {
     data: {
@@ -39,7 +39,7 @@ export interface ScheduledPost {
   targetInfo: {
       name: string;
       avatarUrl: string;
-      type: 'page' | 'instagram';
+      type: 'facebook' | 'instagram'; // Changed 'page' to 'facebook'
   }
   publishedAt?: string; // ISO string for when it was actually published
   isSynced?: boolean; // To indicate it's synced with Facebook's scheduler
@@ -279,8 +279,8 @@ export interface PlanLimits {
 }
 
 export interface Plan {
-  id: string; 
-  name: string; 
+  id: string;
+  name: string;
   price: number;
   pricePeriod: 'monthly' | 'yearly' | 'one-time';
   features: string[];
