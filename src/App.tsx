@@ -9,8 +9,8 @@ import OnboardingTour from './components/OnboardingTour';
 import AdminPage from './components/AdminPage';
 import { GoogleGenAI } from '@google/genai';
 import { initializeGoogleGenAI } from './services/geminiService';
-import { Target, Business, PublishedPost, InboxItem, Plan, AppUser } from './types';
-import { auth, db, User } from './services/firebaseService';
+import { Target, Business, PublishedPost, InboxItem, Plan, AppUser, StrategyHistoryItem, ContentPlanItem, StrategyRequest } from './types';
+import { auth, db, User, saveContentPlan, getStrategyHistory, deleteStrategy } from './services/firebaseService';
 import firebase from 'firebase/compat/app';
 
 const isSimulation = window.location.protocol === 'http:';
@@ -71,6 +71,8 @@ const App: React.FC = () => {
   const [loadingBusinessId, setLoadingBusinessId] = useState<string | null>(null);
   const [loadedBusinessIds, setLoadedBusinessIds] = useState<Set<string>>(new Set()); // Correctly initialized
   const [syncingTargetId, setSyncingTargetId] = useState<string | null>(null);
+  const [strategyHistory, setStrategyHistory] = useState<StrategyHistoryItem[]>([]);
+
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
@@ -140,6 +142,39 @@ const App: React.FC = () => {
     });
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    const loadHistory = async () => {
+        if (user && selectedTarget) {
+            const history = await getStrategyHistory(user.uid, selectedTarget.id);
+            setStrategyHistory(history as StrategyHistoryItem[]);
+        } else {
+            setStrategyHistory([]);
+        }
+    };
+    loadHistory();
+  }, [selectedTarget, user]);
+
+  const handleSaveContentPlan = async (pageId: string, plan: ContentPlanItem[], request: StrategyRequest) => {
+    if (!user) return;
+    try {
+        await saveContentPlan(user.uid, pageId, plan, request);
+        const history = await getStrategyHistory(user.uid, pageId);
+        setStrategyHistory(history as StrategyHistoryItem[]);
+    } catch (error) {
+        console.error("Error saving plan in App.tsx", error);
+    }
+  };
+
+  const handleDeleteStrategy = async (pageId: string, strategyId: string) => {
+      if (!user) return;
+      try {
+          await deleteStrategy(user.uid, pageId, strategyId);
+          setStrategyHistory(prev => prev.filter(s => s.id !== strategyId));
+      } catch (error) {
+          console.error("Error deleting strategy in App.tsx", error);
+      }
+  };
 
   const handleCompleteTour = async () => {
       setIsTourOpen(false);
@@ -376,6 +411,9 @@ const App: React.FC = () => {
             theme={theme}
             onToggleTheme={handleToggleTheme}
             fbAccessToken={appUser.fbAccessToken || null} // Ensure it's not undefined
+            strategyHistory={strategyHistory}
+            onSavePlan={handleSaveContentPlan}
+            onDeleteStrategy={handleDeleteStrategy}
           />
         );
       }
