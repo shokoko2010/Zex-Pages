@@ -10,7 +10,7 @@ import BulkSchedulerPage from './BulkSchedulerPage';
 import ContentPlannerPage from './ContentPlannerPage';
 import InboxPage from './InboxPage';
 import { GoogleGenAI } from '@google/genai';
-import { generateContentPlan, generatePerformanceSummary, generateOptimalSchedule, generatePostInsights, enhanceProfileFromFacebookData, generateSmartReplies, generateAutoReply, generatePostSuggestion, generateHashtags, generateDescriptionForImage, generateBestPostingTimesHeatmap, generateContentTypePerformance, generateImageFromPrompt } from '../services/geminiService';
+import { generateContentPlan, generatePerformanceSummary, generateOptimalSchedule, generatePostInsights, enhanceProfileFromFacebookData, generateSmartReplies, generateAutoReply, generatePostSuggestion, generateHashtags, generateDescriptionForImage, generateBestPostingTimesHeatmap, generateContentTypePerformance, generateImageFromPrompt, generateImageWithStabilityAI } from '../services/geminiService';
 import PageProfilePage from './PageProfilePage';
 import Button from './ui/Button';
 import { db } from '../services/firebaseService';
@@ -177,6 +177,17 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
     try { await getTargetDataRef().set(dataToSave, { merge: true }); }
     catch (error) { showNotification('error', 'فشل حفظ البيانات في السحابة.'); }
   }, [getTargetDataRef, showNotification]);
+
+  const clearComposer = useCallback(() => {
+    setPostText('');
+    setSelectedImage(null);
+    setImagePreview(null);
+    setIsScheduled(false);
+    setScheduleDate('');
+    setComposerError('');
+    setIncludeInstagram(false);
+    setEditingScheduledPostId(null);
+  }, []);
 
   const handlePageProfileChange = (newProfile: PageProfile) => {
     setPageProfile(newProfile);
@@ -428,11 +439,11 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
         );
       case 'calendar':
-        return <ContentCalendar posts={scheduledPosts} onEdit={handleEditScheduledPost} onDelete={handleDeleteScheduledPost} managedTarget={managedTarget} userPlan={userPlan} role={currentUserRole} onApprove={handleApprovePost} onReject={handleRejectPost} onSync={() => onSyncHistory(managedTarget)} isSyncing={!!syncingTargetId} />;
+        return <ContentCalendar posts={scheduledPosts} onEdit={handleEditScheduledPost} onDelete={handleDeleteScheduledPost} managedTarget={managedTarget} userPlan={userPlan} role={currentUserRole} onApprove={handleApprovePost} onReject={handleRejectPost} onSync={() => onSyncHistory(managedTarget)} isSyncing={!!syncingTargetId} />;\
       case 'drafts':
-        return <DraftsList drafts={drafts} onLoad={handleLoadDraft} onDelete={handleDeleteDraft} role={currentUserRole} />;
+        return <DraftsList drafts={drafts} onLoad={handleLoadDraft} onDelete={handleDeleteDraft} role={currentUserRole} />;\
       case 'bulk':
-        return <BulkSchedulerPage bulkPosts={bulkPosts} onSchedulingStrategyChange={setSchedulingStrategy} onWeeklyScheduleSettingsChange={setWeeklyScheduleSettings} onReschedule={handleReschedule} onAddPosts={handleAddBulkPosts} onUpdatePost={handleUpdateBulkPost} onRemovePost={handleRemoveBulkPost} onGeneratePostFromText={handleGenerateBulkPostFromText} onGenerateImageFromText={handleGenerateImageFromText} onGeneratePostFromImage={handleGeneratePostFromImage} onAddImageManually={handleAddImageManually} onScheduleAll={handleScheduleAllBulk} targets={bulkSchedulerTargets} aiClient={aiClient} stabilityApiKey={stabilityApiKey} pageProfile={pageProfile} isSchedulingAll={isSchedulingAll} schedulingStrategy={schedulingStrategy} weeklyScheduleSettings={weeklyScheduleSettings} role={currentUserRole} showNotification={showNotification} />;
+        return <BulkSchedulerPage bulkPosts={bulkPosts} onSchedulingStrategyChange={setSchedulingStrategy} onWeeklyScheduleSettingsChange={setWeeklyScheduleSettings} onReschedule={handleReschedule} onAddPosts={handleAddBulkPosts} onUpdatePost={handleUpdateBulkPost} onRemovePost={handleRemoveBulkPost} onGeneratePostFromText={handleGenerateBulkPostFromText} onGenerateImageFromText={handleGenerateImageFromText} onGeneratePostFromImage={handleGeneratePostFromImage} onAddImageManually={handleAddImageManually} onScheduleAll={handleScheduleAllBulk} targets={bulkSchedulerTargets} aiClient={aiClient} stabilityApiKey={stabilityApiKey} pageProfile={pageProfile} isSchedulingAll={isSchedulingAll} schedulingStrategy={schedulingStrategy} weeklyScheduleSettings={weeklyScheduleSettings} role={currentUserRole} showNotification={showNotification} />;\
       case 'planner':
         return (
           <ContentPlannerPage
@@ -445,7 +456,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
                     if (!aiClient) throw new Error("AI Client is not configured.");
                     const generatedPlan = await generateContentPlan(aiClient, request, pageProfile, images);
                     setContentPlan(generatedPlan);
-                    await onSavePlan(managedTarget.id, generatedPlan, request);
+                    await onSavePlan(managedTarget.id, generatedPlan, request);\
                     showNotification('success', 'تم إنشاء الخطة وحفظها في السجل بنجاح!');
                 } catch (e: any) {
                     setPlanError(e.message || 'فشل إنشاء الخطة');
@@ -465,14 +476,14 @@ ${planItem.body}`);
           />
         );
       case 'inbox':
-        return <InboxPage items={inboxItems} isLoading={isInboxLoading} autoResponderSettings={autoResponderSettings} onAutoResponderSettingsChange={(settings) => {setAutoResponderSettings(settings); saveDataToFirestore({ autoResponderSettings: settings });}} repliedUsersPerPost={repliedUsersPerPost} currentUserRole={currentUserRole} isSyncing={isPolling} onSync={() => setIsPolling(true)} onReply={async ()=>{return true}} onMarkAsDone={()=>{}} onGenerateSmartReplies={async ()=>{return []}} onFetchMessageHistory={async ()=>{return []}} aiClient={aiClient} role={currentUserRole} />;
+        return <InboxPage items={inboxItems} isLoading={isInboxLoading} autoResponderSettings={autoResponderSettings} onAutoResponderSettingsChange={(settings) => {setAutoResponderSettings(settings); saveDataToFirestore({ autoResponderSettings: settings });}} repliedUsersPerPost={repliedUsersPerPost} currentUserRole={currentUserRole} isSyncing={isPolling} onSync={() => setIsPolling(true)} onReply={async ()=>{return true}} onMarkAsDone={()=>{}} onGenerateSmartReplies={async ()=>{return []}} onFetchMessageHistory={async ()=>{return []}} aiClient={aiClient} role={currentUserRole} />;\
       case 'analytics':
-        return <AnalyticsPage publishedPosts={publishedPosts} publishedPostsLoading={publishedPostsLoading} analyticsPeriod={analyticsPeriod} setAnalyticsPeriod={setAnalyticsPeriod} performanceSummaryText={performanceSummaryText} setPerformanceSummaryText={setPerformanceSummaryText} isGeneratingSummary={isGeneratingSummary} setIsGeneratingSummary={setIsGeneratingSummary} audienceGrowthData={audienceGrowthData} setAudienceGrowthData={setAudienceGrowthData} heatmapData={heatmapData} setHeatmapData={setHeatmapData} contentTypeData={contentTypeData} setContentTypePerformanceData={setContentTypePerformanceData} isGeneratingDeepAnalytics={isGeneratingDeepAnalytics} setIsGeneratingDeepAnalytics={setIsGeneratingDeepAnalytics} managedTarget={managedTarget} userPlan={userPlan} isSimulationMode={isSimulationMode} aiClient={aiClient} pageProfile={pageProfile} currentUserRole={currentUserRole} showNotification={showNotification} generatePerformanceSummary={generatePerformanceSummary} generatePostInsights={generatePostInsights} generateOptimalSchedule={async ()=>{return {days:[],time:''}}} generateBestPostingTimesHeatmap={generateBestPostingTimesHeatmap} generateContentTypePerformance={generateContentTypePerformance} />;
+        return <AnalyticsPage publishedPosts={publishedPosts} publishedPostsLoading={publishedPostsLoading} analyticsPeriod={analyticsPeriod} setAnalyticsPeriod={setAnalyticsPeriod} performanceSummaryText={performanceSummaryText} setPerformanceSummaryText={setPerformanceSummaryText} isGeneratingSummary={isGeneratingSummary} setIsGeneratingSummary={setIsGeneratingSummary} audienceGrowthData={audienceGrowthData} setAudienceGrowthData={setAudienceGrowthData} heatmapData={heatmapData} setHeatmapData={setHeatmapData} contentTypeData={contentTypeData} setContentTypePerformanceData={setContentTypePerformanceData} isGeneratingDeepAnalytics={isGeneratingDeepAnalytics} setIsGeneratingDeepAnalytics={setIsGeneratingDeepAnalytics} managedTarget={managedTarget} userPlan={userPlan} isSimulationMode={isSimulationMode} aiClient={aiClient} pageProfile={pageProfile} currentUserRole={currentUserRole} showNotification={showNotification} generatePerformanceSummary={generatePerformanceSummary} generatePostInsights={generatePostInsights} generateOptimalSchedule={async ()=>{return {days:[],time:''}}} generateBestPostingTimesHeatmap={generateBestPostingTimesHeatmap} generateContentTypePerformance={generateContentTypePerformance} />;\
       case 'profile':
-        return <PageProfilePage profile={pageProfile} onProfileChange={handlePageProfileChange} isFetchingProfile={isFetchingProfile} onFetchProfile={handleFetchProfile} role={currentUserRole} user={user} />;
-      default: return null;
+        return <PageProfilePage profile={pageProfile} onProfileChange={handlePageProfileChange} isFetchingProfile={isFetchingProfile} onFetchProfile={handleFetchProfile} role={currentUserRole} user={user} />;\
+      default: return null;\
     }
-  };
+  };\
 
   return (
     <>
