@@ -1,7 +1,6 @@
 
-
 import React, { useState, useCallback } from 'react';
-import { BulkPostItem, Target, WeeklyScheduleSettings, Role } from '../types';
+import { BulkPostItem, Target, WeeklyScheduleSettings, Role, PageProfile } from '../types';
 import Button from './ui/Button';
 import BulkPostItemCard from './BulkPostItemCard';
 import BulkSchedulingOptions from './BulkSchedulingOptions';
@@ -9,15 +8,23 @@ import { GoogleGenAI } from '@google/genai';
 
 interface BulkSchedulerPageProps {
   bulkPosts: BulkPostItem[];
-  onAddPosts: (files: FileList) => void;
+  onAddPosts: (files: FileList | null) => void; // Allow null for text-only posts
   onUpdatePost: (id: string, updates: Partial<BulkPostItem>) => void;
   onRemovePost: (id: string) => void;
   onScheduleAll: () => Promise<void>;
   isSchedulingAll: boolean;
   targets: Target[];
   aiClient: GoogleGenAI | null;
-  onGenerateDescription: (id: string) => Promise<void>;
+  stabilityApiKey: string | null; // Added for image generation
+  pageProfile: PageProfile;       // Added for AI context
+
+  // AI-powered content generation for individual bulk posts:
   onGeneratePostFromText: (id: string) => Promise<void>;
+  onGenerateImageFromText: (id: string) => Promise<void>; // New: Generate image based on text
+  onGeneratePostFromImage: (id: string, imageFile: File) => Promise<void>; // New: Generate text based on image
+  onAddImageManually: (id: string, file: File) => void; // New: Manually add image to a post
+  onGenerateDescriptionFromImage: (id: string) => Promise<void>; // Renamed from onGenerateDescription
+
   schedulingStrategy: 'even' | 'weekly';
   onSchedulingStrategyChange: (strategy: 'even' | 'weekly') => void;
   weeklyScheduleSettings: WeeklyScheduleSettings;
@@ -35,8 +42,13 @@ const BulkSchedulerPage: React.FC<BulkSchedulerPageProps> = ({
   isSchedulingAll,
   targets,
   aiClient,
-  onGenerateDescription,
+  stabilityApiKey,
+  pageProfile,
   onGeneratePostFromText,
+  onGenerateImageFromText,
+  onGeneratePostFromImage,
+  onAddImageManually,
+  onGenerateDescriptionFromImage,
   schedulingStrategy,
   onSchedulingStrategyChange,
   weeklyScheduleSettings,
@@ -109,6 +121,14 @@ const BulkSchedulerPage: React.FC<BulkSchedulerPageProps> = ({
               >
                 اختر صورًا للجدولة
               </Button>
+               {/* Button for adding a new text-only post for AI generation */}
+              <Button
+                size="lg"
+                onClick={() => onAddPosts(null)} // Pass null to signify adding a text-only post
+                variant="secondary"
+              >
+                إنشاء منشور نصي فارغ
+              </Button>
           </div>
         </div>
       )}
@@ -131,8 +151,13 @@ const BulkSchedulerPage: React.FC<BulkSchedulerPageProps> = ({
                 onRemove={onRemovePost}
                 targets={targets}
                 aiClient={aiClient}
-                onGenerateDescription={onGenerateDescription}
+                stabilityApiKey={stabilityApiKey}
+                pageProfile={pageProfile}
                 onGeneratePostFromText={onGeneratePostFromText}
+                onGenerateImageFromText={onGenerateImageFromText}
+                onGeneratePostFromImage={onGeneratePostFromImage}
+                onAddImageManually={onAddImageManually}
+                onGenerateDescriptionFromImage={onGenerateDescriptionFromImage}
                 role={role}
               />
             ))}

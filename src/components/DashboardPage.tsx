@@ -11,7 +11,7 @@ import BulkSchedulerPage from './BulkSchedulerPage';
 import ContentPlannerPage from './ContentPlannerPage';
 import InboxPage from './InboxPage';
 import { GoogleGenAI } from '@google/genai';
-import { generateContentPlan, generatePerformanceSummary, generateOptimalSchedule, generatePostInsights, enhanceProfileFromFacebookData, generateSmartReplies, generateAutoReply, generatePostSuggestion, generateHashtags, generateDescriptionForImage, generateBestPostingTimesHeatmap, generateContentTypePerformance } from '../services/geminiService';
+import { generateContentPlan, generatePerformanceSummary, generateOptimalSchedule, generatePostInsights, enhanceProfileFromFacebookData, generateSmartReplies, generateAutoReply, generatePostSuggestion, generateHashtags, generateDescriptionForImage, generateBestPostingTimesHeatmap, generateContentTypePerformance, generateImage } from '../services/geminiService';
 import PageProfilePage from './PageProfilePage';
 import Button from './ui/Button';
 import { db } from '../services/firebaseService';
@@ -194,14 +194,122 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
   const handleDeleteScheduledPost = async (postId: string) => { /* Placeholder for actual delete logic */ };
   const handleApprovePost = async (postId: string) => { /* Placeholder for actual approve logic */ };
   const handleRejectPost = async (postId: string) => { /* Placeholder for actual reject logic */ };
-  const rescheduleBulkPosts = useCallback((postsToReschedule: BulkPostItem[]): BulkPostItem[] => postsToReschedule, [schedulingStrategy, weeklyScheduleSettings]);
+  
+  const rescheduleBulkPosts = useCallback((postsToReschedule: BulkPostItem[]): BulkPostItem[] => {
+    // This is a simplified rescheduling logic.
+    // In a real application, you'd calculate actual dates based on strategy and settings.
+    return postsToReschedule.map(post => ({ ...post, scheduleDate: '' })); // Clear dates for now
+  }, [schedulingStrategy, weeklyScheduleSettings]);
+
+
   const handleReschedule = () => setBulkPosts(prev => rescheduleBulkPosts(prev));
-  const handleAddBulkPosts = useCallback((files: FileList) => {}, [rescheduleBulkPosts, showNotification, managedTarget.id]);
-  const handleUpdateBulkPost = (id: string, updates: Partial<BulkPostItem>) => setBulkPosts(prev => prev.map(p => (p.id === id ? { ...p, ...updates } : p)));
+
+  const handleAddBulkPosts = useCallback((files: FileList | null) => {
+    if (files) {
+      const newPosts: BulkPostItem[] = Array.from(files).map((file, index) => ({
+        id: `bulk_${Date.now()}_${index}`,
+        text: '',
+        imageFile: file,
+        imagePreview: URL.createObjectURL(file),
+        hasImage: true,
+        scheduleDate: '',
+        targetIds: [managedTarget.id],
+      }));
+      setBulkPosts(prev => [...prev, ...newPosts]);
+    } else {
+      // Add an empty text-only post
+      const newTextPost: BulkPostItem = {
+        id: `bulk_${Date.now()}_text_only`,
+        text: '',
+        imageFile: undefined,
+        imagePreview: undefined,
+        hasImage: false,
+        scheduleDate: '',
+        targetIds: [managedTarget.id],
+      };
+      setBulkPosts(prev => [...prev, newTextPost]);
+    }
+    showNotification('success', files ? `تمت إضافة ${files.length} منشورات جديدة للجدولة.` : 'تمت إضافة منشور نصي فارغ.');
+  }, [rescheduleBulkPosts, showNotification, managedTarget.id]);
+
+
+  const handleUpdateBulkPost = (id: string, updates: Partial<BulkPostItem>) => {
+    setBulkPosts(prev => prev.map(p => {
+        if (p.id === id) {
+            const updatedItem = { ...p, ...updates };
+            // If imageFile is set, ensure imagePreview and hasImage are updated
+            if (updates.imageFile !== undefined) {
+                updatedItem.imagePreview = updates.imageFile ? URL.createObjectURL(updates.imageFile) : undefined;
+                updatedItem.hasImage = !!updates.imageFile;
+            } else if (updates.imagePreview !== undefined) {
+                 updatedItem.hasImage = !!updates.imagePreview;
+            }
+
+            return updatedItem;
+        }
+        return p;
+    }));
+};
   const handleRemoveBulkPost = (id: string) => setBulkPosts(prev => prev.filter(p => p.id !== id));
-  const handleGenerateBulkDescription = async (id: string) => {};
-  const handleGenerateBulkPostFromText = async (id: string) => {};
-  const handleScheduleAllBulk = async () => {};
+  
+  // AI Generation Functions for Bulk Posts
+  const handleGenerateBulkPostFromText = useCallback(async (id: string, text: string) => {
+    const postToUpdate = bulkPosts.find(p => p.id === id);
+    if (!aiClient || !postToUpdate) {
+        showNotification('error', 'AI Client not configured or post not found.');
+        return;
+    }
+    try {
+        const generatedText = await generatePostSuggestion(aiClient, text, pageProfile);
+        handleUpdateBulkPost(id, { text: generatedText });
+        showNotification('success', 'تم توليد المنشور بنجاح من النص!');
+    } catch (error: any) {
+        showNotification('error', `فشل توليد المنشور: ${error.message}`);
+    }
+  }, [aiClient, pageProfile, showNotification, bulkPosts]);
+
+  const handleGenerateImageFromText = useCallback(async (id: string, text: string) => {
+    const postToUpdate = bulkPosts.find(p => p.id === id);
+    if (!aiClient || !stabilityApiKey || !postToUpdate) {
+        showNotification('error', 'AI/Stability AI Client not configured or post not found.');
+        return;
+    }
+    try {
+        showNotification('partial', 'جاري توليد الصورة... قد يستغرق هذا بعض الوقت.');
+        const imageUrl = await generateImage(aiClient, stabilityApiKey, text);
+        const response = await fetch(imageUrl);
+        const blob = await response.blob();
+        const generatedFile = new File([blob], `generated_image_${id}.png`, { type: 'image/png' });
+
+        handleUpdateBulkPost(id, { imageFile: generatedFile, hasImage: true, imagePreview: imageUrl });
+        showNotification('success', 'تم توليد الصورة بنجاح من النص!');
+    } catch (error: any) {
+        showNotification('error', `فشل توليد الصورة: ${error.message}`);
+    }
+  }, [aiClient, stabilityApiKey, showNotification, bulkPosts]);
+
+
+  const handleGeneratePostFromImage = useCallback(async (id: string, imageFile: File) => {
+    const postToUpdate = bulkPosts.find(p => p.id === id);
+    if (!aiClient || !postToUpdate) {
+        showNotification('error', 'AI Client not configured or post not found.');
+        return;
+    }
+    try {
+        const generatedDescription = await generateDescriptionForImage(aiClient, imageFile, pageProfile);
+        handleUpdateBulkPost(id, { text: generatedDescription });
+        showNotification('success', 'تم توليد وصف المنشور بنجاح من الصورة!');
+    } catch (error: any) {
+        showNotification('error', `فشل توليد الوصف: ${error.message}`);
+    }
+  }, [aiClient, pageProfile, showNotification, bulkPosts]);
+
+  const handleAddImageManually = useCallback((id: string, file: File) => {
+    handleUpdateBulkPost(id, { imageFile: file, hasImage: true, imagePreview: URL.createObjectURL(file) });
+    showNotification('success', 'تمت إضافة الصورة بنجاح يدوياً.');
+  }, [handleUpdateBulkPost, showNotification]);
+
+  const handleScheduleAllBulk = async () => { /* Placeholder for actual schedule all logic */ };
   const handleFetchProfile = async () => {};
 
   const handleScheduleStrategy = useCallback(async () => {
@@ -309,7 +417,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
       case 'drafts':
         return <DraftsList drafts={drafts} onLoad={handleLoadDraft} onDelete={handleDeleteDraft} role={currentUserRole} />;
       case 'bulk':
-        return <BulkSchedulerPage bulkPosts={bulkPosts} onSchedulingStrategyChange={setSchedulingStrategy} onWeeklyScheduleSettingsChange={setWeeklyScheduleSettings} onReschedule={handleReschedule} onAddPosts={handleAddBulkPosts} onUpdatePost={handleUpdateBulkPost} onRemovePost={handleRemoveBulkPost} onGenerateDescription={handleGenerateBulkDescription} onGeneratePostFromText={handleGenerateBulkPostFromText} onScheduleAll={handleScheduleAllBulk} targets={bulkSchedulerTargets} aiClient={aiClient} isSchedulingAll={isSchedulingAll} schedulingStrategy={schedulingStrategy} weeklyScheduleSettings={weeklyScheduleSettings} role={currentUserRole}/>;
+        return <BulkSchedulerPage bulkPosts={bulkPosts} onSchedulingStrategyChange={setSchedulingStrategy} onWeeklyScheduleSettingsChange={setWeeklyScheduleSettings} onReschedule={handleReschedule} onAddPosts={handleAddBulkPosts} onUpdatePost={handleUpdateBulkPost} onRemovePost={handleRemoveBulkPost} onGeneratePostFromText={handleGenerateBulkPostFromText} onGenerateImageFromText={handleGenerateImageFromText} onGeneratePostFromImage={handleGeneratePostFromImage} onAddImageManually={handleAddImageManually} onScheduleAll={handleScheduleAllBulk} targets={bulkSchedulerTargets} aiClient={aiClient} isSchedulingAll={isSchedulingAll} schedulingStrategy={schedulingStrategy} weeklyScheduleSettings={weeklyScheduleSettings} role={currentUserRole}/>;
       case 'planner':
         return (
           <ContentPlannerPage
