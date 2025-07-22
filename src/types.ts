@@ -208,3 +208,9 @@ export interface ContentTypePerformanceData {
   count: number;
   avgEngagement: number;
 }
+
+export interface PerformanceSummaryData {
+  totalPosts: number;
+  averageEngagement: number;
+  growthRate: number;
+}

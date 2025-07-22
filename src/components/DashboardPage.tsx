@@ -77,7 +77,7 @@ const NavItem: React.FC<{
             <span className="flex-grow">{label}</span>
             {isPolling && <ArrowPathIcon className="w-4 h-4 text-gray-400 animate-spin mr-1" />}
             {notificationCount && notificationCount > 0 ? (
-                <span className="bg-red-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full">{notificationCount}</span>
+                <span className="bg-red-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full">{(notificationCount)}</span>
             ) : null}
         </button>
         {disabled && disabledTooltip && (
@@ -601,133 +601,20 @@ const renderView = () => {
               } catch (e: any) {
                   setPlanError(e.message || 'فشل إنشاء الخطة');
                   showNotification('error', `فشل إنشاء الخطة: ${e.message}`);
-              } finally { setIsGeneratingPlan(false    }, [fetchWithPagination, saveDataToFirestore, showNotification, setSyncingTargetId, managedTarget.id, managedTarget.name, managedTarget.picture.data.url, managedTarget.type]);
+              } finally { setIsGeneratingPlan(false); }
+          }}
+          onStartPost={(planItem) => {
+              setView('composer');
+              setPostText(`${planItem.hook}\n\n${planItem.headline}\n\n${planItem.body}`);
+          }}
+          pageProfile={pageProfile} onLoadFromHistory={(plan) => setContentPlan(plan)}
+          onDeleteFromHistory={(id) => onDeleteStrategy(managedTarget.id, id)}
+        />
+      );
 
-
-              useEffect(() => {
-                const loadDataFromFirestoreAndSync = async () => {
-                    const dataRef = getTargetDataRef();
-                    setPublishedPostsLoading(true);
-                    setIsInboxLoading(true);
-                    const docSnap = await dataRef.get();
-                    let loadedProfile: PageProfile;
-                    if (docSnap.exists) {
-                        const data = docSnap.data()!;
-                        loadedProfile = { ...initialPageProfile, ...(data.pageProfile || {}) };
-                        if (!loadedProfile.ownerUid) {
-                            loadedProfile.ownerUid = user.uid;
-                            loadedProfile.members = [user.uid];
-                        }
-                        setPageProfile(loadedProfile);
-                        setCurrentUserRole(loadedProfile.ownerUid === user.uid ? 'owner' : (loadedProfile.team?.find(m => m.uid === user.uid)?.role || 'viewer'));
-                        setAutoResponderSettings(data.autoResponderSettings || initialAutoResponderSettings);
-                        setDrafts(data.drafts?.map((d: any) => ({...d, imageFile: null})) || []);
-                        setScheduledPosts(data.scheduledPosts?.map((p: any) => ({...p, scheduledAt: new Date(p.scheduledAt)})) || []);
-                        setPublishedPosts(data.publishedPosts?.map((p:any) => ({...p, publishedAt: new Date(p.publishedAt)})) || []);
-                        setInboxItems(data.inboxItems?.map((i:any) => ({ ...i, timestamp: new Date(i.timestamp).toISOString() })) || []);
-                    } else {
-                        loadedProfile = { ...initialPageProfile, ownerUid: user.uid, members: [user.uid], team: [] };
-                        setPageProfile(loadedProfile);
-                        setCurrentUserRole('owner');
-                        setAutoResponderSettings(initialAutoResponderSettings);
-                        setDrafts([]); setScheduledPosts([]); setPublishedPosts([]); setInboxItems([]);
-                    }
-                    await saveDataToFirestore({ 
-                        id: managedTarget.id, 
-                        name: managedTarget.name, 
-                        pictureUrl: managedTarget.picture.data.url, 
-                        accessToken: managedTarget.access_token, 
-                        userId: user.uid, 
-                        pageProfile: loadedProfile 
-                    });
-                    clearComposer();
-                    setPublishedPostsLoading(false);
-                    setIsInboxLoading(false);
-                };
-                loadDataFromFirestoreAndSync(); 
-              }, [managedTarget.id, user.uid, getTargetDataRef, clearComposer, saveDataToFirestore]);
-            
-            
-                useEffect(() => {
-                    if (managedTarget && managedTarget.access_token) {
-                        syncFacebookData(managedTarget);
-                    }
-                }, [managedTarget, syncFacebookData]);
-            
-            
-              const isAllowed = (feature: keyof Plan['limits']) => isAdmin || (userPlan?.limits[feature] ?? false);
-              const planName = userPlan?.name || 'Free';
-            
-              const handleSetView = (newView: DashboardView) => {
-                const featureMap: Partial<Record<DashboardView, { key: keyof Plan['limits'], name: string }>> = {
-                    'bulk': { key: 'bulkScheduling', name: 'الجدولة المجمعة' },
-                    'planner': { key: 'contentPlanner', name: 'استراتيجيات المحتوى' },
-                    'inbox': { key: 'autoResponder', name: 'صندوق الوارد' },
-                };
-                const requestedFeature = featureMap[newView];
-                if (requestedFeature && !isAllowed(requestedFeature.key)) {
-                    alert(`ميزة "${requestedFeature.name}" غير متاحة في خطة "${planName}".`);
-                    return;
-                }
-                setView(newView);
-              };
-                
-              const renderView = () => {
-                switch (view) {
-                  case 'composer':
-                    return (
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        <PostComposer
-                          postText={postText} onPostTextChange={setPostText} selectedImage={selectedImage}
-                          onImageChange={(e) => setSelectedImage(e.target.files ? e.target.files[0] : null)}
-                          onImageGenerated={setSelectedImage} onImageRemove={() => setSelectedImage(null)}
-                          imagePreview={imagePreview} isScheduled={isScheduled} onIsScheduledChange={setIsScheduled}
-                          scheduleDate={scheduleDate} onScheduleDateChange={setScheduleDate} error={composerError}
-                          onPublish={handlePublish} onSaveDraft={handleSaveDraft} includeInstagram={includeInstagram}
-                          onIncludeInstagramChange={setIncludeInstagram} linkedInstagramTarget={linkedInstagramTarget}
-                          editingScheduledPostId={editingScheduledPostId} userPlan={userPlan} isPublishing={isPublishing}
-                          aiClient={aiClient} pageProfile={pageProfile} stabilityApiKey={stabilityApiKey} managedTarget={managedTarget} role={currentUserRole}
-                        />
-                        <PostPreview postText={postText} imagePreview={imagePreview} type={includeInstagram && linkedInstagramTarget ? 'instagram' : 'facebook'} pageName={managedTarget.name} pageAvatar={managedTarget.picture.data.url} />
-                      </div>
-                    );
-                  case 'calendar':
-                    return <ContentCalendar posts={scheduledPosts} onEdit={handleEditScheduledPost} onDelete={handleDeleteScheduledPost} managedTarget={managedTarget} userPlan={userPlan} role={currentUserRole} onApprove={handleApprovePost} onReject={handleRejectPost} onSync={() => syncFacebookData(managedTarget)} isSyncing={!!syncingTargetId} />
-                  case 'drafts':
-                    return <DraftsList drafts={drafts} onLoad={handleLoadDraft} onDelete={handleDeleteDraft} role={currentUserRole} />
-                  case 'bulk':
-                    return <BulkSchedulerPage bulkPosts={bulkPosts} onSchedulingStrategyChange={setSchedulingStrategy} onWeeklyScheduleSettingsChange={setWeeklyScheduleSettings} onReschedule={handleReschedule} onAddPosts={handleAddBulkPosts} onUpdatePost={handleUpdateBulkPost} onRemovePost={handleRemoveBulkPost} onGeneratePostFromText={handleGenerateBulkPostFromText} onGenerateImageFromText={handleGenerateImageFromText} onGeneratePostFromImage={handleGeneratePostFromImage} onAddImageManually={handleAddImageManually} onScheduleAll={handleScheduleAllBulk} targets={bulkSchedulerTargets} aiClient={aiClient} stabilityApiKey={stabilityApiKey} pageProfile={pageProfile} isSchedulingAll={isSchedulingAll} schedulingStrategy={schedulingStrategy} weeklyScheduleSettings={weeklyScheduleSettings} role={currentUserRole} showNotification={showNotification} />
-                  case 'planner':
-                    return (
-                      <ContentPlannerPage
-                        plan={contentPlan} isGenerating={isGeneratingPlan} strategyHistory={strategyHistory}
-                        isSchedulingStrategy={isSchedulingStrategy} error={planError} role={currentUserRole}
-                        onScheduleStrategy={handleScheduleStrategy} aiClient={aiClient}
-                        onGeneratePlan={async (request, images) => {
-                            setIsGeneratingPlan(true); setPlanError(null);
-                            try {
-                                if (!aiClient) throw new Error("AI Client is not configured.");
-                                const generatedPlan = await generateContentPlan(aiClient, request, pageProfile, images);
-                                setContentPlan(generatedPlan);
-                                await onSavePlan(managedTarget.id, generatedPlan, request);
-                                showNotification('success', 'تم إنشاء الخطة وحفظها في السجل بنجاح!');
-                            } catch (e: any) {
-                                setPlanError(e.message || 'فشل إنشاء الخطة');
-                                showNotification('error', `فشل إنشاء الخطة: ${e.message}`);
-                            } finally { setIsGeneratingPlan(false); }
-                        }}
-                        onStartPost={(planItem) => {
-                            setView('composer');
-                            setPostText(`${planItem.hook}\n\n${planItem.headline}\n\n${planItem.body}`);
-                        }}
-                        pageProfile={pageProfile} onLoadFromHistory={(plan) => setContentPlan(plan)}
-                        onDeleteFromHistory={(id) => onDeleteStrategy(managedTarget.id, id)}
-                      />
-                    );
-            
-                    case 'inbox':
-                      return <InboxPage items={inboxItems} isLoading={isInboxLoading} autoResponderSettings={autoResponderSettings} onAutoResponderSettingsChange={(settings) => {setAutoResponderSettings(settings); saveDataToFirestore({ autoResponderSettings: settings });}} repliedUsersPerPost={repliedUsersPerPost} currentUserRole={currentUserRole} isSyncing={isPolling} onSync={() => setIsPolling(true)} onReply={async ()=>{return true}} onMarkAsDone={()=>{}} onGenerateSmartReplies={async ()=>{return []}} onFetchMessageHistory={async ()=>{return []}} aiClient={aiClient} role={currentUserRole} />
-                    case 'analytics':
+      case 'inbox':
+        return <InboxPage items={inboxItems} isLoading={isInboxLoading} autoResponderSettings={autoResponderSettings} onAutoResponderSettingsChange={(settings) => {setAutoResponderSettings(settings); saveDataToFirestore({ autoResponderSettings: settings });}} repliedUsersPerPost={repliedUsersPerPost} currentUserRole={currentUserRole} isSyncing={isPolling} onSync={() => setIsPolling(true)} onReply={async ()=>{return true}} onMarkAsDone={()=>{}} onGenerateSmartReplies={async ()=>{return []}} onFetchMessageHistory={async ()=>{return []}} aiClient={aiClient} role={currentUserRole} />
+      case 'analytics':
                       return <AnalyticsPage publishedPosts={publishedPosts} publishedPostsLoading={publishedPostsLoading} analyticsPeriod={analyticsPeriod} setAnalyticsPeriod={setAnalyticsPeriod} performanceSummaryText={performanceSummaryText} setPerformanceSummaryText={setPerformanceSummaryText} isGeneratingSummary={isGeneratingSummary} setIsGeneratingSummary={setIsGeneratingSummary} audienceGrowthData={audienceGrowthData} setAudienceGrowthData={setAudienceGrowthData} heatmapData={heatmapData} setHeatmapData={setHeatmapData} contentTypeData={contentTypeData} setContentTypePerformanceData={setContentTypePerformanceData} isGeneratingDeepAnalytics={isGeneratingDeepAnalytics} setIsGeneratingDeepAnalytics={setIsGeneratingDeepAnalytics} managedTarget={managedTarget} userPlan={userPlan} isSimulationMode={isSimulationMode} aiClient={aiClient} pageProfile={pageProfile} currentUserRole={currentUserRole} showNotification={showNotification} generatePerformanceSummary={generatePerformanceSummary} generatePostInsights={generatePostInsights} generateOptimalSchedule={async ()=>{return {days:[],time:''}}} generateBestPostingTimesHeatmap={generateBestPostingTimesHeatmap} generateContentTypePerformance={generateContentTypePerformance} />
                     case 'profile':
                       return <PageProfilePage profile={pageProfile} onProfileChange={handlePageProfileChange} isFetchingProfile={isFetchingProfile} onFetchProfile={handleFetchProfile} role={currentUserRole} user={user} />
@@ -766,4 +653,4 @@ const renderView = () => {
                 );
               };
               
-              export default DashboardPage;              
+              export default DashboardPage;                     
