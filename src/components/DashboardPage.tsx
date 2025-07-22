@@ -203,14 +203,72 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
   const handleApprovePost = async (postId: string) => { /* Placeholder for actual approve logic */ };
   const handleRejectPost = async (postId: string) => { /* Placeholder for actual reject logic */ };
   
-  const rescheduleBulkPosts = useCallback((postsToReschedule: BulkPostItem[]): BulkPostItem[] => {
-    // This is a simplified rescheduling logic.
-    // In a real application, you'd calculate actual dates based on strategy and settings.
-    return postsToReschedule.map(post => ({ ...post, scheduleDate: '' })); // Clear dates for now
+  const rescheduleBulkPosts = useCallback((
+    postsToReschedule: BulkPostItem[],
+    strategy: 'even' | 'weekly',
+    settings: WeeklyScheduleSettings
+  ): BulkPostItem[] => {
+    if (postsToReschedule.length === 0) {
+      return [];
+    }
+
+    const updatedPosts = [...postsToReschedule];
+    let currentDate = new Date(); // Start from today
+
+    if (strategy === 'even') {
+      // Evenly distribute posts starting from the next hour, every 3 hours
+      let startDate = new Date();
+      startDate.setHours(startDate.getHours() + 1, 0, 0, 0); // Start from the next hour
+
+      return updatedPosts.map((post, index) => {
+        const scheduleDate = new Date(startDate.getTime() + index * 3 * 60 * 60 * 1000);
+        return { ...post, scheduleDate: scheduleDate.toISOString() };
+      });
+    }
+
+    if (strategy === 'weekly') {
+      const { days, time } = settings;
+      if (days.length === 0) {
+        return postsToReschedule; // Do nothing if no days are selected
+      }
+
+      const [hour, minute] = time.split(':').map(Number);
+      let postIndex = 0;
+      
+      // Start checking from tomorrow
+      currentDate.setDate(currentDate.getDate() + 1);
+
+      while (postIndex < updatedPosts.length) {
+        if (days.includes(currentDate.getDay())) {
+          const scheduleDate = new Date(currentDate);
+          scheduleDate.setHours(hour, minute, 0, 0);
+
+          // Check if the scheduled time is in the past, if so, schedule it for the next week
+          if (scheduleDate < new Date()) {
+              scheduleDate.setDate(scheduleDate.getDate() + 7);
+          }
+
+          updatedPosts[postIndex] = {
+            ...updatedPosts[postIndex],
+            scheduleDate: scheduleDate.toISOString(),
+          };
+          postIndex++;
+        }
+        // Move to the next day for the next post
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+      return updatedPosts;
+    }
+
+    return postsToReschedule;
   }, []);
 
 
-  const handleReschedule = () => setBulkPosts(prev => rescheduleBulkPosts(prev));
+  const handleReschedule = () => {
+    setBulkPosts(prev => rescheduleBulkPosts(prev, schedulingStrategy, weeklyScheduleSettings));
+    showNotification('success', 'تمت إعادة جدولة المنشورات بنجاح!');
+  };
+
 
   const handleAddBulkPosts = useCallback((files: FileList | null) => {
     if (files) {
@@ -349,7 +407,11 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
             id: `bulk_strategy_${Date.now()}_${index}`, text: item.body, imageFile: undefined,
             imagePreview: undefined, hasImage: false, scheduleDate: '', targetIds: [managedTarget.id],
         }));
-        const scheduledBulkItems = rescheduleBulkPosts(newBulkItems);
+        
+        // --- التصحيح هنا ---
+        // قم باستدعاء rescheduleBulkPosts مع المعاملات الثلاثة المطلوبة
+        const scheduledBulkItems = rescheduleBulkPosts(newBulkItems, schedulingStrategy, weeklyScheduleSettings);
+        
         setBulkPosts(scheduledBulkItems);
         showNotification('success', `تم تحويل ${scheduledBulkItems.length} منشورًا إلى الجدولة المجمعة بنجاح!`);
         setView('bulk');
@@ -358,7 +420,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
     } finally {
         setIsSchedulingStrategy(false);
     }
-  }, [contentPlan, managedTarget.id, rescheduleBulkPosts, showNotification]);
+  }, [contentPlan, managedTarget.id, rescheduleBulkPosts, showNotification, schedulingStrategy, weeklyScheduleSettings]);
 
   useEffect(() => {
     const loadDataFromFirestore = async () => {
