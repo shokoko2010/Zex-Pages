@@ -45,8 +45,6 @@ interface DashboardPageProps {
   stabilityApiKey: string | null;
   onSettingsClick: () => void;
   fetchWithPagination: (path: string, accessToken?: string) => Promise<any[]>;
-  onSyncHistory: (target: Target) => Promise<void>;
-  syncingTargetId: string | null;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
   fbAccessToken: string | null;
@@ -104,484 +102,668 @@ const initialPageProfile: PageProfile = {
     language: 'ar', contentGenerationLanguages: ['ar'],
     ownerUid: '', team: [], members: [],
 };
-
 const DashboardPage: React.FC<DashboardPageProps> = ({
-    user, isAdmin, userPlan, plans, allUsers, managedTarget, allTargets, onChangePage, onLogout,
-    isSimulationMode, aiClient, stabilityApiKey, onSettingsClick, fetchWithPagination, onSyncHistory,
-    syncingTargetId, theme, onToggleTheme, fbAccessToken, strategyHistory, onSavePlan, onDeleteStrategy
+  user, isAdmin, userPlan, plans, allUsers, managedTarget, allTargets, onChangePage, onLogout,
+  isSimulationMode, aiClient, stabilityApiKey, onSettingsClick, fetchWithPagination,
+  theme, onToggleTheme, fbAccessToken, strategyHistory, onSavePlan, onDeleteStrategy
 }) => {
-  const [view, setView] = useState<DashboardView>('composer');
-  const [postText, setPostText] = useState('');
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [isScheduled, setIsScheduled] = useState(false);
-  const [scheduleDate, setScheduleDate] = useState('');
-  const [composerError, setComposerError] = useState('');
-  const [includeInstagram, setIncludeInstagram] = useState(false);
-  const [editingScheduledPostId, setEditingScheduledPostId] = useState<string | null>(null);
-  const [isPublishing, setIsPublishing] = useState(false);
-  const [notification, setNotification] = useState<{type: 'success' | 'error' | 'partial', message: string, onUndo?: () => void} | null>(null);
-  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [pageProfile, setPageProfile] = useState<PageProfile>(initialPageProfile);
-  const [currentUserRole, setCurrentUserRole] = useState<Role>('viewer');
-  const [scheduledPosts, setScheduledPosts] = useState<ScheduledPost[]>([]);
-  const [drafts, setDrafts] = useState<Draft[]>([]);
-  const [bulkPosts, setBulkPosts] = useState<BulkPostItem[]>([]);
-  const [isSchedulingAll, setIsSchedulingAll] = useState(false);
-  const [schedulingStrategy, setSchedulingStrategy] = useState<'even' | 'weekly'>('even');
-  const [weeklyScheduleSettings, setWeeklyScheduleSettings] = useState<WeeklyScheduleSettings>({ days: [1, 3, 5], time: '19:00' });
-  const [contentPlan, setContentPlan] = useState<ContentPlanItem[] | null>(null);
-  const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
-  const [isFetchingProfile, setIsFetchingProfile] = useState(false);
-  const [isSchedulingStrategy, setIsSchedulingStrategy] = useState(false);
-  const [planError, setPlanError] = useState<string | null>(null);
-  const [publishedPosts, setPublishedPosts] = useState<PublishedPost[]>([]);
-  const [publishedPostsLoading, setPublishedPostsLoading] = useState(true);
-  const [analyticsPeriod, setAnalyticsPeriod] = useState<'7d' | '30d'>('30d');
-  const [performanceSummaryText, setPerformanceSummaryText] = useState('');
-  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
-  const [audienceGrowthData, setAudienceGrowthData] = useState<AudienceGrowthData[]>([]);
-  const [heatmapData, setHeatmapData] = useState<HeatmapDataPoint[]>([]);
-  const [contentTypeData, setContentTypePerformanceData] = useState<ContentTypePerformanceData[]>([]);
-  const [isGeneratingDeepAnalytics, setIsGeneratingDeepAnalytics] = useState(false);
-  const [inboxItems, setInboxItems] = useState<InboxItem[]>([]);
-  const [isInboxLoading, setIsInboxLoading] = useState(true);
-  const [autoResponderSettings, setAutoResponderSettings] = useState<AutoResponderSettings>(initialAutoResponderSettings);
-  const [repliedUsersPerPost, setRepliedUsersPerPost] = useState<Record<string, string[]>>({});
-  const [isPolling, setIsPolling] = useState(false);
+const [view, setView] = useState<DashboardView>('composer');
+const [postText, setPostText] = useState('');
+const [selectedImage, setSelectedImage] = useState<File | null>(null);
+const [imagePreview, setImagePreview] = useState<string | null>(null);
+const [isScheduled, setIsScheduled] = useState(false);
+const [scheduleDate, setScheduleDate] = useState('');
+const [composerError, setComposerError] = useState('');
+const [includeInstagram, setIncludeInstagram] = useState(false);
+const [editingScheduledPostId, setEditingScheduledPostId] = useState<string | null>(null);
+const [isPublishing, setIsPublishing] = useState(false);
+const [notification, setNotification] = useState<{type: 'success' | 'error' | 'partial', message: string, onUndo?: () => void} | null>(null);
+const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+const [pageProfile, setPageProfile] = useState<PageProfile>(initialPageProfile);
+const [currentUserRole, setCurrentUserRole] = useState<Role>('viewer');
+const [scheduledPosts, setScheduledPosts] = useState<ScheduledPost[]>([]);
+const [drafts, setDrafts] = useState<Draft[]>([]);
+const [bulkPosts, setBulkPosts] = useState<BulkPostItem[]>([]);
+const [isSchedulingAll, setIsSchedulingAll] = useState(false);
+const [schedulingStrategy, setSchedulingStrategy] = useState<'even' | 'weekly'>('even');
+const [weeklyScheduleSettings, setWeeklyScheduleSettings] = useState<WeeklyScheduleSettings>({ days: [1, 3, 5], time: '19:00' });
+const [contentPlan, setContentPlan] = useState<ContentPlanItem[] | null>(null);
+const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+const [isFetchingProfile, setIsFetchingProfile] = useState(false);
+const [isSchedulingStrategy, setIsSchedulingStrategy] = useState(false);
+const [planError, setPlanError] = useState<string | null>(null);
+const [publishedPosts, setPublishedPosts] = useState<PublishedPost[]>([]);
+const [publishedPostsLoading, setPublishedPostsLoading] = useState(true);
+const [analyticsPeriod, setAnalyticsPeriod] = useState<'7d' | '30d'>('30d');
+const [performanceSummaryText, setPerformanceSummaryText] = useState('');
+const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+const [audienceGrowthData, setAudienceGrowthData] = useState<AudienceGrowthData[]>([]);
+const [heatmapData, setHeatmapData] = useState<HeatmapDataPoint[]>([]);
+const [contentTypeData, setContentTypePerformanceData] = useState<ContentTypePerformanceData[]>([]);
+const [isGeneratingDeepAnalytics, setIsGeneratingDeepAnalytics] = useState(false);
+const [inboxItems, setInboxItems] = useState<InboxItem[]>([]);
+const [isInboxLoading, setIsInboxLoading] = useState(true);
+const [autoResponderSettings, setAutoResponderSettings] = useState<AutoResponderSettings>(initialAutoResponderSettings);
+const [repliedUsersPerPost, setRepliedUsersPerPost] = useState<Record<string, string[]>>({});
+const [isPolling, setIsPolling] = useState(false);
+const [syncingTargetId, setSyncingTargetId] = useState<string | null>(null); 
 
-  console.log('aiClient:', aiClient);
-  console.log('stabilityApiKey:', stabilityApiKey);
-  console.log('currentUserRole:', currentUserRole);
+console.log('aiClient:', aiClient);
+console.log('stabilityApiKey:', stabilityApiKey);
+console.log('currentUserRole:', currentUserRole);
 
-  const linkedInstagramTarget = useMemo(() => allTargets.find(t => t.type === 'instagram' && t.parentPageId === managedTarget.id) || null, [managedTarget, allTargets]);
-  const bulkSchedulerTargets = useMemo(() => [managedTarget, ...(linkedInstagramTarget ? [linkedInstagramTarget] : [])], [managedTarget, linkedInstagramTarget]);
+const linkedInstagramTarget = useMemo(() => allTargets.find(t => t.type === 'instagram' && t.parentPageId === managedTarget.id) || null, [managedTarget, allTargets]);
+const bulkSchedulerTargets = useMemo(() => [managedTarget, ...(linkedInstagramTarget ? [linkedInstagramTarget] : [])], [managedTarget, linkedInstagramTarget]);
 
-  useEffect(() => {
-    if (selectedImage) {
-      const newUrl = URL.createObjectURL(selectedImage);
-      setImagePreview(newUrl);
-      return () => URL.revokeObjectURL(newUrl);
+useEffect(() => {
+  if (selectedImage) {
+    const newUrl = URL.createObjectURL(selectedImage);
+    setImagePreview(newUrl);
+    return () => URL.revokeObjectURL(newUrl);
+  }
+  setImagePreview(null);
+}, [selectedImage]);
+
+const showNotification = useCallback((type: 'success' | 'error' | 'partial', message: string, onUndo?: () => void) => {
+  setNotification({ type, message, onUndo });
+  if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+  undoTimerRef.current = setTimeout(() => setNotification(null), 5000);
+}, []);
+
+const getTargetDataRef = useCallback(() => db.collection('targets_data').doc(managedTarget.id), [managedTarget]);
+
+const saveDataToFirestore = useCallback(async (dataToSave: { [key: string]: any }) => {
+  try { await getTargetDataRef().set(dataToSave, { merge: true }); }
+  catch (error) { showNotification('error', 'فشل حفظ البيانات في السحابة.'); }
+}, [getTargetDataRef, showNotification]);
+
+const clearComposer = useCallback(() => {
+  setPostText('');
+  setSelectedImage(null);
+  setImagePreview(null);
+  setIsScheduled(false);
+  setScheduleDate('');
+  setComposerError('');
+  setIncludeInstagram(false);
+  setEditingScheduledPostId(null);
+}, []);
+
+const handlePageProfileChange = (newProfile: PageProfile) => {
+  setPageProfile(newProfile);
+  saveDataToFirestore({ pageProfile: newProfile });
+};
+
+const handlePublish = async () => { /* Placeholder for actual publish logic */ };
+const handleSaveDraft = async () => { /* Placeholder for actual save draft logic */ };
+const handleLoadDraft = (draftId: string) => { /* Placeholder for actual load draft logic */ };
+const handleDeleteDraft = async (draftId: string) => { /* Placeholder for actual delete draft logic */ };
+const handleEditScheduledPost = (postId: string) => { /* Placeholder for actual edit logic */ };
+const handleDeleteScheduledPost = async (postId: string) => { /* Placeholder for actual delete logic */ };
+const handleApprovePost = async (postId: string) => { /* Placeholder for actual approve logic */ };
+const handleRejectPost = async (postId: string) => { /* Placeholder for actual reject logic */ };
+
+const rescheduleBulkPosts = useCallback((
+  postsToReschedule: BulkPostItem[],
+  strategy: 'even' | 'weekly',
+  settings: WeeklyScheduleSettings
+): BulkPostItem[] => {
+  if (postsToReschedule.length === 0) {
+    return [];
+  }
+
+  const updatedPosts = [...postsToReschedule];
+  let currentDate = new Date(); // Start from today
+
+  if (strategy === 'even') {
+    // Evenly distribute posts starting from the next hour, every 3 hours
+    let startDate = new Date();
+    startDate.setHours(startDate.getHours() + 1, 0, 0, 0); // Start from the next hour
+
+    return updatedPosts.map((post, index) => {
+      const scheduleDate = new Date(startDate.getTime() + index * 3 * 60 * 60 * 1000);
+      return { ...post, scheduleDate: scheduleDate.toISOString() };
+    });
+  }
+
+  if (strategy === 'weekly') {
+    const { days, time } = settings;
+    if (days.length === 0) {
+      return postsToReschedule; // Do nothing if no days are selected
     }
-    setImagePreview(null);
-  }, [selectedImage]);
 
-  const showNotification = useCallback((type: 'success' | 'error' | 'partial', message: string, onUndo?: () => void) => {
-    setNotification({ type, message, onUndo });
-    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
-    undoTimerRef.current = setTimeout(() => setNotification(null), 5000);
-  }, []);
+    const [hour, minute] = time.split(':').map(Number);
+    let postIndex = 0;
+    
+    // Start checking from tomorrow
+    currentDate.setDate(currentDate.getDate() + 1);
 
-  const getTargetDataRef = useCallback(() => db.collection('targets_data').doc(managedTarget.id), [managedTarget]);
+    while (postIndex < updatedPosts.length) {
+      if (days.includes(currentDate.getDay())) {
+        const scheduleDate = new Date(currentDate);
+        scheduleDate.setHours(hour, minute, 0, 0);
 
-  const saveDataToFirestore = useCallback(async (dataToSave: { [key: string]: any }) => {
-    try { await getTargetDataRef().set(dataToSave, { merge: true }); }
-    catch (error) { showNotification('error', 'فشل حفظ البيانات في السحابة.'); }
-  }, [getTargetDataRef, showNotification]);
+        // Check if the scheduled time is in the past, if so, schedule it for the next week
+        if (scheduleDate < new Date()) {
+            scheduleDate.setDate(scheduleDate.getDate() + 7);
+        }
 
-  const clearComposer = useCallback(() => {
-    setPostText('');
-    setSelectedImage(null);
-    setImagePreview(null);
-    setIsScheduled(false);
-    setScheduleDate('');
-    setComposerError('');
-    setIncludeInstagram(false);
-    setEditingScheduledPostId(null);
-  }, []);
-
-  const handlePageProfileChange = (newProfile: PageProfile) => {
-    setPageProfile(newProfile);
-    saveDataToFirestore({ pageProfile: newProfile });
-  };
-  
-  const handlePublish = async () => { /* Placeholder for actual publish logic */ };
-  const handleSaveDraft = async () => { /* Placeholder for actual save draft logic */ };
-  const handleLoadDraft = (draftId: string) => { /* Placeholder for actual load draft logic */ };
-  const handleDeleteDraft = async (draftId: string) => { /* Placeholder for actual delete draft logic */ };
-  const handleEditScheduledPost = (postId: string) => { /* Placeholder for actual edit logic */ };
-  const handleDeleteScheduledPost = async (postId: string) => { /* Placeholder for actual delete logic */ };
-  const handleApprovePost = async (postId: string) => { /* Placeholder for actual approve logic */ };
-  const handleRejectPost = async (postId: string) => { /* Placeholder for actual reject logic */ };
-  
-  const rescheduleBulkPosts = useCallback((
-    postsToReschedule: BulkPostItem[],
-    strategy: 'even' | 'weekly',
-    settings: WeeklyScheduleSettings
-  ): BulkPostItem[] => {
-    if (postsToReschedule.length === 0) {
-      return [];
-    }
-
-    const updatedPosts = [...postsToReschedule];
-    let currentDate = new Date(); // Start from today
-
-    if (strategy === 'even') {
-      // Evenly distribute posts starting from the next hour, every 3 hours
-      let startDate = new Date();
-      startDate.setHours(startDate.getHours() + 1, 0, 0, 0); // Start from the next hour
-
-      return updatedPosts.map((post, index) => {
-        const scheduleDate = new Date(startDate.getTime() + index * 3 * 60 * 60 * 1000);
-        return { ...post, scheduleDate: scheduleDate.toISOString() };
-      });
-    }
-
-    if (strategy === 'weekly') {
-      const { days, time } = settings;
-      if (days.length === 0) {
-        return postsToReschedule; // Do nothing if no days are selected
+        updatedPosts[postIndex] = {
+          ...updatedPosts[postIndex],
+          scheduleDate: scheduleDate.toISOString(),
+        };
+        postIndex++;
       }
-
-      const [hour, minute] = time.split(':').map(Number);
-      let postIndex = 0;
-      
-      // Start checking from tomorrow
+      // Move to the next day for the next post
       currentDate.setDate(currentDate.getDate() + 1);
+    }
+    return updatedPosts;
+  }
 
-      while (postIndex < updatedPosts.length) {
-        if (days.includes(currentDate.getDay())) {
-          const scheduleDate = new Date(currentDate);
-          scheduleDate.setHours(hour, minute, 0, 0);
+  return postsToReschedule;
+}, []);
+const handleReschedule = () => {
+  setBulkPosts(prev => rescheduleBulkPosts(prev, schedulingStrategy, weeklyScheduleSettings));
+  showNotification('success', 'تمت إعادة جدولة المنشورات بنجاح!');
+};
 
-          // Check if the scheduled time is in the past, if so, schedule it for the next week
-          if (scheduleDate < new Date()) {
-              scheduleDate.setDate(scheduleDate.getDate() + 7);
+
+const handleAddBulkPosts = useCallback((files: FileList | null) => {
+  if (files) {
+    const newPosts: BulkPostItem[] = Array.from(files).map((file, index) => ({
+      id: `bulk_${Date.now()}_${index}`,
+      text: '',
+      imageFile: file,
+      imagePreview: URL.createObjectURL(file),
+      hasImage: true,
+      scheduleDate: '',
+      targetIds: [managedTarget.id],
+    }));
+    setBulkPosts(prev => [...prev, ...newPosts]);
+  } else {
+    // Add an empty text-only post
+    const newTextPost: BulkPostItem = {
+      id: `bulk_${Date.now()}_text_only`,
+      text: '',
+      imageFile: undefined,
+      imagePreview: undefined,
+      hasImage: false,
+      scheduleDate: '',
+      targetIds: [managedTarget.id],
+    };
+    setBulkPosts(prev => [...prev, newTextPost]);
+  }
+  showNotification('success', files ? `تمت إضافة ${files.length} منشورات جديدة للجدولة.` : 'تمت إضافة منشور نصي فارغ.');
+}, [showNotification, managedTarget.id]);
+
+
+const handleUpdateBulkPost = (id: string, updates: Partial<BulkPostItem>) => {
+  setBulkPosts(prev => prev.map(p => {
+      if (p.id === id) {
+          const updatedItem = { ...p, ...updates };
+          // If imageFile is set, ensure imagePreview and hasImage are updated
+          if (updates.imageFile !== undefined) {
+              updatedItem.imagePreview = updates.imageFile ? URL.createObjectURL(updates.imageFile) : undefined;
+              updatedItem.hasImage = !!updates.imageFile;
+          } else if (updates.imagePreview !== undefined) {
+               updatedItem.hasImage = !!updates.imagePreview;
           }
 
-          updatedPosts[postIndex] = {
-            ...updatedPosts[postIndex],
-            scheduleDate: scheduleDate.toISOString(),
-          };
-          postIndex++;
-        }
-        // Move to the next day for the next post
-        currentDate.setDate(currentDate.getDate() + 1);
+          return updatedItem;
       }
-      return updatedPosts;
-    }
-
-    return postsToReschedule;
-  }, []);
-
-
-  const handleReschedule = () => {
-    setBulkPosts(prev => rescheduleBulkPosts(prev, schedulingStrategy, weeklyScheduleSettings));
-    showNotification('success', 'تمت إعادة جدولة المنشورات بنجاح!');
-  };
-
-
-  const handleAddBulkPosts = useCallback((files: FileList | null) => {
-    if (files) {
-      const newPosts: BulkPostItem[] = Array.from(files).map((file, index) => ({
-        id: `bulk_${Date.now()}_${index}`,
-        text: '',
-        imageFile: file,
-        imagePreview: URL.createObjectURL(file),
-        hasImage: true,
-        scheduleDate: '',
-        targetIds: [managedTarget.id],
-      }));
-      setBulkPosts(prev => [...prev, ...newPosts]);
-    } else {
-      // Add an empty text-only post
-      const newTextPost: BulkPostItem = {
-        id: `bulk_${Date.now()}_text_only`,
-        text: '',
-        imageFile: undefined,
-        imagePreview: undefined,
-        hasImage: false,
-        scheduleDate: '',
-        targetIds: [managedTarget.id],
-      };
-      setBulkPosts(prev => [...prev, newTextPost]);
-    }
-    showNotification('success', files ? `تمت إضافة ${files.length} منشورات جديدة للجدولة.` : 'تمت إضافة منشور نصي فارغ.');
-  }, [showNotification, managedTarget.id]);
-
-
-  const handleUpdateBulkPost = (id: string, updates: Partial<BulkPostItem>) => {
-    setBulkPosts(prev => prev.map(p => {
-        if (p.id === id) {
-            const updatedItem = { ...p, ...updates };
-            // If imageFile is set, ensure imagePreview and hasImage are updated
-            if (updates.imageFile !== undefined) {
-                updatedItem.imagePreview = updates.imageFile ? URL.createObjectURL(updates.imageFile) : undefined;
-                updatedItem.hasImage = !!updates.imageFile;
-            } else if (updates.imagePreview !== undefined) {
-                 updatedItem.hasImage = !!updates.imagePreview;
-            }
-
-            return updatedItem;
-        }
-        return p;
-    }));
+      return p;
+  }));
 };
-  const handleRemoveBulkPost = (id: string) => setBulkPosts(prev => prev.filter(p => p.id !== id));
-  
-  // AI Generation Functions for Bulk Posts
-  const handleGenerateBulkPostFromText = useCallback(async (id: string, text: string) => {
-    const postToUpdate = bulkPosts.find(p => p.id === id);
-    if (!aiClient || !postToUpdate) {
-        showNotification('error', 'AI Client not configured or post not found.');
-        return;
-    }
-    try {
-        const generatedText = await generatePostSuggestion(aiClient, text, pageProfile);
-        handleUpdateBulkPost(id, { text: generatedText });
-        showNotification('success', 'تم توليد المنشور بنجاح من النص!');
-    } catch (error: any) {
-        showNotification('error', `فشل توليد المنشور: ${error.message}`);
-    }
-  }, [aiClient, pageProfile, showNotification, bulkPosts]);
+const handleRemoveBulkPost = (id: string) => setBulkPosts(prev => prev.filter(p => p.id !== id));
 
-  const handleGenerateImageFromText = useCallback(async (id: string, text: string, service: 'gemini' | 'stability') => {
-    const postToUpdate = bulkPosts.find(p => p.id === id);
-    if (!postToUpdate) {
-        showNotification('error', 'Post not found.');
-        return;
-    }
-    try {
-        showNotification('partial', `جاري توليد الصورة باستخدام ${service === 'gemini' ? 'Gemini' : 'Stability AI'}... قد يستغرق هذا بعض الوقت.`);
-        let base64;
-        if (service === 'gemini') {
-             if (!aiClient) {
-                showNotification('error', 'Gemini API client is not configured.');
-                return;
-            }
-            base64 = await generateImageFromPrompt(aiClient, text, 'standard', '1:1');
-        } else if (service === 'stability') {
-            if (!stabilityApiKey) {
-                showNotification('error', 'Stability AI API key is not configured.');
-                return;
-            }
-            // --- هذا هو السطر الذي تم إصلاحه ---
-            base64 = await generateImageWithStabilityAI(stabilityApiKey, text, 'standard', '1:1', 'core', aiClient);
-        }
+// AI Generation Functions for Bulk Posts
+const handleGenerateBulkPostFromText = useCallback(async (id: string, text: string) => {
+  const postToUpdate = bulkPosts.find(p => p.id === id);
+  if (!aiClient || !postToUpdate) {
+      showNotification('error', 'AI Client not configured or post not found.');
+      return;
+  }
+  try {
+      const generatedText = await generatePostSuggestion(aiClient, text, pageProfile);
+      handleUpdateBulkPost(id, { text: generatedText });
+      showNotification('success', 'تم توليد المنشور بنجاح من النص!');
+  } catch (error: any) {
+      showNotification('error', `فشل توليد المنشور: ${error.message}`);
+  }
+}, [aiClient, pageProfile, showNotification, bulkPosts]);
 
-        if (base64) {
-            // The services now consistently return base64, so we need to create a File from it.
-            const byteCharacters = atob(base64);
-            const byteNumbers = new Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) {
-                byteNumbers[i] = byteCharacters.charCodeAt(i);
-            }
-            const byteArray = new Uint8Array(byteNumbers);
-            const blob = new Blob([byteArray], { type: 'image/jpeg' });
-            const generatedFile = new File([blob], `generated_image_${id}.jpeg`, { type: 'image/jpeg' });
+const handleGenerateImageFromText = useCallback(async (id: string, text: string, service: 'gemini' | 'stability') => {
+  const postToUpdate = bulkPosts.find(p => p.id === id);
+  if (!postToUpdate) {
+      showNotification('error', 'Post not found.');
+      return;
+  }
+  try {
+      showNotification('partial', `جاري توليد الصورة باستخدام ${service === 'gemini' ? 'Gemini' : 'Stability AI'}... قد يستغرق هذا بعض الوقت.`);
+      let base64;
+      if (service === 'gemini') {
+           if (!aiClient) {
+              showNotification('error', 'Gemini API client is not configured.');
+              return;
+          }
+          base64 = await generateImageFromPrompt(aiClient, text, 'standard', '1:1');
+      } else if (service === 'stability') {
+          if (!stabilityApiKey) {
+              showNotification('error', 'Stability AI API key is not configured.');
+              return;
+          }
+          base64 = await generateImageWithStabilityAI(stabilityApiKey, text, 'standard', '1:1', 'core', aiClient);
+      }
 
-            handleUpdateBulkPost(id, { imageFile: generatedFile, hasImage: true, imagePreview: URL.createObjectURL(generatedFile) });
-            showNotification('success', `تم توليد الصورة بنجاح باستخدام ${service === 'gemini' ? 'Gemini' : 'Stability AI'}!`);
-        }
-    } catch (error: any) {
-        showNotification('error', `فشل توليد الصورة: ${error.message}`);
-    }
+      if (base64) {
+          const byteCharacters = atob(base64);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+              byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: 'image/jpeg' });
+          const generatedFile = new File([blob], `generated_image_${id}.jpeg`, { type: 'image/jpeg' });
+
+          handleUpdateBulkPost(id, { imageFile: generatedFile, hasImage: true, imagePreview: URL.createObjectURL(generatedFile) });
+          showNotification('success', `تم توليد الصورة بنجاح باستخدام ${service === 'gemini' ? 'Gemini' : 'Stability AI'}!`);
+      }
+  } catch (error: any) {
+      showNotification('error', `فشل توليد الصورة: ${error.message}`);
+  }
 }, [aiClient, stabilityApiKey, showNotification, bulkPosts, handleUpdateBulkPost]);
 
 
-  const handleGeneratePostFromImage = useCallback(async (id: string, imageFile: File) => {
-    const postToUpdate = bulkPosts.find(p => p.id === id);
-    if (!aiClient || !postToUpdate) {
-        showNotification('error', 'AI Client not configured or post not found.');
-        return;
-    }
-    try {
-        const generatedDescription = await generateDescriptionForImage(aiClient, imageFile, pageProfile);
-        handleUpdateBulkPost(id, { text: generatedDescription });
-        showNotification('success', 'تم توليد وصف المنشور بنجاح من الصورة!');
-    } catch (error: any) {
-        showNotification('error', `فشل توليد الوصف: ${error.message}`);
-    }
-  }, [aiClient, pageProfile, showNotification, bulkPosts]);
+const handleGeneratePostFromImage = useCallback(async (id: string, imageFile: File) => {
+  const postToUpdate = bulkPosts.find(p => p.id === id);
+  if (!aiClient || !postToUpdate) {
+      showNotification('error', 'AI Client not configured or post not found.');
+      return;
+  }
+  try {
+      const generatedDescription = await generateDescriptionForImage(aiClient, imageFile, pageProfile);
+      handleUpdateBulkPost(id, { text: generatedDescription });
+      showNotification('success', 'تم توليد وصف المنشور بنجاح من الصورة!');
+  } catch (error: any) {
+      showNotification('error', `فشل توليد الوصف: ${error.message}`);
+  }
+}, [aiClient, pageProfile, showNotification, bulkPosts]);
 
-  const handleAddImageManually = useCallback((id: string, file: File) => {
-    handleUpdateBulkPost(id, { imageFile: file, hasImage: true, imagePreview: URL.createObjectURL(file) });
-    showNotification('success', 'تمت إضافة الصورة بنجاح يدوياً.');
-  }, [handleUpdateBulkPost, showNotification]);
+const handleAddImageManually = useCallback((id: string, file: File) => {
+  handleUpdateBulkPost(id, { imageFile: file, hasImage: true, imagePreview: URL.createObjectURL(file) });
+  showNotification('success', 'تمت إضافة الصورة بنجاح يدوياً.');
+}, [handleUpdateBulkPost, showNotification]);
 
-  const handleScheduleAllBulk = async () => { /* Placeholder for actual schedule all logic */ };
-  const handleFetchProfile = async () => {};
+const handleScheduleAllBulk = async () => { /* Placeholder for actual schedule all logic */ };
+const handleFetchProfile = async () => {};
 
-    const handleScheduleStrategy = useCallback(async () => {
-    if (!contentPlan || contentPlan.length === 0) {
-        showNotification('error', 'لا توجد خطة لتحويلها.');
-        return;
-    }
-    setIsSchedulingStrategy(true);
-    try {
-        const newBulkItems: BulkPostItem[] = contentPlan.map((item, index) => ({
-            id: `bulk_strategy_${Date.now()}_${index}`, text: item.body, imageFile: undefined,
-            imagePreview: undefined, hasImage: false, scheduleDate: '', targetIds: [managedTarget.id],
-        }));
-        
-        // --- التصحيح هنا ---
-        // قم باستدعاء rescheduleBulkPosts مع المعاملات الثلاثة المطلوبة
-        const scheduledBulkItems = rescheduleBulkPosts(newBulkItems, schedulingStrategy, weeklyScheduleSettings);
-        
-        setBulkPosts(scheduledBulkItems);
-        showNotification('success', `تم تحويل ${scheduledBulkItems.length} منشورًا إلى الجدولة المجمعة بنجاح!`);
-        setView('bulk');
-    } catch (error: any) {
-        showNotification('error', `فشل تحويل الخطة: ${error.message}`);
-    } finally {
-        setIsSchedulingStrategy(false);
-    }
-  }, [contentPlan, managedTarget.id, rescheduleBulkPosts, showNotification, schedulingStrategy, weeklyScheduleSettings]);
+  const handleScheduleStrategy = useCallback(async () => {
+  if (!contentPlan || contentPlan.length === 0) {
+      showNotification('error', 'لا توجد خطة لتحويلها.');
+      return;
+  }
+  setIsSchedulingStrategy(true);
+  try {
+      const newBulkItems: BulkPostItem[] = contentPlan.map((item, index) => ({
+          id: `bulk_strategy_${Date.now()}_${index}`, text: item.body, imageFile: undefined,
+          imagePreview: undefined, hasImage: false, scheduleDate: '', targetIds: [managedTarget.id],
+      }));
+      
+      const scheduledBulkItems = rescheduleBulkPosts(newBulkItems, schedulingStrategy, weeklyScheduleSettings);
+      
+      setBulkPosts(scheduledBulkItems);
+      showNotification('success', `تم تحويل ${scheduledBulkItems.length} منشورًا إلى الجدولة المجمعة بنجاح!`);
+      setView('bulk');
+  } catch (error: any) {
+      showNotification('error', `فشل تحويل الخطة: ${error.message}`);
+  } finally {
+      setIsSchedulingStrategy(false);
+  }
+}, [contentPlan, managedTarget.id, rescheduleBulkPosts, showNotification, schedulingStrategy, weeklyScheduleSettings]);
+
+
+const syncFacebookData = useCallback(async (target: Target) => {
+  if (!target.access_token) {
+      showNotification('error', 'Page access token is missing. Please re-authenticate.');
+      return;
+  }
+  setSyncingTargetId(target.id); // استخدام setSyncingTargetId المعرف كحالة
+  showNotification('partial', 'جاري مزامنة بيانات فيسبوك...');
+  try {
+      // Fetch Scheduled Posts from Facebook
+      const scheduledPath = `/${target.id}/scheduled_posts?fields=id,message,scheduled_publish_time,attachments{media{source}}`;
+      const fbScheduledPosts = await fetchWithPagination(scheduledPath, target.access_token);
+      
+      const newScheduledPosts: ScheduledPost[] = fbScheduledPosts.map((post: any) => ({
+          id: post.id,
+          postId: post.id,
+          text: post.message || '',
+          scheduledAt: new Date(post.scheduled_publish_time * 1000),
+          imageUrl: post.attachments?.data[0]?.media?.source,
+          hasImage: !!post.attachments?.data[0]?.media?.source,
+          isReminder: false,
+          targetId: target.id,
+          targetInfo: {
+              name: target.name,
+              avatarUrl: target.picture.data.url,
+              type: target.type,
+          },
+          status: 'scheduled',
+          approvals: {},
+          rejections: {},
+          imageFile: undefined,
+      }));
+      setScheduledPosts(newScheduledPosts);
+
+      // Fetch Published Posts from Facebook
+      const publishedPath = `/${target.id}/published_posts?fields=id,message,created_time,full_picture,likes.summary(true),comments.summary(true),shares`;
+      const fbPublishedPosts = await fetchWithPagination(publishedPath, target.access_token);
+      
+      const newPublishedPosts: PublishedPost[] = fbPublishedPosts.map((post: any) => ({
+          id: post.id,
+          text: post.message || '',
+          publishedAt: new Date(post.created_time),
+          imagePreview: post.full_picture,
+          analytics: {
+              likes: post.likes?.summary?.total_count || 0,
+              comments: post.comments?.summary?.total_count || 0,
+              shares: post.shares?.count || 0,
+              loading: false,
+              lastUpdated: new Date().toISOString(),
+          },
+          pageId: target.id,
+          pageName: target.name,
+          pageAvatarUrl: target.picture.data.url,
+      }));
+      setPublishedPosts(newPublishedPosts);
+      
+      // Save fresh data to Firestore
+      await saveDataToFirestore({
+          scheduledPosts: newScheduledPosts.map(p => ({...p, scheduledAt: p.scheduledAt.toISOString()})),
+          publishedPosts: newPublishedPosts.map(p => ({...p, publishedAt: p.publishedAt.toISOString()})),
+          lastSync: new Date().toISOString()
+      });
+
+      showNotification('success', 'تمت مزامنة بيانات فيسبوك بنجاح!');
+  } catch (error: any) {
+      console.error("Facebook Sync Error:", error);
+      showNotification('error', `فشل المزامنة مع فيسبوك: ${error.message}`);
+  } finally {
+      setSyncingTargetId(null);
+  }
+}, [fetchWithPagination, saveDataToFirestore, showNotification, setSyncingTargetId, managedTarget.id, managedTarget.name, managedTarget.picture.data.url, managedTarget.type]);
+useEffect(() => {
+  const loadDataFromFirestoreAndSync = async () => {
+      const dataRef = getTargetDataRef();
+      setPublishedPostsLoading(true);
+      setIsInboxLoading(true);
+      const docSnap = await dataRef.get();
+      let loadedProfile: PageProfile;
+      if (docSnap.exists) {
+          const data = docSnap.data()!;
+          loadedProfile = { ...initialPageProfile, ...(data.pageProfile || {}) };
+          if (!loadedProfile.ownerUid) {
+              loadedProfile.ownerUid = user.uid;
+              loadedProfile.members = [user.uid];
+          }
+          setPageProfile(loadedProfile);
+          setCurrentUserRole(loadedProfile.ownerUid === user.uid ? 'owner' : (loadedProfile.team?.find(m => m.uid === user.uid)?.role || 'viewer'));
+          setAutoResponderSettings(data.autoResponderSettings || initialAutoResponderSettings);
+          setDrafts(data.drafts?.map((d: any) => ({...d, imageFile: null})) || []);
+          setScheduledPosts(data.scheduledPosts?.map((p: any) => ({...p, scheduledAt: new Date(p.scheduledAt)})) || []);
+          setPublishedPosts(data.publishedPosts?.map((p:any) => ({...p, publishedAt: new Date(p.publishedAt)})) || []);
+          setInboxItems(data.inboxItems?.map((i:any) => ({ ...i, timestamp: new Date(i.timestamp).toISOString() })) || []);
+      } else {
+          loadedProfile = { ...initialPageProfile, ownerUid: user.uid, members: [user.uid], team: [] };
+          setPageProfile(loadedProfile);
+          setCurrentUserRole('owner');
+          setAutoResponderSettings(initialAutoResponderSettings);
+          setDrafts([]); setScheduledPosts([]); setPublishedPosts([]); setInboxItems([]);
+      }
+      await saveDataToFirestore({ 
+          id: managedTarget.id, 
+          name: managedTarget.name, 
+          pictureUrl: managedTarget.picture.data.url, 
+          accessToken: managedTarget.access_token, 
+          userId: user.uid, 
+          pageProfile: loadedProfile 
+      });
+      clearComposer();
+      setPublishedPostsLoading(false);
+      setIsInboxLoading(false);
+  };
+  loadDataFromFirestoreAndSync(); 
+}, [managedTarget.id, user.uid, getTargetDataRef, clearComposer, saveDataToFirestore]);
+
 
   useEffect(() => {
-    const loadDataFromFirestore = async () => {
-        const dataRef = getTargetDataRef();
-        setPublishedPostsLoading(true); setIsInboxLoading(true);
-        const docSnap = await dataRef.get();
-        let loadedProfile: PageProfile;
-        if (docSnap.exists) {
-            const data = docSnap.data()!;
-            loadedProfile = { ...initialPageProfile, ...(data.pageProfile || {}) };
-            if (!loadedProfile.ownerUid) {
-                loadedProfile.ownerUid = user.uid;
-                loadedProfile.members = [user.uid];
-            }
-            setPageProfile(loadedProfile);
-            setCurrentUserRole(loadedProfile.ownerUid === user.uid ? 'owner' : (loadedProfile.team?.find(m => m.uid === user.uid)?.role || 'viewer'));
-            setAutoResponderSettings(data.autoResponderSettings || initialAutoResponderSettings);
-            setDrafts(data.drafts?.map((d: any) => ({...d, imageFile: null})) || []);
-            setScheduledPosts(data.scheduledPosts?.map((p: any) => ({...p, scheduledAt: new Date(p.scheduledAt), imageFile: undefined })) || []);
-            setPublishedPosts(data.publishedPosts?.map((p:any) => ({...p, publishedAt: new Date(p.publishedAt)})) || []);
-            setInboxItems(data.inboxItems?.map((i:any) => ({ ...i, timestamp: new Date(i.timestamp).toISOString() })) || []);
-        } else {
-            loadedProfile = { ...initialPageProfile, ownerUid: user.uid, members: [user.uid], team: [] };
-            setPageProfile(loadedProfile);
-            setCurrentUserRole('owner');
-            setAutoResponderSettings(initialAutoResponderSettings);
-            setDrafts([]); setScheduledPosts([]); setPublishedPosts([]); setInboxItems([]);
-        }
-        await saveDataToFirestore({ 
-            id: managedTarget.id, 
-            name: managedTarget.name, 
-            pictureUrl: managedTarget.picture.data.url, 
-            accessToken: managedTarget.access_token, 
-            userId: user.uid, 
-            pageProfile: loadedProfile 
-        });
-        clearComposer();
-        setPublishedPostsLoading(false);
-        setIsInboxLoading(false);
-    };
-    loadDataFromFirestore();
-  }, [managedTarget.id, user.uid, getTargetDataRef, clearComposer, saveDataToFirestore]);
-    
-  const isAllowed = (feature: keyof Plan['limits']) => isAdmin || (userPlan?.limits[feature] ?? false);
-  const planName = userPlan?.name || 'Free';
+      if (managedTarget && managedTarget.access_token) {
+          syncFacebookData(managedTarget);
+      }
+  }, [managedTarget, syncFacebookData]);
 
-  const handleSetView = (newView: DashboardView) => {
-    const featureMap: Partial<Record<DashboardView, { key: keyof Plan['limits'], name: string }>> = {
-        'bulk': { key: 'bulkScheduling', name: 'الجدولة المجمعة' },
-        'planner': { key: 'contentPlanner', name: 'استراتيجيات المحتوى' },
-        'inbox': { key: 'autoResponder', name: 'صندوق الوارد' },
-    };
-    const requestedFeature = featureMap[newView];
-    if (requestedFeature && !isAllowed(requestedFeature.key)) {
-        alert(`ميزة "${requestedFeature.name}" غير متاحة في خطة "${planName}".`);
-        return;
-    }
-    setView(newView);
+
+const isAllowed = (feature: keyof Plan['limits']) => isAdmin || (userPlan?.limits[feature] ?? false);
+const planName = userPlan?.name || 'Free';
+
+const handleSetView = (newView: DashboardView) => {
+  const featureMap: Partial<Record<DashboardView, { key: keyof Plan['limits'], name: string }>> = {
+      'bulk': { key: 'bulkScheduling', name: 'الجدولة المجمعة' },
+      'planner': { key: 'contentPlanner', name: 'استراتيجيات المحتوى' },
+      'inbox': { key: 'autoResponder', name: 'صندوق الوارد' },
   };
-    
-  const renderView = () => {
-    switch (view) {
-      case 'composer':
-        return (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <PostComposer
-              postText={postText} onPostTextChange={setPostText} selectedImage={selectedImage}
-              onImageChange={(e) => setSelectedImage(e.target.files ? e.target.files[0] : null)}
-              onImageGenerated={setSelectedImage} onImageRemove={() => setSelectedImage(null)}
-              imagePreview={imagePreview} isScheduled={isScheduled} onIsScheduledChange={setIsScheduled}
-              scheduleDate={scheduleDate} onScheduleDateChange={setScheduleDate} error={composerError}
-              onPublish={handlePublish} onSaveDraft={handleSaveDraft} includeInstagram={includeInstagram}
-              onIncludeInstagramChange={setIncludeInstagram} linkedInstagramTarget={linkedInstagramTarget}
-              editingScheduledPostId={editingScheduledPostId} userPlan={userPlan} isPublishing={isPublishing}
-              aiClient={aiClient} pageProfile={pageProfile} stabilityApiKey={stabilityApiKey} managedTarget={managedTarget} role={currentUserRole}
-            />
-            <PostPreview postText={postText} imagePreview={imagePreview} type={includeInstagram && linkedInstagramTarget ? 'instagram' : 'facebook'} pageName={managedTarget.name} pageAvatar={managedTarget.picture.data.url} />
-          </div>
-        );
-      case 'calendar':
-        return <ContentCalendar posts={scheduledPosts} onEdit={handleEditScheduledPost} onDelete={handleDeleteScheduledPost} managedTarget={managedTarget} userPlan={userPlan} role={currentUserRole} onApprove={handleApprovePost} onReject={handleRejectPost} onSync={() => onSyncHistory(managedTarget)} isSyncing={!!syncingTargetId} />
-      case 'drafts':
-        return <DraftsList drafts={drafts} onLoad={handleLoadDraft} onDelete={handleDeleteDraft} role={currentUserRole} />
-      case 'bulk':
-        return <BulkSchedulerPage bulkPosts={bulkPosts} onSchedulingStrategyChange={setSchedulingStrategy} onWeeklyScheduleSettingsChange={setWeeklyScheduleSettings} onReschedule={handleReschedule} onAddPosts={handleAddBulkPosts} onUpdatePost={handleUpdateBulkPost} onRemovePost={handleRemoveBulkPost} onGeneratePostFromText={handleGenerateBulkPostFromText} onGenerateImageFromText={handleGenerateImageFromText} onGeneratePostFromImage={handleGeneratePostFromImage} onAddImageManually={handleAddImageManually} onScheduleAll={handleScheduleAllBulk} targets={bulkSchedulerTargets} aiClient={aiClient} stabilityApiKey={stabilityApiKey} pageProfile={pageProfile} isSchedulingAll={isSchedulingAll} schedulingStrategy={schedulingStrategy} weeklyScheduleSettings={weeklyScheduleSettings} role={currentUserRole} showNotification={showNotification} />
-      case 'planner':
-        return (
-          <ContentPlannerPage
-            plan={contentPlan} isGenerating={isGeneratingPlan} strategyHistory={strategyHistory}
-            isSchedulingStrategy={isSchedulingStrategy} error={planError} role={currentUserRole}
-            onScheduleStrategy={handleScheduleStrategy} aiClient={aiClient}
-            onGeneratePlan={async (request, images) => {
-                setIsGeneratingPlan(true); setPlanError(null);
-                try {
-                    if (!aiClient) throw new Error("AI Client is not configured.");
-                    const generatedPlan = await generateContentPlan(aiClient, request, pageProfile, images);
-                    setContentPlan(generatedPlan);
-                    await onSavePlan(managedTarget.id, generatedPlan, request);
-                    showNotification('success', 'تم إنشاء الخطة وحفظها في السجل بنجاح!');
-                } catch (e: any) {
-                    setPlanError(e.message || 'فشل إنشاء الخطة');
-                    showNotification('error', `فشل إنشاء الخطة: ${e.message}`);
-                } finally { setIsGeneratingPlan(false); }
-            }}
-            onStartPost={(planItem) => {
-                setView('composer');
-                setPostText(`${planItem.hook}
-
-${planItem.headline}
-
-${planItem.body}`);
-            }}
-            pageProfile={pageProfile} onLoadFromHistory={(plan) => setContentPlan(plan)}
-            onDeleteFromHistory={(id) => onDeleteStrategy(managedTarget.id, id)}
-          />
-        );
-      case 'inbox':
-        return <InboxPage items={inboxItems} isLoading={isInboxLoading} autoResponderSettings={autoResponderSettings} onAutoResponderSettingsChange={(settings) => {setAutoResponderSettings(settings); saveDataToFirestore({ autoResponderSettings: settings });}} repliedUsersPerPost={repliedUsersPerPost} currentUserRole={currentUserRole} isSyncing={isPolling} onSync={() => setIsPolling(true)} onReply={async ()=>{return true}} onMarkAsDone={()=>{}} onGenerateSmartReplies={async ()=>{return []}} onFetchMessageHistory={async ()=>{return []}} aiClient={aiClient} role={currentUserRole} />
-      case 'analytics':
-        return <AnalyticsPage publishedPosts={publishedPosts} publishedPostsLoading={publishedPostsLoading} analyticsPeriod={analyticsPeriod} setAnalyticsPeriod={setAnalyticsPeriod} performanceSummaryText={performanceSummaryText} setPerformanceSummaryText={setPerformanceSummaryText} isGeneratingSummary={isGeneratingSummary} setIsGeneratingSummary={setIsGeneratingSummary} audienceGrowthData={audienceGrowthData} setAudienceGrowthData={setAudienceGrowthData} heatmapData={heatmapData} setHeatmapData={setHeatmapData} contentTypeData={contentTypeData} setContentTypePerformanceData={setContentTypePerformanceData} isGeneratingDeepAnalytics={isGeneratingDeepAnalytics} setIsGeneratingDeepAnalytics={setIsGeneratingDeepAnalytics} managedTarget={managedTarget} userPlan={userPlan} isSimulationMode={isSimulationMode} aiClient={aiClient} pageProfile={pageProfile} currentUserRole={currentUserRole} showNotification={showNotification} generatePerformanceSummary={generatePerformanceSummary} generatePostInsights={generatePostInsights} generateOptimalSchedule={async ()=>{return {days:[],time:''}}} generateBestPostingTimesHeatmap={generateBestPostingTimesHeatmap} generateContentTypePerformance={generateContentTypePerformance} />
-      case 'profile':
-        return <PageProfilePage profile={pageProfile} onProfileChange={handlePageProfileChange} isFetchingProfile={isFetchingProfile} onFetchProfile={handleFetchProfile} role={currentUserRole} user={user} />
-      default: return null;
-    }
+  const requestedFeature = featureMap[newView];
+  if (requestedFeature && !isAllowed(requestedFeature.key)) {
+      alert(`ميزة "${requestedFeature.name}" غير متاحة في خطة "${planName}".`);
+      return;
   }
-
-  return (
-    <>
-      <Header pageName={managedTarget.name} onChangePage={onChangePage} onLogout={onLogout} onSettingsClick={onSettingsClick} theme={theme} onToggleTheme={onToggleTheme} />
-      {notification && <div className={`fixed bottom-4 right-4 p-4 rounded-md text-white text-sm z-50 ${notification.type === 'success' ? 'bg-green-500' : notification.type === 'error' ? 'bg-red-500' : 'bg-yellow-500'}`}>{notification.message}</div>}
-      <div className="flex flex-col md:flex-row min-h-[calc(100vh-68px)]">
-        <aside className="w-full md:w-64 bg-white dark:bg-gray-800 p-4 border-r dark:border-gray-700/50 flex-shrink-0">
-          <nav className="space-y-2">
-            <NavItem icon={<PencilSquareIcon className="w-5 h-5" />} label="إنشاء منشور" active={view === 'composer'} onClick={() => setView('composer')} />
-            <NavItem icon={<QueueListIcon className="w-5 h-5" />} label="الجدولة المجمعة" active={view === 'bulk'} onClick={() => handleSetView('bulk')} disabled={!isAllowed('bulkScheduling')} disabledTooltip={!isAllowed('bulkScheduling') ? `متاحة في الخطط الأعلى من ${planName}` : undefined} />
-            <NavItem icon={<BrainCircuitIcon className="w-5 h-5" />} label="استراتيجيات المحتوى" active={view === 'planner'} onClick={() => handleSetView('planner')} disabled={!isAllowed('contentPlanner')} disabledTooltip={!isAllowed('contentPlanner') ? `متاحة في الخطط الأعلى من ${planName}` : undefined} />
-            <NavItem icon={<CalendarIcon className="w-5 h-5" />} label="تقويم المحتوى" active={view === 'calendar'} onClick={() => setView('calendar')} />
-            <NavItem icon={<ArchiveBoxIcon className="w-5 h-5" />} label="المسودات" active={view === 'drafts'} onClick={() => setView('drafts')} />
-            <NavItem icon={<InboxArrowDownIcon className="w-5 h-5" />} label="صندوق الوارد" active={view === 'inbox'} onClick={() => handleSetView('inbox')} disabled={!isAllowed('autoResponder')} disabledTooltip={!isAllowed('autoResponder') ? `متاحة في الخطط الأعلى من ${planName}` : undefined} isPolling={isPolling} notificationCount={inboxItems.filter(item => item.status === 'new').length} />
-            <NavItem icon={<ChartBarIcon className="w-5 h-5" />} label="التحليلات" active={view === 'analytics'} onClick={() => setView('analytics')} />
-            <NavItem icon={<UserCircleIcon className="w-5 h-5" />} label="ملف الصفحة" active={view === 'profile'} onClick={() => setView('profile')} />
-          </nav>
-          <div className="mt-8 pt-4 border-t dark:border-gray-700">
-                <Button onClick={() => onSyncHistory(managedTarget)} isLoading={!!syncingTargetId} variant="secondary" className="w-full" disabled={currentUserRole === 'viewer'} title={currentUserRole === 'viewer' ? 'لا تملك صلاحية المزامنة' : undefined}>
-                    <ArrowPathIcon className="w-5 h-5 ml-2" />
-                    {syncingTargetId ? 'جاري المزامنة...' : 'مزامنة السجل الكامل'}
-                </Button>
-          </div>
-        </aside>
-        <main className="flex-grow min-w-0 p-4 sm:p-6 lg:p-8 bg-gray-50 dark:bg-gray-900 overflow-y-auto">
-          {renderView()}
-        </main>
-      </div>
-    </>
-  );
+  setView(newView);
 };
+  
+const renderView = () => {
+  switch (view) {
+    case 'composer':
+      return (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <PostComposer
+            postText={postText} onPostTextChange={setPostText} selectedImage={selectedImage}
+            onImageChange={(e) => setSelectedImage(e.target.files ? e.target.files[0] : null)}
+            onImageGenerated={setSelectedImage} onImageRemove={() => setSelectedImage(null)}
+            imagePreview={imagePreview} isScheduled={isScheduled} onIsScheduledChange={setIsScheduled}
+            scheduleDate={scheduleDate} onScheduleDateChange={setScheduleDate} error={composerError}
+            onPublish={handlePublish} onSaveDraft={handleSaveDraft} includeInstagram={includeInstagram}
+            onIncludeInstagramChange={setIncludeInstagram} linkedInstagramTarget={linkedInstagramTarget}
+            editingScheduledPostId={editingScheduledPostId} userPlan={userPlan} isPublishing={isPublishing}
+            aiClient={aiClient} pageProfile={pageProfile} stabilityApiKey={stabilityApiKey} managedTarget={managedTarget} role={currentUserRole}
+          />
+          <PostPreview postText={postText} imagePreview={imagePreview} type={includeInstagram && linkedInstagramTarget ? 'instagram' : 'facebook'} pageName={managedTarget.name} pageAvatar={managedTarget.picture.data.url} />
+        </div>
+      );
+    case 'calendar':
+      return <ContentCalendar posts={scheduledPosts} onEdit={handleEditScheduledPost} onDelete={handleDeleteScheduledPost} managedTarget={managedTarget} userPlan={userPlan} role={currentUserRole} onApprove={handleApprovePost} onReject={handleRejectPost} onSync={() => syncFacebookData(managedTarget)} isSyncing={!!syncingTargetId} />
+    case 'drafts':
+      return <DraftsList drafts={drafts} onLoad={handleLoadDraft} onDelete={handleDeleteDraft} role={currentUserRole} />
+    case 'bulk':
+      return <BulkSchedulerPage bulkPosts={bulkPosts} onSchedulingStrategyChange={setSchedulingStrategy} onWeeklyScheduleSettingsChange={setWeeklyScheduleSettings} onReschedule={handleReschedule} onAddPosts={handleAddBulkPosts} onUpdatePost={handleUpdateBulkPost} onRemovePost={handleRemoveBulkPost} onGeneratePostFromText={handleGenerateBulkPostFromText} onGenerateImageFromText={handleGenerateImageFromText} onGeneratePostFromImage={handleGeneratePostFromImage} onAddImageManually={handleAddImageManually} onScheduleAll={handleScheduleAllBulk} targets={bulkSchedulerTargets} aiClient={aiClient} stabilityApiKey={stabilityApiKey} pageProfile={pageProfile} isSchedulingAll={isSchedulingAll} schedulingStrategy={schedulingStrategy} weeklyScheduleSettings={weeklyScheduleSettings} role={currentUserRole} showNotification={showNotification} />
+    case 'planner':
+      return (
+        <ContentPlannerPage
+          plan={contentPlan} isGenerating={isGeneratingPlan} strategyHistory={strategyHistory}
+          isSchedulingStrategy={isSchedulingStrategy} error={planError} role={currentUserRole}
+          onScheduleStrategy={handleScheduleStrategy} aiClient={aiClient}
+          onGeneratePlan={async (request, images) => {
+              setIsGeneratingPlan(true); setPlanError(null);
+              try {
+                  if (!aiClient) throw new Error("AI Client is not configured.");
+                  const generatedPlan = await generateContentPlan(aiClient, request, pageProfile, images);
+                  setContentPlan(generatedPlan);
+                  await onSavePlan(managedTarget.id, generatedPlan, request);
+                  showNotification('success', 'تم إنشاء الخطة وحفظها في السجل بنجاح!');
+              } catch (e: any) {
+                  setPlanError(e.message || 'فشل إنشاء الخطة');
+                  showNotification('error', `فشل إنشاء الخطة: ${e.message}`);
+              } finally { setIsGeneratingPlan(false    }, [fetchWithPagination, saveDataToFirestore, showNotification, setSyncingTargetId, managedTarget.id, managedTarget.name, managedTarget.picture.data.url, managedTarget.type]);
 
-export default DashboardPage;
+
+              useEffect(() => {
+                const loadDataFromFirestoreAndSync = async () => {
+                    const dataRef = getTargetDataRef();
+                    setPublishedPostsLoading(true);
+                    setIsInboxLoading(true);
+                    const docSnap = await dataRef.get();
+                    let loadedProfile: PageProfile;
+                    if (docSnap.exists) {
+                        const data = docSnap.data()!;
+                        loadedProfile = { ...initialPageProfile, ...(data.pageProfile || {}) };
+                        if (!loadedProfile.ownerUid) {
+                            loadedProfile.ownerUid = user.uid;
+                            loadedProfile.members = [user.uid];
+                        }
+                        setPageProfile(loadedProfile);
+                        setCurrentUserRole(loadedProfile.ownerUid === user.uid ? 'owner' : (loadedProfile.team?.find(m => m.uid === user.uid)?.role || 'viewer'));
+                        setAutoResponderSettings(data.autoResponderSettings || initialAutoResponderSettings);
+                        setDrafts(data.drafts?.map((d: any) => ({...d, imageFile: null})) || []);
+                        setScheduledPosts(data.scheduledPosts?.map((p: any) => ({...p, scheduledAt: new Date(p.scheduledAt)})) || []);
+                        setPublishedPosts(data.publishedPosts?.map((p:any) => ({...p, publishedAt: new Date(p.publishedAt)})) || []);
+                        setInboxItems(data.inboxItems?.map((i:any) => ({ ...i, timestamp: new Date(i.timestamp).toISOString() })) || []);
+                    } else {
+                        loadedProfile = { ...initialPageProfile, ownerUid: user.uid, members: [user.uid], team: [] };
+                        setPageProfile(loadedProfile);
+                        setCurrentUserRole('owner');
+                        setAutoResponderSettings(initialAutoResponderSettings);
+                        setDrafts([]); setScheduledPosts([]); setPublishedPosts([]); setInboxItems([]);
+                    }
+                    await saveDataToFirestore({ 
+                        id: managedTarget.id, 
+                        name: managedTarget.name, 
+                        pictureUrl: managedTarget.picture.data.url, 
+                        accessToken: managedTarget.access_token, 
+                        userId: user.uid, 
+                        pageProfile: loadedProfile 
+                    });
+                    clearComposer();
+                    setPublishedPostsLoading(false);
+                    setIsInboxLoading(false);
+                };
+                loadDataFromFirestoreAndSync(); 
+              }, [managedTarget.id, user.uid, getTargetDataRef, clearComposer, saveDataToFirestore]);
+            
+            
+                useEffect(() => {
+                    if (managedTarget && managedTarget.access_token) {
+                        syncFacebookData(managedTarget);
+                    }
+                }, [managedTarget, syncFacebookData]);
+            
+            
+              const isAllowed = (feature: keyof Plan['limits']) => isAdmin || (userPlan?.limits[feature] ?? false);
+              const planName = userPlan?.name || 'Free';
+            
+              const handleSetView = (newView: DashboardView) => {
+                const featureMap: Partial<Record<DashboardView, { key: keyof Plan['limits'], name: string }>> = {
+                    'bulk': { key: 'bulkScheduling', name: 'الجدولة المجمعة' },
+                    'planner': { key: 'contentPlanner', name: 'استراتيجيات المحتوى' },
+                    'inbox': { key: 'autoResponder', name: 'صندوق الوارد' },
+                };
+                const requestedFeature = featureMap[newView];
+                if (requestedFeature && !isAllowed(requestedFeature.key)) {
+                    alert(`ميزة "${requestedFeature.name}" غير متاحة في خطة "${planName}".`);
+                    return;
+                }
+                setView(newView);
+              };
+                
+              const renderView = () => {
+                switch (view) {
+                  case 'composer':
+                    return (
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <PostComposer
+                          postText={postText} onPostTextChange={setPostText} selectedImage={selectedImage}
+                          onImageChange={(e) => setSelectedImage(e.target.files ? e.target.files[0] : null)}
+                          onImageGenerated={setSelectedImage} onImageRemove={() => setSelectedImage(null)}
+                          imagePreview={imagePreview} isScheduled={isScheduled} onIsScheduledChange={setIsScheduled}
+                          scheduleDate={scheduleDate} onScheduleDateChange={setScheduleDate} error={composerError}
+                          onPublish={handlePublish} onSaveDraft={handleSaveDraft} includeInstagram={includeInstagram}
+                          onIncludeInstagramChange={setIncludeInstagram} linkedInstagramTarget={linkedInstagramTarget}
+                          editingScheduledPostId={editingScheduledPostId} userPlan={userPlan} isPublishing={isPublishing}
+                          aiClient={aiClient} pageProfile={pageProfile} stabilityApiKey={stabilityApiKey} managedTarget={managedTarget} role={currentUserRole}
+                        />
+                        <PostPreview postText={postText} imagePreview={imagePreview} type={includeInstagram && linkedInstagramTarget ? 'instagram' : 'facebook'} pageName={managedTarget.name} pageAvatar={managedTarget.picture.data.url} />
+                      </div>
+                    );
+                  case 'calendar':
+                    return <ContentCalendar posts={scheduledPosts} onEdit={handleEditScheduledPost} onDelete={handleDeleteScheduledPost} managedTarget={managedTarget} userPlan={userPlan} role={currentUserRole} onApprove={handleApprovePost} onReject={handleRejectPost} onSync={() => syncFacebookData(managedTarget)} isSyncing={!!syncingTargetId} />
+                  case 'drafts':
+                    return <DraftsList drafts={drafts} onLoad={handleLoadDraft} onDelete={handleDeleteDraft} role={currentUserRole} />
+                  case 'bulk':
+                    return <BulkSchedulerPage bulkPosts={bulkPosts} onSchedulingStrategyChange={setSchedulingStrategy} onWeeklyScheduleSettingsChange={setWeeklyScheduleSettings} onReschedule={handleReschedule} onAddPosts={handleAddBulkPosts} onUpdatePost={handleUpdateBulkPost} onRemovePost={handleRemoveBulkPost} onGeneratePostFromText={handleGenerateBulkPostFromText} onGenerateImageFromText={handleGenerateImageFromText} onGeneratePostFromImage={handleGeneratePostFromImage} onAddImageManually={handleAddImageManually} onScheduleAll={handleScheduleAllBulk} targets={bulkSchedulerTargets} aiClient={aiClient} stabilityApiKey={stabilityApiKey} pageProfile={pageProfile} isSchedulingAll={isSchedulingAll} schedulingStrategy={schedulingStrategy} weeklyScheduleSettings={weeklyScheduleSettings} role={currentUserRole} showNotification={showNotification} />
+                  case 'planner':
+                    return (
+                      <ContentPlannerPage
+                        plan={contentPlan} isGenerating={isGeneratingPlan} strategyHistory={strategyHistory}
+                        isSchedulingStrategy={isSchedulingStrategy} error={planError} role={currentUserRole}
+                        onScheduleStrategy={handleScheduleStrategy} aiClient={aiClient}
+                        onGeneratePlan={async (request, images) => {
+                            setIsGeneratingPlan(true); setPlanError(null);
+                            try {
+                                if (!aiClient) throw new Error("AI Client is not configured.");
+                                const generatedPlan = await generateContentPlan(aiClient, request, pageProfile, images);
+                                setContentPlan(generatedPlan);
+                                await onSavePlan(managedTarget.id, generatedPlan, request);
+                                showNotification('success', 'تم إنشاء الخطة وحفظها في السجل بنجاح!');
+                            } catch (e: any) {
+                                setPlanError(e.message || 'فشل إنشاء الخطة');
+                                showNotification('error', `فشل إنشاء الخطة: ${e.message}`);
+                            } finally { setIsGeneratingPlan(false); }
+                        }}
+                        onStartPost={(planItem) => {
+                            setView('composer');
+                            setPostText(`${planItem.hook}\n\n${planItem.headline}\n\n${planItem.body}`);
+                        }}
+                        pageProfile={pageProfile} onLoadFromHistory={(plan) => setContentPlan(plan)}
+                        onDeleteFromHistory={(id) => onDeleteStrategy(managedTarget.id, id)}
+                      />
+                    );
+            
+                    case 'inbox':
+                      return <InboxPage items={inboxItems} isLoading={isInboxLoading} autoResponderSettings={autoResponderSettings} onAutoResponderSettingsChange={(settings) => {setAutoResponderSettings(settings); saveDataToFirestore({ autoResponderSettings: settings });}} repliedUsersPerPost={repliedUsersPerPost} currentUserRole={currentUserRole} isSyncing={isPolling} onSync={() => setIsPolling(true)} onReply={async ()=>{return true}} onMarkAsDone={()=>{}} onGenerateSmartReplies={async ()=>{return []}} onFetchMessageHistory={async ()=>{return []}} aiClient={aiClient} role={currentUserRole} />
+                    case 'analytics':
+                      return <AnalyticsPage publishedPosts={publishedPosts} publishedPostsLoading={publishedPostsLoading} analyticsPeriod={analyticsPeriod} setAnalyticsPeriod={setAnalyticsPeriod} performanceSummaryText={performanceSummaryText} setPerformanceSummaryText={setPerformanceSummaryText} isGeneratingSummary={isGeneratingSummary} setIsGeneratingSummary={setIsGeneratingSummary} audienceGrowthData={audienceGrowthData} setAudienceGrowthData={setAudienceGrowthData} heatmapData={heatmapData} setHeatmapData={setHeatmapData} contentTypeData={contentTypeData} setContentTypePerformanceData={setContentTypePerformanceData} isGeneratingDeepAnalytics={isGeneratingDeepAnalytics} setIsGeneratingDeepAnalytics={setIsGeneratingDeepAnalytics} managedTarget={managedTarget} userPlan={userPlan} isSimulationMode={isSimulationMode} aiClient={aiClient} pageProfile={pageProfile} currentUserRole={currentUserRole} showNotification={showNotification} generatePerformanceSummary={generatePerformanceSummary} generatePostInsights={generatePostInsights} generateOptimalSchedule={async ()=>{return {days:[],time:''}}} generateBestPostingTimesHeatmap={generateBestPostingTimesHeatmap} generateContentTypePerformance={generateContentTypePerformance} />
+                    case 'profile':
+                      return <PageProfilePage profile={pageProfile} onProfileChange={handlePageProfileChange} isFetchingProfile={isFetchingProfile} onFetchProfile={handleFetchProfile} role={currentUserRole} user={user} />
+                    default: return null;
+                  }
+                }
+              
+                return (
+                  <>
+                    <Header pageName={managedTarget.name} onChangePage={onChangePage} onLogout={onLogout} onSettingsClick={onSettingsClick} theme={theme} onToggleTheme={onToggleTheme} />
+                    {notification && <div className={`fixed bottom-4 right-4 p-4 rounded-md text-white text-sm z-50 ${notification.type === 'success' ? 'bg-green-500' : notification.type === 'error' ? 'bg-red-500' : 'bg-yellow-500'}`}>{notification.message}</div>}
+                    <div className="flex flex-col md:flex-row min-h-[calc(100vh-68px)]">
+                      <aside className="w-full md:w-64 bg-white dark:bg-gray-800 p-4 border-r dark:border-gray-700/50 flex-shrink-0">
+                        <nav className="space-y-2">
+                          <NavItem icon={<PencilSquareIcon className="w-5 h-5" />} label="إنشاء منشور" active={view === 'composer'} onClick={() => setView('composer')} />
+                          <NavItem icon={<QueueListIcon className="w-5 h-5" />} label="الجدولة المجمعة" active={view === 'bulk'} onClick={() => handleSetView('bulk')} disabled={!isAllowed('bulkScheduling')} disabledTooltip={!isAllowed('bulkScheduling') ? `متاحة في الخطط الأعلى من ${planName}` : undefined} />
+                          <NavItem icon={<BrainCircuitIcon className="w-5 h-5" />} label="استراتيجيات المحتوى" active={view === 'planner'} onClick={() => handleSetView('planner')} disabled={!isAllowed('contentPlanner')} disabledTooltip={!isAllowed('contentPlanner') ? `متاحة في الخطط الأعلى من ${planName}` : undefined} />
+                          <NavItem icon={<CalendarIcon className="w-5 h-5" />} label="تقويم المحتوى" active={view === 'calendar'} onClick={() => setView('calendar')} />
+                          <NavItem icon={<ArchiveBoxIcon className="w-5 h-5" />} label="المسودات" active={view === 'drafts'} onClick={() => setView('drafts')} />
+                          <NavItem icon={<InboxArrowDownIcon className="w-5 h-5" />} label="صندوق الوارد" active={view === 'inbox'} onClick={() => handleSetView('inbox')} disabled={!isAllowed('autoResponder')} disabledTooltip={!isAllowed('autoResponder') ? `متاحة في الخطط الأعلى من ${planName}` : undefined} isPolling={isPolling} notificationCount={inboxItems.filter(item => item.status === 'new').length} />
+                          <NavItem icon={<ChartBarIcon className="w-5 h-5" />} label="التحليلات" active={view === 'analytics'} onClick={() => setView('analytics')} />
+                          <NavItem icon={<UserCircleIcon className="w-5 h-5" />} label="ملف الصفحة" active={view === 'profile'} onClick={() => setView('profile')} />
+                        </nav>
+                        <div className="mt-8 pt-4 border-t dark:border-gray-700">
+                              <Button onClick={() => syncFacebookData(managedTarget)} isLoading={!!syncingTargetId} variant="secondary" className="w-full" disabled={currentUserRole === 'viewer'} title={currentUserRole === 'viewer' ? 'لا تملك صلاحية المزامنة' : undefined}>
+                                  <ArrowPathIcon className="w-5 h-5 ml-2" />
+                                  {syncingTargetId ? 'جاري المزامنة...' : 'مزامنة السجل الكامل'}
+                              </Button>
+                        </div>
+                      </aside>
+                      <main className="flex-grow min-w-0 p-4 sm:p-6 lg:p-8 bg-gray-50 dark:bg-gray-900 overflow-y-auto">
+                        {renderView()}
+                      </main>
+                    </div>
+                  </>
+                );
+              };
+              
+              export default DashboardPage;              

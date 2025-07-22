@@ -185,6 +185,46 @@ export const imageToImageWithStabilityAI = async (
     throw new Error(`Image-to-image generation failed. No artifacts returned.`);
 };
 
+export const inpaintingWithStabilityAI = async (
+    apiKey: string,
+    imageFile: File,
+    maskFile: File, // A black and white image where white indicates the area to change
+    prompt: string,
+    model: string = 'stable-diffusion-v1-6',
+): Promise<string> => {
+    validateInputs(apiKey, prompt);
+
+    const formData = new FormData();
+    formData.append('init_image', imageFile);
+    formData.append('mask_image', maskFile);
+    formData.append('mask_source', 'MASK_IMAGE_WHITE');
+    formData.append('text_prompts[0][text]', prompt);
+    formData.append('text_prompts[0][weight]', '1');
+    formData.append('cfg_scale', '7');
+    formData.append('samples', '1');
+    formData.append('steps', '30');
+
+    // This service uses v1 engines
+    const apiHost = `https://api.stability.ai/v1/generation/${model}/image-to-image/masking`;
+
+    const response = await fetch(apiHost, {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${apiKey}`,
+            Accept: 'application/json',
+        },
+        body: formData,
+    });
+
+    if (!response.ok) await handleStabilityAIError(response);
+
+    const responseJSON = await response.json();
+
+    if (responseJSON.artifacts && responseJSON.artifacts.length > 0) {
+        return responseJSON.artifacts[0].base64;
+    }
+    throw new Error(`Inpainting failed. No artifacts returned.`);
+};
 
 export const getStabilityAIModels = async (apiKey: string) => {
     if (!apiKey) return [];
@@ -205,4 +245,5 @@ export const getStabilityAIModels = async (apiKey: string) => {
         console.error("Error fetching Stability AI models:", error);
         return [];
     }
+        
 };

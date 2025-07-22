@@ -1,184 +1,69 @@
-declare global {
-  interface Window {
-    FB: any;
-  }
-}
-
 export interface Target {
   id: string;
-  name:string;
-  type: 'facebook' | 'instagram'; // Changed 'page' to 'facebook'
-  access_token?: string;
+  name: string;
   picture: {
-    data: {
-      url: string;
-    }
+      data: {
+          url: string;
+      };
   };
-  parentPageId?: string;
-  published_posts?: { data: any[] }; // To match FB API response for IG
+  access_token?: string;
+  parentPageId?: string; // For Instagram business accounts linked to a Facebook Page
+  type: 'facebook' | 'instagram';
+  isFavorite?: boolean;
 }
 
-export type Role = 'owner' | 'editor' | 'viewer';
-
-export interface TeamMember {
-  uid: string;
-  email: string;
-  role: Role;
-}
-
-export interface ScheduledPost {
-  id: string; // This can be the local ID or the Facebook post ID after syncing
-  postId?: string; // The definitive Facebook Post ID
-  text: string;
-  imageUrl?: string;
-  imageFile?: File; // For reminder re-publishing
-  hasImage?: boolean; // To track if an image exists, even if preview is gone
-  scheduledAt: Date;
-  isReminder: boolean;
-  targetId: string; // ID of the target (page/group/ig)
-  targetInfo: {
-      name: string;
-      avatarUrl: string;
-      type: 'facebook' | 'instagram'; // Changed 'page' to 'facebook'
-  }
-  publishedAt?: string; // ISO string for when it was actually published
-  isSynced?: boolean; // To indicate it's synced with Facebook's scheduler
-  status?: 'pending' | 'approved' | 'rejected'; // For approval workflow
-}
-
-export interface Draft {
+export interface Business {
   id: string;
-  text: string;
-  imageFile: File | null;
-  imagePreview: string | null;
-  hasImage?: boolean; // To track if an image exists, even if preview is gone
-  targetId: string; // The managed target this draft was saved for
-  isScheduled: boolean;
-  scheduleDate: string;
-  includeInstagram: boolean;
+  name: string;
+  pictureUrl: string;
 }
 
 export interface PostAnalytics {
   likes?: number;
   comments?: number;
   shares?: number;
-  reach?: number; // Added reach metric
-  loading: boolean;
-  lastUpdated: Date | null;
-  // New AI fields
-  aiSummary?: string;
-  sentiment?: {
-    positive: number;
-    negative: number;
-    neutral: number;
-  };
-  isGeneratingInsights?: boolean;
+  loading?: boolean; // Added
+  lastUpdated?: string; // ISO string, Added
 }
 
 export interface PublishedPost {
-  id: string; // The Facebook post ID
-  pageId: string;
-  pageName: string;
-  pageAvatarUrl: string;
+  id: string;
   text: string;
-  imagePreview: string | null;
   publishedAt: Date;
-  analytics: PostAnalytics;
-}
-
-export interface PerformanceSummaryData {
-    totalReach: number;
-    totalEngagement: number;
-    engagementRate: number;
-    topPosts: PublishedPost[];
-    postCount: number;
-}
-
-export interface WeeklyScheduleSettings {
-  days: number[]; // 0 for Sunday, 1 for Monday, etc.
-  time: string; // "HH:MM" format
-}
-
-export interface BulkPostItem {
-  id:string;
-  imageFile?: File;
   imagePreview?: string;
-  hasImage?: boolean;
+  analytics: PostAnalytics;
+  pageId: string; // Added
+  pageName: string; // Added
+  pageAvatarUrl: string; // Added
+}
+
+export interface ScheduledPost {
+  id: string; // This can be the local ID or the Facebook post ID after syncing
+  postId?: string; // The definitive Facebook Post ID from FB Graph API
   text: string;
-  scheduleDate: string; // ISO string format
-  targetIds: string[]; // List of target IDs to post to
-  error?: string; // For per-item validation errors
-  isGeneratingDescription?: boolean;
+  imageUrl?: string;
+  imageFile?: File; // For reminder re-publishing, or initially uploaded file
+  hasImage?: boolean; // To track if an image exists, even if preview is gone
+  scheduledAt: Date; // Actual scheduled date for FB scheduler
+  isReminder: boolean; // Is this a reminder post (not directly from FB scheduler)
+  targetId: string; // ID of the target (page/group/ig)
+  targetInfo: { // Simplified target info for scheduled post display
+      name: string;
+      avatarUrl: string;
+      type: 'facebook' | 'instagram';
+  }
+  publishedAt?: string; // ISO string for when it was actually published by FB
+  isSynced?: boolean; // To indicate it's synced with Facebook's scheduler
+  status?: 'pending' | 'approved' | 'rejected' | 'scheduled' | 'error'; // Updated status types
 }
 
-export interface Business {
+export interface Draft {
   id: string;
-  name: string;
+  text: string;
+  imagePreview?: string;
+  imageFile?: File;
+  createdAt: string;
 }
-
-export interface Link {
-  id: string;
-  label: string;
-  url: string;
-}
-
-export interface PageProfile {
-  description: string;
-  services: string;
-  contactInfo: string;
-  website: string;
-  links?: Link[];
-  currentOffers: string;
-  address: string;
-  country: string;
-  language: 'ar' | 'en' | 'mixed';
-  contentGenerationLanguages: ('ar' | 'en')[];
-  // Collaboration fields
-  ownerUid?: string;
-  team?: TeamMember[];
-  members?: string[]; // array of UIDs for querying
-}
-
-//--- Types for AI Content Planner ---
-
-// Base for all strategy requests
-interface BaseStrategyRequest {
-  duration: 'weekly' | 'monthly' | 'annual';
-  audience: string;
-  goals: string;
-  tone: string;
-  postCount?: 8 | 12 | 16 | 30;
-}
-
-export interface StandardContentRequest extends BaseStrategyRequest {
-  type: 'standard';
-  pillars: string; // e.g. "Tips, Products, Behind the Scenes"
-}
-
-export interface CampaignRequest extends BaseStrategyRequest {
-  type: 'campaign';
-  campaignName: string;
-  campaignObjective: string;
-}
-
-export interface OccasionCampaignRequest extends BaseStrategyRequest {
-    type: 'occasion';
-    occasion: string; // e.g., "اليوم الوطني", "رمضان"
-}
-
-export interface PillarContentRequest extends BaseStrategyRequest {
-  type: 'pillar';
-  pillarTopic: string;
-}
-
-export interface ImageBasedRequest extends BaseStrategyRequest {
-  type: 'images';
-  // images are handled as a separate parameter in the service
-}
-
-// The main type for the form
-export type StrategyRequest = StandardContentRequest | CampaignRequest | PillarContentRequest | ImageBasedRequest | OccasionCampaignRequest;
-
 
 export interface ContentPlanItem {
   day: string;
@@ -188,137 +73,134 @@ export interface ContentPlanItem {
   imageIdea: string;
 }
 
-export interface StrategyHistoryItem {
+export interface StrategyRequest {
+  type: 'standard' | 'campaign' | 'occasion' | 'pillar' | 'images';
+  duration: 'weekly' | 'monthly' | 'annual';
+  audience: string;
+  goals: string;
+  tone: string;
+  pillars?: string;
+  campaignName?: string;
+  campaignObjective?: string;
+  occasion?: string;
+  pillarTopic?: string;
+  postCount?: number;
+}
+
+export interface WeeklyScheduleSettings {
+  days: number[]; // Array of day numbers (0 for Sunday, 6 for Saturday)
+  time: string; // "HH:MM"
+}
+
+export interface BulkPostItem {
   id: string;
-  request: StrategyRequest;
-  plan: ContentPlanItem[];
-  summary: string;
-  createdAt: string; // ISO date string
+  text: string;
+  imageFile?: File;
+  imagePreview?: string;
+  hasImage: boolean;
+  scheduleDate: string; // ISO string
+  targetIds: string[]; // Array of selected target IDs
+  service?: 'gemini' | 'stability'; // For AI image generation
+  prompt?: string; // For AI image generation
 }
 
-// --- Types for Inbox ---
-export interface InboxMessage {
-  id: string;
-  from: { name: string; id: string };
-  message: string;
-  created_time: string;
-}
-export interface InboxItem {
-  id: string; // comment_id or conversation_id
-  platform: 'facebook' | 'instagram';
-  type: 'comment' | 'message';
-  text: string; // last message snippet
-  authorName: string;
-  authorId: string;
-  authorPictureUrl: string;
-  timestamp: string; // ISO string
-  post?: { // a small summary of the post the comment is on
-    id: string; // post_id
-    message?: string;
-    picture?: string;
-  };
-  parentId?: string; // The ID of the parent comment, if this is a reply
-  can_reply_privately?: boolean; // From Facebook API
-  conversationId?: string; // For messages
-  messages?: InboxMessage[]; // For message history
-  isReplied?: boolean; // To show reply status icon
-  status?: 'new' | 'read' | 'done'; // Added status
+export interface PageProfile {
+  description: string;
+  services: string;
+  contactInfo: string;
+  website: string;
+  links: { label: string; url: string }[];
+  currentOffers: string;
+  address: string;
+  country: string;
+  language: 'ar' | 'en' | 'mix'; // Primary language of the page content
+  contentGenerationLanguages: ('ar' | 'en')[]; // Languages AI should generate content in
+  ownerUid: string; // User ID of the page owner
+  team: { uid: string; role: Role }[]; // Array of team members and their roles
+  members: string[]; // UIDs of all members (owner + team members)
 }
 
-// --- Types for Auto-Responder (New IFTTT-style) ---
+export type Role = 'owner' | 'admin' | 'editor' | 'viewer';
 
-export type AutoResponderTriggerSource = 'comment' | 'message';
-export type AutoResponderMatchType = 'any' | 'all' | 'exact';
-export type AutoResponderActionType = 'public_reply' | 'private_reply' | 'direct_message';
-
-export interface AutoResponderTrigger {
-  source: AutoResponderTriggerSource;
-  matchType: AutoResponderMatchType;
-  keywords: string[];
-  negativeKeywords: string[];
-}
-
-export interface AutoResponderAction {
-  type: AutoResponderActionType;
-  enabled: boolean;
-  messageVariations: string[];
-}
-
-export interface AutoResponderRule {
-  id: string;
-  name: string;
-  enabled: boolean;
-  trigger: AutoResponderTrigger;
-  actions: AutoResponderAction[];
-  replyOncePerUser?: boolean; // Now per-rule for comments
-}
-
-export interface AutoResponderFallback {
-  mode: 'ai' | 'static' | 'off';
-  staticMessage: string;
-}
-
-// Top-level settings, REPLACING the old structure.
-export interface AutoResponderSettings {
-  rules: AutoResponderRule[];
-  fallback: AutoResponderFallback;
-}
-
-// --- Types for Subscription Plans ---
-export interface PlanLimits {
-    pages: number; // -1 for unlimited
-    aiText: boolean;
-    aiImage: boolean;
-    scheduledPosts: number; // -1 for unlimited
-    drafts: number; // -1 for unlimited
-    autoResponder: boolean;
-    contentPlanner: boolean;
-    bulkScheduling: boolean;
-    contentApprovalWorkflow: boolean;
-    deepAnalytics: boolean;
+export interface AppUser {
+  uid: string;
+  email: string;
+  displayName: string | null;
+  photoURL: string | null;
+  currentPlan: string; // ID of the active plan (e.g., 'free', 'pro')
+  planExpiryDate?: string; // ISO string
+  // Add other user profile info as needed
 }
 
 export interface Plan {
   id: string;
   name: string;
-  price: number;
-  pricePeriod: 'monthly' | 'yearly' | 'one-time';
+  priceMonthly: number;
+  priceAnnual: number;
+  description: string;
   features: string[];
-  limits: PlanLimits;
-  createdAt?: string; // ISO date string
-  adminOnly?: boolean; // New field for admin-only plans
+  limits: {
+      maxPages: number;
+      maxTeamMembers: number;
+      aiFeatures: boolean;
+      bulkScheduling: boolean;
+      contentPlanner: boolean;
+      autoResponder: boolean;
+      contentApprovalWorkflow: boolean;
+      maxScheduledPostsPerMonth: number;
+      imageGenerationQuota: number; // e.g., number of images per month
+  };
+  adminOnly?: boolean; // If this plan is for internal admins only
 }
 
-// --- Type for User documents in Firestore ---
-export interface AppUser {
-  uid: string;
-  email: string;
-  isAdmin: boolean;
-  planId: string;
-  createdAt: string; // ISO String
-  onboardingCompleted?: boolean;
-  targets?: Target[];
-  // Optional fields that might exist
-  fbAccessToken?: string;
-  favoriteTargetIds?: string[];
-  geminiApiKey?: string;
-  stabilityApiKey?: string;
-  lastLoginIp?: string;
-  name?: string;
-  photoURL?: string;
+export interface StrategyHistoryItem {
+  id: string;
+  strategyRequest: StrategyRequest;
+  contentPlan: ContentPlanItem[];
+  timestamp: string; // ISO string
+  pageId: string;
 }
 
+export interface InboxItem {
+  id: string; // Unique ID for the conversation/comment
+  type: 'comment' | 'message';
+  from: {
+      id: string;
+      name: string;
+      profilePictureUrl?: string;
+  };
+  text: string;
+  timestamp: string; // ISO string
+  status: 'new' | 'replied' | 'done'; // 'new', 'replied', 'done'
+  context?: string; // e.g., post ID or message thread ID
+  link?: string; // Link to the comment/message on Facebook/Instagram
+}
 
-// New types for deeper analytics
+export interface AutoResponderRule {
+  keywords: string[];
+  response: string;
+  active: boolean;
+}
+
+export interface AutoResponderFallback {
+  mode: 'off' | 'static' | 'ai';
+  staticMessage?: string;
+}
+
+export interface AutoResponderSettings {
+  rules: AutoResponderRule[];
+  fallback: AutoResponderFallback;
+}
+
 export interface AudienceGrowthData {
-  date: string; // ISO Date string
-  fanCount: number;
+  date: string; // YYYY-MM-DD
+  followers: number;
 }
 
 export interface HeatmapDataPoint {
-  day: number; // 0=Sun, 6=Sat
-  hour: number; // 0-23
-  engagement: number; // A score from 0 to 1
+  day: number; // 0 (Sunday) to 6 (Saturday)
+  hour: number; // 0 to 23
+  engagement: number; // Normalized from 0 to 1
 }
 
 export interface ContentTypePerformanceData {
