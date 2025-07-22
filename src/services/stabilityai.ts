@@ -1,24 +1,14 @@
-
 import { GoogleGenAI } from "@google/genai";
 import { translateText } from "./geminiService";
 
-const STABILITY_API_BASE_URL = 'https://api.stability.ai';
-
-const getApiHost = (model: string) => {
-    // Note: Use "platform.stability.ai" for all models other than Stable Diffusion v1.5
-    // The model names are case-sensitive
-    if (model === "stable-diffusion-v1-5") {
-        return "https://api.stability.ai/v1/generation/stable-diffusion-v1-5";
-    }
-    return `https://api.stability.ai/v2beta/stable-image/generate/${model}`;
-};
+// --- Helper Functions ---
 
 const handleStabilityAIError = async (response: Response) => {
     const errorText = await response.text();
     console.error("Stability AI Error Response Text:", errorText);
     try {
         const errorBody = JSON.parse(errorText);
-        const errorMessage = errorBody.errors ? errorBody.errors.join(', ') : `HTTP error: ${response.status}`;
+        const errorMessage = errorBody.errors ? errorBody.errors.join(', ') : (errorBody.message || `HTTP error: ${response.status}`);
         throw new Error(`Stability AI error: ${errorMessage}`);
     } catch (e) {
          throw new Error(`Stability AI error: ${response.statusText} (${response.status})`);
@@ -35,7 +25,8 @@ const validateInputs = (apiKey: string, prompt: string) => {
 };
 
 const translatePromptIfNeeded = async (prompt: string, aiClient?: GoogleGenAI | null): Promise<string> => {
-    if (/[\u0600-\u06FF]/.test(prompt)) { // Check if the prompt contains Arabic characters
+    // Check if the prompt contains Arabic characters
+    if (/[\u0600-\u06FF]/.test(prompt)) { 
         if (!aiClient) {
             throw new Error("Automatic translation requires a Gemini API key. Please add it in the settings to proceed.");
         }
@@ -49,25 +40,47 @@ const translatePromptIfNeeded = async (prompt: string, aiClient?: GoogleGenAI | 
 };
 
 
+// --- Core API Functions ---
+
 export const generateImageWithStabilityAI = async (
     apiKey: string, 
     prompt: string, 
     style: string, 
     aspectRatio: string, 
-    model: string = 'core', // 'core' is the default for Stable Diffusion 3
+    model: string = 'core',
     aiClient?: GoogleGenAI | null
 ): Promise<string> => {
     validateInputs(apiKey, prompt);
     const finalPrompt = await translatePromptIfNeeded(prompt, aiClient);
+    
+    const isV1Engine = model.includes('stable-diffusion-v1');
+    const apiHost = `https://api.stability.ai/${isV1Engine ? 'v1/generation' : 'v2beta/stable-image/generate'}/${isV1Engine ? model : (model === 'core' ? 'core' : 'sd3')}`;
+    
+    const formData = new FormData();
     const enhancedPrompt = `A high-quality, ${style.toLowerCase()} image of: ${finalPrompt}`;
 
-    const formData = new FormData();
-    formData.append('prompt', enhancedPrompt);
-    formData.append('output_format', 'jpeg');
-    formData.append('aspect_ratio', aspectRatio);
-    formData.append('model', model); // Pass the model to the API if the endpoint supports it
-
-    const apiHost = getApiHost(model);
+    if (isV1Engine) {
+        // V1 API Payload
+        formData.append('text_prompts[0][text]', enhancedPrompt);
+        formData.append('text_prompts[0][weight]', '1');
+        formData.append('cfg_scale', '7');
+        formData.append('samples', '1');
+        formData.append('steps', '30');
+        const [widthRatio, heightRatio] = aspectRatio.split(':').map(Number);
+        const baseSize = 512; // Common base for v1 models
+        const width = widthRatio >= heightRatio ? baseSize : Math.round(baseSize * (widthRatio / heightRatio));
+        const height = heightRatio > widthRatio ? baseSize : Math.round(baseSize * (heightRatio / widthRatio));
+        formData.append('width', width.toString());
+        formData.append('height', height.toString());
+    } else {
+        // V2 (SD3) API Payload
+        formData.append('prompt', enhancedPrompt);
+        formData.append('output_format', 'jpeg');
+        formData.append('aspect_ratio', aspectRatio);
+        if (model === 'ultra') {
+            formData.append('model', 'sd3-ultra');
+        }
+    }
 
     const response = await fetch(apiHost, {
         method: 'POST',
@@ -84,32 +97,36 @@ export const generateImageWithStabilityAI = async (
 
     const responseJSON = await response.json();
 
-    if (responseJSON.image && responseJSON.finish_reason === 'SUCCESS') {
-      return responseJSON.image; // Return the base64 image data directly
+    if (responseJSON.artifacts && responseJSON.artifacts.length > 0) {
+        // V1 response
+        return responseJSON.artifacts[0].base64;
     }
+    if (responseJSON.image) {
+        // V2 response
+        return responseJSON.image;
+    }
+    
     if (responseJSON.finish_reason === 'CONTENT_FILTERED') {
         throw new Error("Stability AI error: The prompt was rejected for safety reasons. Please try changing the image description.");
     }
-    throw new Error(`Image generation failed. Stability AI reason: ${responseJSON.finish_reason}`);
+
+    throw new Error(`Image generation failed. Stability AI reason: ${responseJSON.finish_reason || 'Unknown error, check response format.'}`);
 };
+
 
 export const upscaleImageWithStabilityAI = async (
     apiKey: string,
     imageFile: File,
-    prompt: string, // Can be a creative prompt or a simple instruction like "upscale"
+    prompt: string,
 ): Promise<string> => {
-     if (!apiKey.trim()) {
-        throw new Error("Stability AI API key is not provided. Please add it in the settings.");
-    }
-    if (!imageFile) {
-        throw new Error("Please provide an image to upscale.");
-    }
+     if (!apiKey.trim()) throw new Error("Stability AI API key is not provided.");
+     if (!imageFile) throw new Error("Please provide an image to upscale.");
 
     const formData = new FormData();
     formData.append('image', imageFile);
     formData.append('prompt', prompt);
 
-    const response = await fetch(`${STABILITY_API_BASE_URL}/v2beta/stable-image/upscale/creative`, {
+    const response = await fetch(`https://api.stability.ai/v2beta/stable-image/upscale/creative`, {
         method: 'POST',
         headers: {
             Authorization: `Bearer ${apiKey}`,
@@ -118,24 +135,22 @@ export const upscaleImageWithStabilityAI = async (
         body: formData,
     });
 
-    if (!response.ok) {
-        await handleStabilityAIError(response);
-    }
+    if (!response.ok) await handleStabilityAIError(response);
     
     const responseJSON = await response.json();
     
-    if (responseJSON.image && responseJSON.finish_reason === 'SUCCESS') {
-        return responseJSON.image; // Return the base64 image data directly
-    }
-    throw new Error(`Image upscaling failed. Stability AI reason: ${responseJSON.finish_reason}`);
+    if (responseJSON.image) return responseJSON.image;
+
+    throw new Error(`Image upscaling failed. Stability AI reason: ${responseJSON.finish_reason || 'Unknown error'}`);
 };
+
 
 export const imageToImageWithStabilityAI = async (
     apiKey: string,
     imageFile: File,
     prompt: string,
-    model: string = 'stable-diffusion-v1-5', // Default to a common model
-    strength: number = 0.6, // Strength of the original image
+    model: string = 'stable-diffusion-v1-6',
+    strength: number = 0.6,
 ): Promise<string> => {
     validateInputs(apiKey, prompt);
 
@@ -144,25 +159,23 @@ export const imageToImageWithStabilityAI = async (
     formData.append('text_prompts[0][text]', prompt);
     formData.append('text_prompts[0][weight]', '1');
     formData.append('image_strength', strength.toString());
-    formData.append('steps', '30'); // Number of diffusion steps
-    formData.append('cfg_scale', '7'); // How strongly the prompt is adhered to
+    formData.append('steps', '30');
+    formData.append('cfg_scale', '7');
     formData.append('samples', '1');
 
-    const apiHost = getApiHost(model).replace('/generation/', '/image-to-image/'); // Adjust host for image-to-image
+    // This service primarily uses v1 engines
+    const apiHost = `https://api.stability.ai/v1/generation/${model}/image-to-image`;
 
     const response = await fetch(apiHost, {
         method: 'POST',
         headers: {
-            'Content-Type': 'multipart/form-data',
             Authorization: `Bearer ${apiKey}`,
             Accept: 'application/json',
         },
         body: formData,
     });
 
-    if (!response.ok) {
-        await handleStabilityAIError(response);
-    }
+    if (!response.ok) await handleStabilityAIError(response);
 
     const responseJSON = await response.json();
 
@@ -172,47 +185,6 @@ export const imageToImageWithStabilityAI = async (
     throw new Error(`Image-to-image generation failed. No artifacts returned.`);
 };
 
-export const inpaintingWithStabilityAI = async (
-    apiKey: string,
-    imageFile: File,
-    maskFile: File,
-    prompt: string,
-    model: string = 'stable-diffusion-v1-5',
-): Promise<string> => {
-    validateInputs(apiKey, prompt);
-
-    const formData = new FormData();
-    formData.append('init_image', imageFile);
-    formData.append('mask_image', maskFile);
-    formData.append('mask_source', 'MASK_IMAGE_WHITE'); // Can be WHITE or BLACK
-    formData.append('text_prompts[0][text]', prompt);
-    formData.append('steps', '30');
-    formData.append('cfg_scale', '7');
-    formData.append('samples', '1');
-
-    const apiHost = getApiHost(model).replace('/generation/', '/in-painting/'); // Adjust host for inpainting
-
-    const response = await fetch(apiHost, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'multipart/form-data',
-            Authorization: `Bearer ${apiKey}`,
-            Accept: 'application/json',
-        },
-        body: formData,
-    });
-    
-    if (!response.ok) {
-        await handleStabilityAIError(response);
-    }
-    
-    const responseJSON = await response.json();
-    
-    if (responseJSON.artifacts && responseJSON.artifacts.length > 0) {
-        return responseJSON.artifacts[0].base64;
-    }
-    throw new Error(`Inpainting failed. No artifacts returned.`);
-}
 
 export const getStabilityAIModels = async (apiKey: string) => {
     if (!apiKey) return [];
@@ -228,10 +200,9 @@ export const getStabilityAIModels = async (apiKey: string) => {
         }
         const data = await response.json();
         // Filter for relevant image generation models
-        return data.filter((engine: any) => engine.type === 'PICTURE' && engine.id.includes('stable-diffusion'));
+        return data.filter((engine: any) => engine.type === 'PICTURE');
     } catch (error) {
         console.error("Error fetching Stability AI models:", error);
         return [];
     }
 };
-
