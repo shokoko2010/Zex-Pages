@@ -282,66 +282,6 @@ export const translateText = async (ai: GoogleGenAI, text: string, targetLang: s
     }
 }
 
-export const generateImageWithStabilityAI = async (apiKey: string, prompt: string, style: string, aspectRatio: string, aiClient?: GoogleGenAI | null): Promise<string> => {
-    if (!apiKey.trim()) {
-        throw new Error("مفتاح Stability AI API غير متوفر. يرجى إضافته في الإعدادات.");
-    }
-
-    let finalPrompt = prompt;
-    if (/[\u0600-\u06FF]/.test(prompt)) {
-        if (!aiClient) {
-            throw new Error("الترجمة التلقائية تتطلب مفتاح Gemini API. يرجى إضافته في الإعدادات للمتابعة.");
-        }
-        try {
-            finalPrompt = await translateText(aiClient, prompt, 'en');
-        } catch(e) {
-            throw new Error(`فشل الترجمة قبل الإرسال إلى Stability AI: ${(e as Error).message}`);
-        }
-    }
-
-    const enhancedPrompt = `A high-quality, ${style.toLowerCase()} image of: ${finalPrompt}`;
-
-    const formData = new FormData();
-    formData.append('prompt', enhancedPrompt);
-    formData.append('output_format', 'jpeg');
-    formData.append('aspect_ratio', aspectRatio);
-    
-    const response = await fetch(
-        'https://api.stability.ai/v2beta/stable-image/generate/core',
-        {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${apiKey}`,
-                Accept: 'application/json',
-            },
-            body: formData,
-        }
-    );
-
-    if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Stability AI Error Response Text:", errorText);
-        try {
-            const errorBody = JSON.parse(errorText);
-            const errorMessage = errorBody.errors ? errorBody.errors.join(', ') : `خطأ HTTP: ${response.status}`;
-            throw new Error(`خطأ Stability AI: ${errorMessage}`);
-        } catch (e) {
-             throw new Error(`خطأ Stability AI: ${response.statusText} (${response.status})`);
-        }
-    }
-
-    const responseJSON = await response.json();
-
-    if (responseJSON.image && responseJSON.finish_reason === 'SUCCESS') {
-      return responseJSON.image; // Return the base64 image data directly
-  }
-  if (responseJSON.finish_reason === 'CONTENT_FILTERED') {
-      throw new Error("خطأ Stability AI: تم حظر الموجه لأسباب تتعلق بالسلامة. حاول تغيير وصف الصورة.");
-  }
-  throw new Error(`فشل إنشاء الصورة. السبب من Stability AI: ${responseJSON.finish_reason}`);
-}
-
-
 export const getBestPostingTime = async (ai: GoogleGenAI, postText: string): Promise<Date> => {
   if (!postText.trim()) {
     throw new Error("يرجى كتابة منشور أولاً لاقتراح أفضل وقت.");

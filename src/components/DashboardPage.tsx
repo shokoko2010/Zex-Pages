@@ -10,7 +10,8 @@ import BulkSchedulerPage from './BulkSchedulerPage';
 import ContentPlannerPage from './ContentPlannerPage';
 import InboxPage from './InboxPage';
 import { GoogleGenAI } from '@google/genai';
-import { generateContentPlan, generatePerformanceSummary, generateOptimalSchedule, generatePostInsights, enhanceProfileFromFacebookData, generateSmartReplies, generateAutoReply, generatePostSuggestion, generateHashtags, generateDescriptionForImage, generateBestPostingTimesHeatmap, generateContentTypePerformance, generateImageFromPrompt, generateImageWithStabilityAI } from '../services/geminiService';
+import { generateContentPlan, generatePerformanceSummary, generateOptimalSchedule, generatePostInsights, enhanceProfileFromFacebookData, generateSmartReplies, generateAutoReply, generatePostSuggestion, generateHashtags, generateDescriptionForImage, generateBestPostingTimesHeatmap, generateContentTypePerformance, generateImageFromPrompt } from '../services/geminiService';
+import { generateImageWithStabilityAI } from '../services/stabilityai';
 import PageProfilePage from './PageProfilePage';
 import Button from './ui/Button';
 import { db } from '../services/firebaseService';
@@ -354,23 +355,28 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
                 showNotification('error', 'Stability AI API key is not configured.');
                 return;
             }
-            base64 = await generateImageWithStabilityAI(stabilityApiKey, text, 'standard', '1:1', aiClient);
+            // --- هذا هو السطر الذي تم إصلاحه ---
+            base64 = await generateImageWithStabilityAI(stabilityApiKey, text, 'standard', '1:1', 'core', aiClient);
         }
 
         if (base64) {
-            // Assuming generateImageWithStabilityAI also returns base64 or a URL
-            const imageUrl = base64; // Or process base64 if it's raw data
-            const response = await fetch(imageUrl);
-            const blob = await response.blob();
-            const generatedFile = new File([blob], `generated_image_${id}.png`, { type: 'image/png' });
+            // The services now consistently return base64, so we need to create a File from it.
+            const byteCharacters = atob(base64);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: 'image/jpeg' });
+            const generatedFile = new File([blob], `generated_image_${id}.jpeg`, { type: 'image/jpeg' });
 
-            handleUpdateBulkPost(id, { imageFile: generatedFile, hasImage: true, imagePreview: imageUrl });
+            handleUpdateBulkPost(id, { imageFile: generatedFile, hasImage: true, imagePreview: URL.createObjectURL(generatedFile) });
             showNotification('success', `تم توليد الصورة بنجاح باستخدام ${service === 'gemini' ? 'Gemini' : 'Stability AI'}!`);
         }
     } catch (error: any) {
         showNotification('error', `فشل توليد الصورة: ${error.message}`);
     }
-  }, [aiClient, stabilityApiKey, showNotification, bulkPosts]);
+}, [aiClient, stabilityApiKey, showNotification, bulkPosts, handleUpdateBulkPost]);
 
 
   const handleGeneratePostFromImage = useCallback(async (id: string, imageFile: File) => {
@@ -396,7 +402,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
   const handleScheduleAllBulk = async () => { /* Placeholder for actual schedule all logic */ };
   const handleFetchProfile = async () => {};
 
-  const handleScheduleStrategy = useCallback(async () => {
+    const handleScheduleStrategy = useCallback(async () => {
     if (!contentPlan || contentPlan.length === 0) {
         showNotification('error', 'لا توجد خطة لتحويلها.');
         return;

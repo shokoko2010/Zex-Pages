@@ -5,7 +5,8 @@ import Button from './ui/Button';
 import BulkPostItemCard from './BulkPostItemCard';
 import BulkSchedulingOptions from './BulkSchedulingOptions';
 import { GoogleGenAI } from '@google/genai';
-import { generateImageFromPrompt, generateImageWithStabilityAI } from '../services/geminiService';
+import { generateImageFromPrompt } from '../services/geminiService';
+import { generateImageWithStabilityAI } from '../services/stabilityai';
 import { base64ToFile } from '../utils';
 
 interface BulkSchedulerPageProps {
@@ -47,7 +48,7 @@ const BulkSchedulerPage: React.FC<BulkSchedulerPageProps> = ({
   pageProfile,
   showNotification,
   onGeneratePostFromText,
-  onGenerateImageFromText: onGenerateImageFromTextProp, // Renamed to avoid conflict
+  onGenerateImageFromText: onGenerateImageFromTextProp, 
   onGeneratePostFromImage,
   onAddImageManually,
   schedulingStrategy,
@@ -93,7 +94,6 @@ const BulkSchedulerPage: React.FC<BulkSchedulerPageProps> = ({
     }
   };
 
-  // Modified handler to handle both Gemini and Stability AI
   const handleGenerateImageFromText = useCallback(async (id: string, text: string, service: 'gemini' | 'stability') => {
     try {
       let base64;
@@ -108,7 +108,7 @@ const BulkSchedulerPage: React.FC<BulkSchedulerPageProps> = ({
           showNotification('error', 'Stability AI API key is not configured.');
           return;
         }
-        base64 = await generateImageWithStabilityAI(stabilityApiKey, text, 'standard', '1:1', aiClient); // Pass aiClient for translation
+        base64 = await generateImageWithStabilityAI(stabilityApiKey, text, 'standard', '1:1', 'core', aiClient);
       }
 
       if (base64) {
@@ -152,7 +152,6 @@ const BulkSchedulerPage: React.FC<BulkSchedulerPageProps> = ({
               >
                 اختر صورًا للجدولة
               </Button>
-               {/* Button for adding a new text-only post for AI generation */}
               <Button
                 size="lg"
                 onClick={() => onAddPosts(null)}

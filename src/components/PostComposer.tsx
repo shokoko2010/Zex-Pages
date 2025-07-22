@@ -1,15 +1,21 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Button from './ui/Button';
 import PhotoIcon from './icons/PhotoIcon';
 import SparklesIcon from './icons/SparklesIcon';
 import WandSparklesIcon from './icons/WandSparklesIcon';
-import { generatePostSuggestion, generateImageFromPrompt, getBestPostingTime, generateHashtags, generateImageWithStabilityAI, generateDescriptionForImage } from '../services/geminiService';
+import { generatePostSuggestion, generateImageFromPrompt, getBestPostingTime, generateHashtags, generateDescriptionForImage } from '../services/geminiService';
+import { generateImageWithStabilityAI, getStabilityAIModels, imageToImageWithStabilityAI, upscaleImageWithStabilityAI } from '../services/stabilityai';
 import { GoogleGenAI } from '@google/genai';
 import { Target, PageProfile, Role, Plan } from '../types';
 import InstagramIcon from './icons/InstagramIcon';
 import HashtagIcon from './icons/HashtagIcon';
 import CanvaIcon from './icons/CanvaIcon';
+import ArrowPathIcon from './icons/ArrowPathIcon';
+import ArrowUpTrayIcon  from './icons/ArrowUpTrayIcon';
+import XCircleIcon from './icons/XCircleIcon';
+import PencilSquareIcon from './icons/PencilSquareIcon';
+
 
 
 interface PostComposerProps {
@@ -101,13 +107,47 @@ const PostComposer: React.FC<PostComposerProps> = ({
   const [imageStyle, setImageStyle] = useState('Photographic');
   const [imageAspectRatio, setImageAspectRatio] = useState('1:1');
 
+  const [stabilityModels, setStabilityModels] = useState<any[]>([]);
+  const [stabilityModel, setStabilityModel] = useState<string>('core'); 
+  
+  const [isUpscaling, setIsUpscaling] = useState(false);
+  const [upscaleError, setUpscaleError] = useState('');
+
+  const [isImageToImageModalOpen, setIsImageToImageModalOpen] = useState(false);
+  const [imageToImagePrompt, setImageToImagePrompt] = useState('');
+  const [imageToImageStrength, setImageToImageStrength] = useState(0.6);
+  const [isGeneratingImageToImage, setIsGeneratingImageToImage] = useState(false);
+  const [imageToImageError, setImageToImageError] = useState('');
+
   const [isSuggestingTime, setIsSuggestingTime] = useState(false);
   const [aiTimeError, setAiTimeError] = useState('');
   const [isGeneratingHashtags, setIsGeneratingHashtags] = useState(false);
   const [aiHashtagError, setAiHashtagError] = useState('');
 
   const isViewer = role === 'viewer';
-  const isAdmin = userPlan?.adminOnly; // Check if the user's plan is adminOnly
+  const isAdmin = userPlan?.adminOnly;
+
+  useEffect(() => {
+    if (stabilityApiKey && imageService === 'stability') {
+      getStabilityAIModels(stabilityApiKey)
+        .then(models => {
+            const allModels = [
+                { id: 'core', name: 'Stable Diffusion 3 (Core)' },
+                { id: 'ultra', name: 'Stable Diffusion Ultra' },
+                ...models.map((m: any) => ({id: m.id, name: m.name}))
+            ];
+            setStabilityModels(allModels);
+        })
+        .catch(err => {
+            console.error("Failed to fetch stability models", err);
+             setStabilityModels([
+                { id: 'core', name: 'Stable Diffusion 3 (Core)' },
+                { id: 'ultra', name: 'Stable Diffusion Ultra' },
+                { id: 'stable-diffusion-v1-6', name: 'Stable Diffusion 1.6'},
+             ]);
+        });
+    }
+  }, [stabilityApiKey, imageService]);
 
   const handleGenerateTextWithAI = async () => {
       if (!aiClient) {
@@ -156,12 +196,12 @@ const PostComposer: React.FC<PostComposerProps> = ({
       let base64Bytes: string;
       if (imageService === 'stability') {
         if (!stabilityApiKey) throw new Error("مفتاح Stability AI API غير مكوّن. يرجى إضافته في الإعدادات.");
-        base64Bytes = await generateImageWithStabilityAI(stabilityApiKey, aiImagePrompt, imageStyle, imageAspectRatio, aiClient);
+        base64Bytes = await generateImageWithStabilityAI(stabilityApiKey, aiImagePrompt, imageStyle, imageAspectRatio, stabilityModel, aiClient);
       } else { // 'gemini'
         if (!aiClient) throw new Error("مفتاح Gemini API غير مكوّن. يرجى إضافته في الإعدادات.");
         base64Bytes = await generateImageFromPrompt(aiClient, aiImagePrompt, imageStyle, imageAspectRatio);
       }
-      const imageFile = base64ToFile(base64Bytes, `${aiImagePrompt.substring(0, 20).replace(/s/g, '_')}.jpeg`);
+      const imageFile = base64ToFile(base64Bytes, `${aiImagePrompt.substring(0, 20).replace(/\s/g, '_')}.jpeg`);
       onImageGenerated(imageFile);
     } catch (e: any) {
       setAiImageError(e.message || 'حدث خطأ غير متوقع. يرجى التأكد من أن وصفك لا ينتهك سياسات المحتوى.');
@@ -169,7 +209,41 @@ const PostComposer: React.FC<PostComposerProps> = ({
       setIsGeneratingImage(false);
     }
   };
+
+  const handleUpscaleImage = async () => {
+    if (!selectedImage || !stabilityApiKey) return;
+    setIsUpscaling(true);
+    setUpscaleError('');
+    try {
+      const upscaledBase64 = await upscaleImageWithStabilityAI(stabilityApiKey, selectedImage, "Upscale to improve quality and details");
+      const imageFile = base64ToFile(upscaledBase64, `upscaled_${selectedImage.name}`);
+      onImageGenerated(imageFile); // This will replace the current image with the upscaled one
+    } catch(e: any) {
+      setUpscaleError(e.message || 'An unexpected error occurred during upscaling.');
+    } finally {
+      setIsUpscaling(false);
+    }
+  };
   
+  const handleImageToImage = async () => {
+    if (!selectedImage || !stabilityApiKey || !imageToImagePrompt.trim()) {
+        setImageToImageError("Please provide a prompt.");
+        return;
+    };
+    setIsGeneratingImageToImage(true);
+    setImageToImageError('');
+    try {
+        const resultBase64 = await imageToImageWithStabilityAI(stabilityApiKey, selectedImage, imageToImagePrompt, stabilityModel, imageToImageStrength);
+        const imageFile = base64ToFile(resultBase64, `img2img_${selectedImage.name}`);
+        onImageGenerated(imageFile);
+        setIsImageToImageModalOpen(false);
+    } catch(e: any) {
+        setImageToImageError(e.message || 'An unexpected error occurred during image-to-image generation.');
+    } finally {
+        setIsGeneratingImageToImage(false);
+    }
+  };
+
   const handleSuggestTimeWithAI = async () => {
     if (!aiClient) return;
     if (!postText.trim()) {
@@ -214,7 +288,6 @@ ${hashtagString}` : hashtagString);
     window.open('https://canva.com', '_blank');
   };
 
-  // AI Helper Text logic updated to consider isAdmin
   const aiHelperText = !aiClient ? (
     <p className="text-yellow-600 dark:text-yellow-400 text-sm mt-2">
       ميزات الذكاء الاصطناعي معطلة. يرجى إدخال مفتاح Gemini API في الإعدادات لتفعيلها.
@@ -224,7 +297,6 @@ ${hashtagString}` : hashtagString);
   const getPublishButtonText = () => {
     if (isPublishing) return 'جاري العمل...';
     if (isScheduled) {
-        // Bypass content approval workflow check if isAdmin is true
         if (!isAdmin && userPlan?.limits.contentApprovalWorkflow && role === 'editor') {
             return 'إرسال للمراجعة';
         }
@@ -234,22 +306,50 @@ ${hashtagString}` : hashtagString);
   };
 
   const imageStyles = [
-    { value: 'Photographic', label: 'فوتوغرافي' },
-    { value: 'Cinematic', label: 'سينمائي' },
-    { value: 'Digital Art', label: 'فن رقمي' },
-    { value: 'Anime', label: 'أنمي' },
-    { value: 'Fantasy', label: 'خيالي' },
-    { value: 'Neon Punk', label: 'نيون بانك' },
+    { value: 'Photographic', label: 'فوتوغرافي' }, { value: 'Cinematic', label: 'سينمائي' },
+    { value: 'Digital Art', label: 'فن رقمي' }, { value: 'Anime', label: 'أنمي' },
+    { value: 'Fantasy', label: 'خيالي' }, { value: 'Neon Punk', label: 'نيون بانك' },
   ];
 
   const aspectRatios = [
-    { value: '1:1', label: 'مربع (1:1)' },
-    { value: '16:9', label: 'عريض (16:9)' },
-    { value: '9:16', label: 'طولي (9:16)' },
+    { value: '1:1', label: 'مربع (1:1)' }, { value: '16:9', label: 'عريض (16:9)' }, { value: '9:16', label: 'طولي (9:16)' },
   ];
 
   return (
     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg space-y-6">
+      
+       {isImageToImageModalOpen && (
+         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+           <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-lg space-y-4">
+              <div className="flex justify-between items-center">
+                <h3 className="text-xl font-bold text-gray-800 dark:text-white">تحويل صورة إلى صورة</h3>
+                <button onClick={() => setIsImageToImageModalOpen(false)} className="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white">
+                    <XCircleIcon className="w-6 h-6"/>
+                </button>
+              </div>
+              <div>
+                <label htmlFor="img2img-prompt" className="block text-sm font-medium text-gray-700 dark:text-gray-300">الوصف الجديد</label>
+                <input id="img2img-prompt" type="text" value={imageToImagePrompt} onChange={e => setImageToImagePrompt(e.target.value)} placeholder="مثال: اجعلها تبدو كلوحة زيتية" className="mt-1 w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700"/>
+              </div>
+              <div>
+                 <label htmlFor="img2img-strength" className="block text-sm font-medium text-gray-700 dark:text-gray-300">قوة الصورة الأصلية ({imageToImageStrength.toFixed(2)})</label>
+                 <input id="img2img-strength" type="range" min="0" max="1" step="0.05" value={imageToImageStrength} onChange={e => setImageToImageStrength(parseFloat(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"/>
+              </div>
+              {imageToImageError && <p className="text-red-500 text-sm">{imageToImageError}</p>}
+              <div className="flex justify-end gap-2">
+                <Button variant="secondary" onClick={() => setIsImageToImageModalOpen(false)}>إلغاء</Button>
+                <Button onClick={handleImageToImage} isLoading={isGeneratingImageToImage}>
+                    {isGeneratingImageToImage ? 'جاري التحويل...' : 'حوّل الصورة'}
+                </Button>
+              </div>
+           </div>
+           <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">
+    سيتم إرسال صورتك والوصف الجديد إلى Stability AI لمعالجة الطلب.
+</p>
+
+         </div>
+       )}
+
       <h2 className="text-2xl font-bold text-gray-800 dark:text-white">{editingScheduledPostId ? 'تعديل المنشور المجدول' : 'إنشاء منشور جديد'}</h2>
       
       <div className="p-4 border border-blue-200 dark:border-blue-900 rounded-lg bg-blue-50 dark:bg-gray-700/50">
@@ -266,37 +366,36 @@ ${hashtagString}` : hashtagString);
 
       <textarea value={postText} onChange={(e) => onPostTextChange(e.target.value)} placeholder="بماذا تفكر؟ اكتب منشورك هنا..." className="w-full h-48 p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white transition" disabled={isViewer} />
         
-        <div className="flex flex-col sm:flex-row gap-2">
-            <Button 
-                onClick={handleGenerateHashtags} 
-                isLoading={isGeneratingHashtags} 
-                disabled={!aiClient || (!postText.trim() && !selectedImage) || isViewer}
-                variant="secondary"
-                className="w-full sm:w-auto"
-            >
-                <HashtagIcon className="w-5 h-5 ml-2"/>
-                {isGeneratingHashtags ? 'جاري...' : 'اقترح هاشتاجات'}
-            </Button>
-        </div>
-        {aiHashtagError && <p className="text-red-500 text-sm mt-2">{aiHashtagError}</p>}
-
+      <div className="flex flex-col sm:flex-row gap-2">
+          <Button onClick={handleGenerateHashtags} isLoading={isGeneratingHashtags} disabled={!aiClient || (!postText.trim() && !selectedImage) || isViewer} variant="secondary" className="w-full sm:w-auto">
+              <HashtagIcon className="w-5 h-5 ml-2"/>
+              {isGeneratingHashtags ? 'جاري...' : 'اقترح هاشتاجات'}
+          </Button>
+      </div>
+      {aiHashtagError && <p className="text-red-500 text-sm mt-2">{aiHashtagError}</p>}
 
       {imagePreview && (
-        <div className="space-y-2">
+        <div className="space-y-4 p-4 border rounded-md dark:border-gray-700">
           <div className="relative w-40">
             <img src={imagePreview} alt="Preview" className="rounded-lg w-full h-auto" />
             {!isViewer && <button onClick={onImageRemove} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 leading-none w-6 h-6 flex items-center justify-center text-lg" aria-label="Remove image">&times;</button>}
           </div>
-          <Button
-              onClick={handleGenerateImageDescription}
-              isLoading={isGeneratingDesc}
-              disabled={!aiClient || !selectedImage || isGeneratingDesc || isViewer}
-              variant="secondary"
-              size="sm"
-          >
-              <SparklesIcon className="w-4 h-4 ml-2" />
-              ولّد نصًا من الصورة
-          </Button>
+          <div className="flex flex-wrap gap-2">
+    <Button onClick={handleGenerateImageDescription} isLoading={isGeneratingDesc} disabled={!aiClient || !selectedImage || isGeneratingDesc || isViewer} variant="secondary" size="sm">
+        <SparklesIcon className="w-4 h-4 ml-2" /> ولّد نصًا من الصورة
+    </Button>
+    <Button onClick={() => setIsImageToImageModalOpen(true)} disabled={isViewer || !stabilityApiKey || !selectedImage} variant="secondary" size="sm" title="تحويل الصورة لصورة أخرى (Stability AI)">
+        <ArrowPathIcon className="w-4 h-4 ml-2" /> صورة-إلى-صورة
+    </Button>
+    <Button onClick={handleUpscaleImage} isLoading={isUpscaling} disabled={isViewer || !selectedImage || !stabilityApiKey} variant="secondary" size="sm" title="تحسين دقة الصورة (Stability AI)">
+        <ArrowUpTrayIcon className="w-4 h-4 ml-2" /> {isUpscaling ? 'جاري التحسين...' : 'تحسين الدقة'}
+    </Button>
+    <Button onClick={() => alert('ميزة التعديل ستكون متاحة قريباً!')} disabled={isViewer || !stabilityApiKey || !selectedImage} variant="secondary" size="sm" title="تعديل أجزاء من الصورة (Stability AI)">
+        <PencilSquareIcon className="w-4 h-4 ml-2" /> تعديل الصورة
+    </Button>
+</div>
+
+           {upscaleError && <p className="text-red-500 text-sm mt-2">{upscaleError}</p>}
         </div>
       )}
       
@@ -307,7 +406,7 @@ ${hashtagString}` : hashtagString);
       )}
       
       <div className="p-4 border border-purple-200 dark:border-purple-900 rounded-lg bg-purple-50 dark:bg-gray-700/50 space-y-3">
-          <label htmlFor="ai-image-prompt" className="block text-sm font-medium text-gray-700 dark:text-gray-300">مولّد الصور بالذكاء الاصطناعي 🤖</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">مولّد الصور بالذكاء الاصطناعي 🤖</label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex bg-gray-200 dark:bg-gray-600 rounded-lg p-1">
                 <button onClick={() => setImageService('gemini')} disabled={!aiClient || isViewer} className={`w-1/2 p-2 rounded-md text-sm font-semibold transition-colors ${imageService === 'gemini' ? 'bg-white dark:bg-gray-900 shadow text-purple-600' : 'text-gray-600 dark:text-gray-300'} disabled:opacity-50 disabled:cursor-not-allowed`}>
@@ -318,20 +417,28 @@ ${hashtagString}` : hashtagString);
                 </button>
             </div>
             <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label htmlFor="aspect-ratio" className="sr-only">نسبة الأبعاد</label>
-                  <select id="aspect-ratio" value={imageAspectRatio} onChange={e => setImageAspectRatio(e.target.value)} className="w-full h-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 focus:ring-purple-500 focus:border-purple-500 text-sm" disabled={isViewer}>
+                <select id="aspect-ratio" value={imageAspectRatio} onChange={e => setImageAspectRatio(e.target.value)} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 focus:ring-purple-500 focus:border-purple-500 text-sm" disabled={isViewer}>
                     {aspectRatios.map(ar => <option key={ar.value} value={ar.value}>{ar.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                   <label htmlFor="image-style" className="sr-only">نمط الصورة</label>
-                   <select id="image-style" value={imageStyle} onChange={e => setImageStyle(e.target.value)} className="w-full h-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 focus:ring-purple-500 focus:border-purple-500 text-sm" disabled={isViewer}>
+                </select>
+                <select id="image-style" value={imageStyle} onChange={e => setImageStyle(e.target.value)} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 focus:ring-purple-500 focus:border-purple-500 text-sm" disabled={isViewer}>
                     {imageStyles.map(style => <option key={style.value} value={style.value}>{style.label}</option>)}
-                   </select>
-                </div>
+                </select>
             </div>
           </div>
+
+          {imageService === 'stability' && (
+            <div>
+              <label htmlFor="stability-model" className="sr-only">نموذج Stability</label>
+              <select id="stability-model" value={stabilityModel} onChange={e => setStabilityModel(e.target.value)} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 focus:ring-purple-500 focus:border-purple-500 text-sm" disabled={!stabilityApiKey || stabilityModels.length === 0 || isViewer}>
+                {stabilityModels.length > 0 ? (
+                    stabilityModels.map(model => <option key={model.id} value={model.id}>{model.name}</option>)
+                ) : (
+                    <option>جاري تحميل النماذج...</option>
+                )}
+              </select>
+            </div>
+          )}
+
           <div className="flex flex-col sm:flex-row gap-2">
             <input id="ai-image-prompt" type="text" value={aiImagePrompt} onChange={(e) => setAiImagePrompt(e.target.value)} placeholder="وصف الصورة، مثلاً: رائد فضاء يقرأ على المريخ" className="flex-grow p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 focus:ring-purple-500 focus:border-purple-500" disabled={isGeneratingImage || ((imageService === 'gemini' && !aiClient) || (imageService === 'stability' && !stabilityApiKey)) || isViewer}/>
             <Button
