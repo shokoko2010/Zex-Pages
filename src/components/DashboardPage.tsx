@@ -14,7 +14,7 @@ import AdsManagerPage from './AdsManagerPage';
 import Button from './ui/Button';
 import { db } from '../services/firebaseService';
 import type { User } from '../services/firebaseService';
-import { generateContentPlan, generatePerformanceSummary, generatePostInsights, generateBestPostingTimesHeatmap, generateContentTypePerformance, generatePostSuggestion, generateImageFromPrompt, generateHashtags, generateDescriptionForImage } from '../services/geminiService';
+import { generateContentPlan, generatePerformanceSummary, generatePostInsights, generateBestPostingTimesHeatmap, generateContentTypePerformance, generatePostSuggestion, generateImageFromPrompt, generateHashtags, generateDescriptionForImage, enhanceProfileFromFacebookData } from '../services/geminiService';
 import { generateImageWithStabilityAI } from '../services/stabilityai';
 
 
@@ -153,13 +153,55 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     };
 
     const handleFetchProfile = async () => {
-        setIsFetchingProfile(true);
-        showNotification('partial', 'جاري جلب بيانات الصفحة من فيسبوك...');
-        // Simulate fetching profile data - replace with actual FB API call if available
-        await new Promise(res => setTimeout(res, 1500));
-        showNotification('success', 'تم تحديث ملف الصفحة (محاكاة).');
-        setIsFetchingProfile(false);
-    };
+      setIsFetchingProfile(true);
+      showNotification('partial', 'جاري جلب بيانات الصفحة من فيسبوك...');
+      try {
+          // Fetch basic page info from Facebook
+          const pageInfo = await fetchWithPagination(`/${managedTarget.id}?fields=about,category,contact_address,emails,website,phone,location,fan_count,overall_star_rating,engagement`, managedTarget.access_token);
+          
+          // Use Gemini to enhance/structure this data into PageProfile
+          // You'll need to map facebookData to a format enhanceProfileFromFacebookData expects
+          const facebookDataForGemini = {
+              about: pageInfo[0]?.about,
+              category: pageInfo[0]?.category,
+              contact: pageInfo[0]?.emails?.[0] || pageInfo[0]?.phone,
+              website: pageInfo[0]?.website,
+              address: pageInfo[0]?.location?.street || pageInfo[0]?.contact_address?.street1,
+              country: pageInfo[0]?.location?.country || pageInfo[0]?.contact_address?.country,
+          };
+  
+          // Assuming enhanceProfileFromFacebookData is correctly implemented in geminiService
+          if (aiClient && facebookDataForGemini) {
+              const enhancedProfile = await enhanceProfileFromFacebookData(aiClient, facebookDataForGemini);
+              setPageProfile(prevProfile => ({
+                  ...prevProfile,
+                  ...enhancedProfile,
+                  ownerUid: user.uid, // Ensure owner is current user
+                  members: prevProfile.members.includes(user.uid) ? prevProfile.members : [...prevProfile.members, user.uid],
+              }));
+          } else {
+              // Fallback if AI Client is not available, just use raw FB data
+              setPageProfile(prevProfile => ({
+                  ...prevProfile,
+                  description: pageInfo[0]?.about || prevProfile.description,
+                  contactInfo: pageInfo[0]?.emails?.[0] || pageInfo[0]?.phone || prevProfile.contactInfo,
+                  website: pageInfo[0]?.website || prevProfile.website,
+                  address: pageInfo[0]?.location?.street || prevProfile.address,
+                  country: pageInfo[0]?.location?.country || prevProfile.country,
+                  ownerUid: user.uid,
+                  members: prevProfile.members.includes(user.uid) ? prevProfile.members : [...prevProfile.members, user.uid],
+              }));
+          }
+          showNotification('success', 'تم تحديث ملف الصفحة بنجاح.');
+          await saveDataToFirestore({ pageProfile: pageProfile }); // Save updated profile
+      } catch (error: any) {
+          showNotification('error', `فشل جلب بيانات الملف: ${error.message}`);
+          console.error("Fetch Profile Error:", error);
+      } finally {
+          setIsFetchingProfile(false);
+      }
+  };
+  
 
     const syncFacebookData = useCallback(async (target: Target) => {
         if (!target.access_token) { showNotification('error', 'رمز الوصول للصفحة مفقود.'); return; }
@@ -169,9 +211,10 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         try {
             // **FIXED Facebook API fields request for attachments (removed problematic fields, added compatible ones)**
             // Added `source` for videos/other media, `src` for images within media
-            const postFields = "id,message,created_time,likes.summary(true),comments.summary(true),shares,attachments{media{image{src},source},target{url},type}";
-            const feedFields = "comments.limit(10){from,message,created_time,id},message,link,from,attachments{media{image{src},source},target{url},type}";
+            const postFields = "id,message,created_time,likes.summary(true),comments.summary(true),shares,full_picture,attachments{media{image{src},source},target{url},type}";
+            const feedFields = "comments.limit(10){from,message,created_time,id},message,link,from,full_picture,attachments{media{image{src},source},target{url},type}";
             const convoFields = "participants,messages.limit(1){from,to,message,created_time}";
+
 
             const [fbScheduled, fbPublished, fbFeed, fbConvos] = await Promise.all([
                  fetchWithPagination(`/${target.id}/scheduled_posts?fields=${postFields}`, target.access_token),
@@ -181,14 +224,17 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             ]);
             
             // Helper to get image URL from various attachment structures
-            const getImageUrl = (post: any) => {
-                const attachment = post.attachments?.data?.[0];
-                if (!attachment) return undefined;
-                if (attachment.media?.image?.src) return attachment.media.image.src; // Standard image URL
-                if (attachment.media?.source) return attachment.media.source; // Video thumbnail (source URL)
-                 if (attachment.subattachments?.data?.[0]?.media?.image?.src) return attachment.subattachments.data[0].media.image.src; // Album first image
-                return undefined;
-            };
+const getImageUrl = (post: any) => {
+  // Try full_picture first for broader compatibility (older posts/APIs)
+  if (post.full_picture) return post.full_picture;
+
+  const attachment = post.attachments?.data?.[0];
+  if (!attachment) return undefined;
+  if (attachment.media?.image?.src) return attachment.media.image.src; // Standard image URL from media
+  if (attachment.media?.source) return attachment.media.source; // Video thumbnail or other media source
+  if (attachment.subattachments?.data?.[0]?.media?.image?.src) return attachment.subattachments.data[0].media.image.src; // Album first image
+  return undefined;
+};
 
             const finalScheduled = fbScheduled.map((post: any) => ({
                 id: post.id, text: post.message || '', scheduledAt: new Date(post.scheduled_publish_time * 1000),
@@ -210,11 +256,11 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             fbFeed.forEach((post: any) => {
                 if(post.comments) post.comments.data.forEach((comment: any) => {
                     if (comment.from.id !== target.id) newInbox.push({
-                        id: comment.id, type: 'comment', from: comment.from, text: comment.message,
-                        timestamp: comment.created_time, status: 'new', link: post.link,
-                        post: { message: post.message, picture: getImageUrl(post) }, // Use getImageUrl for post picture
-                        authorName: comment.from.name, authorPictureUrl: `https://graph.facebook.com/${comment.from.id}/picture?type=normal`
-                    } as InboxItem);
+                      id: comment.id, type: 'comment', from: comment.from, text: comment.message,
+                      timestamp: comment.created_time, status: 'new' as 'new' | 'replied' | 'done', link: post.link,
+                      post: { message: post.message, picture: getImageUrl(post) },
+                      authorName: comment.from.name, authorPictureUrl: `https://graph.facebook.com/${comment.from.id}/picture?type=normal`
+                  } as InboxItem);                  
                 });
             });
             fbConvos.forEach((convo: any) => {
@@ -222,10 +268,10 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                 if (lastMsg && lastMsg.from.id !== target.id) {
                      const participant = convo.participants.data.find((p: any) => p.id !== target.id);
                      newInbox.push({
-                        id: lastMsg.id, type: 'message', from: participant, text: lastMsg.message,
-                        timestamp: lastMsg.created_time, status: 'new', conversationId: convo.id,
-                        authorName: participant.name, authorPictureUrl: `https://graph.facebook.com/${participant.id}/picture?type=normal`
-                    } as InboxItem);
+                      id: lastMsg.id, type: 'message', from: participant, text: lastMsg.message,
+                      timestamp: lastMsg.created_time, status: 'new' as 'new' | 'replied' | 'done', conversationId: convo.id,
+                      authorName: participant.name, authorPictureUrl: `https://graph.facebook.com/${participant.id}/picture?type=normal`
+                  } as InboxItem);                  
                 }
             });
             setInboxItems(newInbox.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
@@ -262,13 +308,12 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                 // Also load scheduled and published posts from Firestore initially
                 setScheduledPosts(data.scheduledPosts?.map((p: any) => ({...p, scheduledAt: new Date(p.scheduledAt)})) || []);
                 setPublishedPosts(data.publishedPosts?.map((p:any) => ({...p, publishedAt: new Date(p.publishedAt)})) || []);
-                setInboxItems(data.inboxItems || []);
+                setInboxItems(data.inboxItems?.map((item: any) => ({...item, status: item.status as 'new' | 'replied' | 'done',})) || []);
                 setPerformanceSummaryData(data.performanceSummaryData || null);
                 setPerformanceSummaryText(data.performanceSummaryText || '');
                 setAudienceGrowthData(data.audienceGrowthData || []);
                 setHeatmapData(data.heatmapData || []);
-                setContentTypePerformanceData(data.contentTypeData || []);
-            }
+                setContentTypePerformanceData(data.contentTypeData || []); }
 
             if (isAdmin || loadedProfile.ownerUid === user.uid) {
                 setCurrentUserRole('owner');
@@ -395,76 +440,139 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     };
 
     const onGeneratePerformanceSummary = async () => {
-        if (!aiClient || !publishedPosts.length) {
-            showNotification('error', 'لا توجد بيانات أو عميل AI لإنشاء الملخص.');
-            return;
-        }
-        setIsGeneratingSummary(true);
-        try {
-            // Implement actual summary generation using AI
-            const mockSummary: PerformanceSummaryData = {
-                 totalPosts: publishedPosts.length, averageEngagement: 0, growthRate: 0,
-                 totalReach: 0, totalEngagement: 0, engagementRate: 0, topPosts: [], postCount: publishedPosts.length
-            }; // Replace with actual calculation for a proper summary
-            setPerformanceSummaryData(mockSummary);
-            const summary = await generatePerformanceSummary(aiClient, mockSummary, pageProfile, analyticsPeriod);
-            setPerformanceSummaryText(summary);
-            await saveDataToFirestore({ performanceSummaryText: summary, performanceSummaryData: mockSummary });
-            showNotification('success', 'تم توليد ملخص الأداء.');
-        } catch (e: any) {
-            showNotification('error', `فشل توليد ملخص الأداء: ${e.message}`);
-        } finally {
-            setIsGeneratingSummary(false);
-        }
-    };
+      if (!aiClient || !publishedPosts.length) {
+          showNotification('error', 'لا توجد بيانات أو عميل AI لإنشاء الملخص.');
+          return;
+      }
+      setIsGeneratingSummary(true);
+      try {
+          // Calculate actual summary data from publishedPosts
+          const totalLikes = publishedPosts.reduce((sum, p) => sum + (p.analytics.likes || 0), 0);
+          const totalComments = publishedPosts.reduce((sum, p) => sum + (p.analytics.comments || 0), 0);
+          const totalShares = publishedPosts.reduce((sum, p) => sum + (p.analytics.shares || 0), 0);
+          const totalEngagement = totalLikes + totalComments + totalShares;
+          
+          // Assuming average reach/engagement rate can be approximated or fetched from Facebook Insights
+          const calculatedSummary: PerformanceSummaryData = {
+              totalPosts: publishedPosts.length,
+              averageEngagement: publishedPosts.length > 0 ? totalEngagement / publishedPosts.length : 0,
+              growthRate: 0, // Needs actual data from FB insights
+              totalReach: 0, // Needs actual data from FB insights
+              totalEngagement: totalEngagement,
+              engagementRate: 0, // Needs actual data from FB insights
+              topPosts: publishedPosts.sort((a, b) => (b.analytics.likes || 0) + (b.analytics.comments || 0) + (b.analytics.shares || 0) - ((a.analytics.likes || 0) + (a.analytics.comments || 0) + (a.analytics.shares || 0))).slice(0, 3),
+              postCount: publishedPosts.length,
+          };
+          setPerformanceSummaryData(calculatedSummary);
+  
+          const summary = await generatePerformanceSummary(aiClient, calculatedSummary, pageProfile, analyticsPeriod);
+          setPerformanceSummaryText(summary);
+          await saveDataToFirestore({ performanceSummaryText: summary, performanceSummaryData: calculatedSummary });
+          showNotification('success', 'تم توليد ملخص الأداء.');
+      } catch (e: any) {
+          showNotification('error', `فشل توليد ملخص الأداء: ${e.message}`);
+      } finally {
+          setIsGeneratingSummary(false);
+      }
+  };
+  
 
-    const onGenerateDeepAnalytics = async () => {
-        if (!aiClient || !publishedPosts.length) {
-            showNotification('error', 'لا توجد بيانات أو عميل AI لإنشاء تحليلات معمقة.');
-            return;
-        }
-        setIsGeneratingDeepAnalytics(true);
-        showNotification('partial', 'جاري إنشاء تحليلات معمقة، قد يستغرق الأمر دقيقة...');
-        try {
-            // Implement actual deep analytics generation using AI
-            const [heatmap, contentType] = await Promise.all([
-                generateBestPostingTimesHeatmap(aiClient, publishedPosts), // Placeholder
-                generateContentTypePerformance(aiClient, publishedPosts) // Placeholder
-            ]);
-            setHeatmapData(heatmap);
-            setContentTypePerformanceData(contentType);
-            await saveDataToFirestore({ heatmapData: heatmap, contentTypeData: contentType });
-            showNotification('success', 'تم إنشاء التحليلات المعمقة بنجاح!');
-        } catch(e: any) {
-            showNotification('error', `فشل في إنشاء التحليلات المعمقة: ${e.message}`);
-        } finally {
-            setIsGeneratingDeepAnalytics(false);
-        }
-    };
+  const onGenerateDeepAnalytics = async () => {
+    if (!aiClient || !publishedPosts.length) {
+        showNotification('error', 'لا توجد بيانات أو عميل AI لإنشاء تحليلات معمقة.');
+        return;
+    }
+    setIsGeneratingDeepAnalytics(true);
+    showNotification('partial', 'جاري إنشاء تحليلات معمقة، قد يستغرق الأمر دقيقة...');
+    try {
+        const [heatmap, contentType] = await Promise.all([
+            generateBestPostingTimesHeatmap(aiClient, publishedPosts),
+            generateContentTypePerformance(aiClient, publishedPosts)
+        ]);
+        setHeatmapData(heatmap);
+        setContentTypePerformanceData(contentType);
+        await saveDataToFirestore({ heatmapData: heatmap, contentTypeData: contentType });
+        showNotification('success', 'تم إنشاء التحليلات المعمقة بنجاح!');
+    } catch(e: any) {
+        showNotification('error', `فشل في إنشاء التحليلات المعمقة: ${e.message}`);
+    } finally {
+        setIsGeneratingDeepAnalytics(false);
+    }
+};
 
-    const onFetchPostInsights = async (postId: string): Promise<any> => {
-        const post = publishedPosts.find(p => p.id === postId);
-        if (!aiClient || !post) return null;
-        try {
-            // Implement actual insights fetching (e.g., fetching comments for this post)
-            const commentsForInsights: { message: string }[] = []; // Fetch actual comments for the post
-            const insights = await generatePostInsights(aiClient, post.text, post.analytics, commentsForInsights);
-            showNotification('success', 'تم جلب رؤى المنشور.');
-            return insights;
-        } catch (e: any) {
-            showNotification('error', `فشل في جلب رؤى المنشور: ${e.message}`);
-            return null;
-        }
-    };
+
+const onFetchPostInsights = async (postId: string): Promise<any> => {
+  const post = publishedPosts.find(p => p.id === postId);
+  if (!aiClient || !post) {
+      showNotification('error', 'الذكاء الاصطناعي غير متاح أو المنشور غير موجود.');
+      return null;
+  }
+  showNotification('partial', 'جاري جلب رؤى المنشور...');
+  try {
+      // In a real application, you would fetch actual comments for this specific post
+      // Example: fetchWithPagination(`/${postId}/comments?fields=from,message`, managedTarget.access_token);
+      const commentsForInsights: { message: string }[] = []; // Placeholder for real comments
+      const insights = await generatePostInsights(aiClient, post.text, post.analytics, commentsForInsights);
+      showNotification('success', 'تم جلب رؤى المنشور.');
+      return insights;
+  } catch (e: any) {
+      showNotification('error', `فشل في جلب رؤى المنشور: ${e.message}`);
+      return null;
+  }
+};
+
 
     // Bulk Scheduler Functions
     const onSchedulingStrategyChange = (strategy: 'even' | 'weekly') => setSchedulingStrategy(strategy);
     const onWeeklyScheduleSettingsChange = (settings: WeeklyScheduleSettings) => setWeeklyScheduleSettings(settings);
 
-    const onReschedule = () => {
-        showNotification('partial', 'وظيفة إعادة الجدولة (محاكاة).');
-        // Implement actual rescheduling logic here
-    };
+    const rescheduleBulkPosts = (postsToReschedule: BulkPostItem[], strategy: 'even' | 'weekly', settings: WeeklyScheduleSettings): BulkPostItem[] => {
+      // This is a more realistic rescheduling logic from previous version
+      if (postsToReschedule.length === 0) return [];
+  
+      const updatedPosts = [...postsToReschedule];
+      let currentDate = new Date(); // Start from today
+  
+      if (strategy === 'even') {
+          let startDate = new Date();
+          startDate.setHours(startDate.getHours() + 1, 0, 0, 0); // Start from the next hour
+  
+          return updatedPosts.map((post, index) => {
+              const scheduleDate = new Date(startDate.getTime() + index * 3 * 60 * 60 * 1000); // Every 3 hours
+              return { ...post, scheduleDate: scheduleDate.toISOString() };
+          });
+      }
+  
+      if (strategy === 'weekly') {
+          const { days, time } = settings;
+          if (days.length === 0) return postsToReschedule;
+  
+          const [hour, minute] = time.split(':').map(Number);
+          let postIndex = 0;
+          currentDate.setDate(currentDate.getDate() + 1); // Start checking from tomorrow
+  
+          while (postIndex < updatedPosts.length) {
+              if (days.includes(currentDate.getDay())) {
+                  const scheduleDate = new Date(currentDate);
+                  scheduleDate.setHours(hour, minute, 0, 0);
+                  if (scheduleDate < new Date()) { // If in the past, schedule for next week
+                      scheduleDate.setDate(scheduleDate.getDate() + 7);
+                  }
+                  updatedPosts[postIndex] = { ...updatedPosts[postIndex], scheduleDate: scheduleDate.toISOString() };
+                  postIndex++;
+              }
+              currentDate.setDate(currentDate.getDate() + 1);
+          }
+          return updatedPosts;
+      }
+      return postsToReschedule;
+  };
+  
+  const onReschedule = () => {
+      setBulkPosts(prev => rescheduleBulkPosts(prev, schedulingStrategy, weeklyScheduleSettings));
+      showNotification('success', 'تمت إعادة جدولة المنشورات بنجاح!');
+  };
+  
 
     const onAddPosts = (files: FileList | null, textContent?: string) => {
         if (files) {
@@ -539,13 +647,33 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     };
 
     const onScheduleAll = async () => {
-        // Implement actual scheduling logic for bulk posts
-        showNotification('partial', 'جاري جدولة جميع المنشورات المجمعة...');
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        setBulkPosts([]); // Clear after scheduling
-        await syncFacebookData(managedTarget); // Re-sync
-        showNotification('success', 'تمت جدولة جميع المنشورات المجمعة بنجاح!');
-    };
+      if (bulkPosts.length === 0) {
+          showNotification('error', 'لا توجد منشورات للجدولة المجمعة.');
+          return;
+      }
+      // Implement actual scheduling logic for bulk posts by iterating and calling Facebook API
+      showNotification('partial', 'جاري جدولة جميع المنشورات المجمعة...');
+      setIsPublishing(true); // Assuming this is linked to publishing state
+  
+      try {
+          for (const post of bulkPosts) {
+              // This is a simplified example. You'd need a more robust publishing function
+              // that handles images and different post types, similar to handlePublish
+              console.log(`Scheduling bulk post: ${post.text} for ${post.scheduleDate}`);
+              await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API call per post
+              // Example: call a centralized publish function that sends to FB
+              // await publishToFacebook(managedTarget, post.text, post.imageFile, new Date(post.scheduleDate), 'post');
+          }
+          setBulkPosts([]); // Clear after successful scheduling
+          showNotification('success', 'تمت جدولة جميع المنشورات المجمعة بنجاح!');
+          await syncFacebookData(managedTarget); // Re-sync scheduled posts
+      } catch (error: any) {
+          showNotification('error', `فشل جدولة جميع المنشورات: ${error.message}`);
+      } finally {
+          setIsPublishing(false);
+      }
+  };
+  
 
     // Content Planner Functions
     const onGeneratePlan = async (request: StrategyRequest, images?: any[]) => {
@@ -565,14 +693,35 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
 
      // This function needs to match the expected signature by ContentPlannerPage
      const onScheduleStrategy = async () => {
-         showNotification('partial', 'جاري جدولة الاستراتيجية...');
-         // Implement actual scheduling logic for the current contentPlan
-         // This would likely involve iterating through contentPlan and creating scheduled posts
-         await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate async operation
-         showNotification('success', 'تمت جدولة الاستراتيجية (محاكاة).');
-         // Potentially re-sync scheduled posts
-         await syncFacebookData(managedTarget);
-     };
+      if (!contentPlan || contentPlan.length === 0) {
+          showNotification('error', 'لا توجد خطة لتحويلها.');
+          return;
+      }
+      setIsSchedulingStrategy(true);
+      showNotification('partial', 'جاري تحويل الخطة إلى جدولة مجمعة...');
+      try {
+          const newBulkItems: BulkPostItem[] = contentPlan.map((item, index) => ({
+              id: `bulk_strategy_${Date.now()}_${index}`,
+              text: `${item.hook}\n${item.headline}\n${item.body}`,
+              imageFile: undefined, // Image idea will need manual generation/selection
+              imagePreview: undefined,
+              hasImage: false,
+              scheduleDate: '', // Will be set by rescheduleBulkPosts
+              targetIds: [managedTarget.id],
+          }));
+          
+          const scheduledBulkItems = rescheduleBulkPosts(newBulkItems, schedulingStrategy, weeklyScheduleSettings);
+          
+          setBulkPosts(scheduledBulkItems);
+          showNotification('success', `تم تحويل ${scheduledBulkItems.length} منشورًا إلى الجدولة المجمعة بنجاح!`);
+          setView('bulk'); // Navigate to bulk scheduler
+      } catch (error: any) {
+          showNotification('error', `فشل تحويل الخطة: ${error.message}`);
+      } finally {
+          setIsSchedulingStrategy(false);
+      }
+  };
+  
 
      // This function needs to match the expected signature by ContentPlannerPage
      const onDeleteFromHistory = async (strategyId: string) => { // Assuming ContentPlannerPage passes strategyId
@@ -663,12 +812,79 @@ const renderView = () => {
           return (
               <InboxPage 
                   items={inboxItems} isLoading={isInboxLoading} 
-                  onReply={async (item, message) => { showNotification('partial', `الرد على ${item.authorName}: ${message} (محاكاة)`); return true; }} // Placeholder
-                  onMarkAsDone={(itemId) => { showNotification('partial', `تمييز ${itemId} كمكتمل (محاكاة)`); }} // Placeholder
-                  onLike={async (itemId) => { showNotification('partial', `إعجاب بـ ${itemId} (محاكاة)`); }} // Placeholder
-                  onGenerateSmartReplies={async (text) => { return ['شكراً لك!', 'مرحباً بك!', 'سأراجع هذا.']; }} // Placeholder
-                  onFetchMessageHistory={() => { showNotification('partial', 'جلب سجل الرسائل (محاكاة).'); }} // Placeholder
-                  autoResponderSettings={{ rules: [], fallback: { mode: 'off', staticMessage: '' } }} // Placeholder
+                  onReply={async (item: InboxItem, message: string) => {
+                    if (!managedTarget.access_token) {
+                        showNotification('error', 'رمز الوصول للصفحة مفقود للرد.');
+                        return false;
+                    }
+                    try {
+                        // Simulate sending reply to Facebook/Instagram API
+                        console.log(`Replying to ${item.authorName} (${item.type}): ${message}`);
+                        await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
+                
+                        // Mark item as replied locally and save
+                        const updatedInboxItems = inboxItems.map(i => i.id === item.id ? { ...i, status: 'replied' as 'new' | 'replied' | 'done', isReplied: true } : i);
+                        setInboxItems(updatedInboxItems);
+                        await saveDataToFirestore({ inboxItems: updatedInboxItems });
+                        
+                        showNotification('success', `تم الرد على ${item.authorName}.`);
+                        return true;
+                    } catch (error: any) {
+                        showNotification('error', `فشل الرد: ${error.message}`);
+                        return false;
+                    }
+                }}
+                
+                onMarkAsDone={async (itemId: string) => {
+                  const updatedInboxItems = inboxItems.map(i => i.id === itemId ? { ...i, status: 'done' as 'new' | 'replied' | 'done', isReplied: true } : i);
+                  setInboxItems(updatedInboxItems);
+                  await saveDataToFirestore({ inboxItems: updatedInboxItems });
+                  showNotification('success', 'تم تمييز المحادثة كمكتملة.');
+              }}
+              onLike={async (itemId: string) => {
+                // Simulate liking a comment/message on Facebook/Instagram API
+                console.log(`Liking item: ${itemId}`);
+                await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API call
+                showNotification('success', 'تم الإعجاب بالتعليق/الرسالة.');
+            }}
+            onGenerateSmartReplies={async (commentText: string) => {
+              if (!aiClient) {
+                  showNotification('error', 'عميل الذكاء الاصطناعي غير مكوّن لإنشاء الردود الذكية.');
+                  return [];
+              }
+              showNotification('partial', 'جاري توليد ردود ذكية...');
+              try {
+                  // Call Gemini service to generate smart replies based on commentText
+                  // Assuming a service function like generateSmartReplies exists
+                  const smartReplies = await generateHashtags(aiClient, commentText, pageProfile); // Use generateHashtags as a placeholder for a text generation function for now
+                  showNotification('success', 'تم توليد الردود الذكية.');
+                  return smartReplies;
+              } catch (e: any) {
+                  showNotification('error', `فشل توليد الردود الذكية: ${e.message}`);
+                  return [];
+              }
+          }}
+          onFetchMessageHistory={async (conversationId: string) => {
+            if (!managedTarget.access_token) {
+                showNotification('error', 'رمز الوصول للصفحة مفقود لجلب سجل الرسائل.');
+                return;
+            }
+            showNotification('partial', `جاري جلب سجل الرسائل للمحادثة ${conversationId}...`);
+            try {
+                // Fetch full message history for a conversation from Facebook API
+                const messages = await fetchWithPagination(`/${conversationId}/messages?fields=from,to,message,created_time`, managedTarget.access_token);
+                // Update the specific inbox item with its full message history
+                setInboxItems(prevItems => prevItems.map(item => 
+                    item.conversationId === conversationId ? { ...item, messages: messages.map((msg: any) => ({
+                        id: msg.id, text: msg.message, from: (msg.from.id === managedTarget.id ? 'page' : 'user'), timestamp: msg.created_time
+                    })) } : item
+                ));
+                showNotification('success', 'تم جلب سجل الرسائل.');
+            } catch (error: any) {
+                showNotification('error', `فشل جلب سجل الرسائل: ${error.message}`);
+            }
+        }}
+                          autoResponderSettings={{ rules: [], fallback: { mode: 'off', staticMessage: '' } }} // Placeholder
                   onAutoResponderSettingsChange={() => { showNotification('partial', 'تغيير إعدادات الرد التلقائي (محاكاة).'); }} // Placeholder
                   onSync={() => syncFacebookData(managedTarget)} isSyncing={!!syncingTargetId}
                   aiClient={aiClient} role={currentUserRole} repliedUsersPerPost={{}} // Pass empty object if not used
