@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect } from 'react';
 import PageSelectorPage from './components/PageSelectorPage';
 import DashboardPage from './components/DashboardPage';
@@ -70,7 +69,6 @@ const App: React.FC = () => {
   
   const [loadingBusinessId, setLoadingBusinessId] = useState<string | null>(null);
   const [loadedBusinessIds, setLoadedBusinessIds] = useState<Set<string>>(new Set()); // Correctly initialized
-  const [syncingTargetId, setSyncingTargetId] = useState<string | null>(null);
   const [strategyHistory, setStrategyHistory] = useState<StrategyHistoryItem[]>([]);
 
 
@@ -417,8 +415,6 @@ const App: React.FC = () => {
             stabilityApiKey={stabilityApiKey}
             onSettingsClick={() => setIsSettingsModalOpen(true)}
             fetchWithPagination={fetchWithPagination}
-            onSyncHistory={handleFullHistorySync}
-            syncingTargetId={syncingTargetId}
             theme={theme}
             onToggleTheme={handleToggleTheme}
             fbAccessToken={appUser.fbAccessToken || null} // Ensure it's not undefined

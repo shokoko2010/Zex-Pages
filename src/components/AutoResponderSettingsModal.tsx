@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { AutoResponderSettings, AutoResponderRule, AutoResponderAction, AutoResponderTriggerSource, AutoResponderMatchType, AutoResponderActionType } from '../types';
+import { AutoResponderSettings, AutoResponderRule, AutoResponderTriggerSource, AutoResponderMatchType, AutoResponderActionType } from '../types';
 import Button from './ui/Button';
 import SparklesIcon from './icons/SparklesIcon';
 import TrashIcon from './icons/TrashIcon';
@@ -70,17 +70,17 @@ const AutoResponderRuleEditorCard: React.FC<{
     onUpdate({ ...rule, trigger: { ...rule.trigger, [key]: value } });
   };
   
-  const handleActionChange = <K extends keyof AutoResponderAction>(actionType: AutoResponderActionType, key: K, value: any) => {
+  const handleActionChange = (actionType: AutoResponderActionType, key: keyof AutoResponderRule['actions'][number], value: any) => {
       onUpdate({
           ...rule,
-          actions: rule.actions.map((a: any) => 
+          actions: rule.actions.map(a => 
               a.type === actionType ? { ...a, [key]: value } : a
           )
       });
   };
   
   const handleGenerateVariations = async (actionType: AutoResponderActionType) => {
-    const action: any = rule.actions.find((a:any) => a.type === actionType);
+    const action = rule.actions.find(a => a.type === actionType);
     if (!aiClient || !action || action.messageVariations.length === 0 || !action.messageVariations[0]) return;
     setIsGenerating(prev => ({...prev, [action.type]: true}));
     try {
@@ -125,8 +125,8 @@ const AutoResponderRuleEditorCard: React.FC<{
         {/* Trigger Section */}
         <div className="space-y-4 p-3 bg-white dark:bg-gray-800 rounded-md shadow-sm">
           <h4 className="font-bold text-gray-700 dark:text-gray-300">المُشغّل (متى تعمل القاعدة؟)</h4>
-          <div><label className="text-sm font-medium">المصدر:</label><select value={rule.trigger.source} onChange={e => handleTriggerChange('source', e.target.value as any)} className="w-full text-sm p-2 mt-1 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700"><option value="comments">تعليق جديد</option><option value="messages">رسالة جديدة</option></select></div>
-          <div><label className="text-sm font-medium">نوع المطابقة:</label><select value={rule.trigger.matchType} onChange={e => handleTriggerChange('matchType', e.target.value as any)} className="w-full text-sm p-2 mt-1 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700"><option value="any">أي كلمة</option><option value="all">كل الكلمات</option><option value="exact">مطابقة تامة</option></select></div>
+          <div><label className="text-sm font-medium">المصدر:</label><select value={rule.trigger.source} onChange={e => handleTriggerChange('source', e.target.value as AutoResponderTriggerSource)} className="w-full text-sm p-2 mt-1 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700"><option value="comments">تعليق جديد</option><option value="messages">رسالة جديدة</option></select></div>
+          <div><label className="text-sm font-medium">نوع المطابقة:</label><select value={rule.trigger.matchType} onChange={e => handleTriggerChange('matchType', e.target.value as AutoResponderMatchType)} className="w-full text-sm p-2 mt-1 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700"><option value="any">أي كلمة</option><option value="all">كل الكلمات</option><option value="exact">مطابقة تامة</option></select></div>
           <div><label className="text-sm font-medium">الكلمات المفتاحية (اضغط Enter للإضافة):</label><TagInput tags={rule.trigger.keywords} onTagsChange={(tags) => handleTriggerChange('keywords', tags)} placeholder="السعر، بكم..."/></div>
           <div><label className="text-sm font-medium">الكلمات السلبية (تمنع القاعدة):</label><TagInput tags={rule.trigger.negativeKeywords} onTagsChange={(tags) => handleTriggerChange('negativeKeywords', tags)} placeholder="مشكلة، غالي..."/></div>
           {rule.trigger.source === 'comments' && (
@@ -139,8 +139,8 @@ const AutoResponderRuleEditorCard: React.FC<{
         {/* Actions Section */}
         <div className="space-y-4 p-3 bg-white dark:bg-gray-800 rounded-md shadow-sm">
           <h4 className="font-bold text-gray-700 dark:text-gray-300">الإجراءات (ماذا سيحدث؟)</h4>
-          {rule.actions.filter((a: any) => a.type in actionConfig && actionConfig[a.type].source === rule.trigger.source)
-             .map((action: any) => {
+          {rule.actions.filter(a => a.type in actionConfig && actionConfig[a.type].source === rule.trigger.source)
+             .map(action => {
                 const { label } = actionConfig[action.type];
                 return (
                   <div key={action.type} className="space-y-2">
@@ -284,7 +284,7 @@ const AutoResponderEditor: React.FC<{
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
                     <div>
                         <label htmlFor="fallback-mode" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">الوضع:</label>
-                        <select id="fallback-mode" value={fallback.mode} onChange={e => setDraftSettings({ ...draftSettings, fallback: {...fallback, mode: e.target.value as any}})} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 focus:ring-blue-500 focus:border-blue-500">
+                        <select id="fallback-mode" value={fallback.mode} onChange={e => setDraftSettings({ ...draftSettings, fallback: {...fallback, mode: e.target.value as AutoResponderSettings['fallback']['mode']}})} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 focus:ring-blue-500 focus:border-blue-500">
                             <option value="off">إيقاف</option>
                             <option value="static">رسالة ثابتة</option>
                             <option value="ai" disabled={!aiClient}>رد بالذكاء الاصطناعي</option>

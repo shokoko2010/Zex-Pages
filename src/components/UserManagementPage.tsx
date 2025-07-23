@@ -124,7 +124,7 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({ plans, allUsers
                                 </td>
                                 <td className="px-6 py-4">
                                     <span className="px-2 py-1 font-semibold leading-tight text-green-700 bg-green-100 rounded-full dark:bg-green-700 dark:text-green-100">
-                                      {plansMap.get(user.planId) || user.planId}
+                                      {plansMap.get(user.planId || '') || user.planId}
                                     </span>
                                 </td>
                                 <td className="px-6 py-4 flex items-center gap-2">
@@ -133,7 +133,7 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({ plans, allUsers
                                         onChange={(e) => handlePlanSelectionChange(user.uid, e.target.value)}
                                         className="p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 focus:ring-blue-500 focus:border-blue-500"
                                     >
-                                        {plans.sort((a,b) => a.price - b.price).map(plan => (
+                                        {plans.sort((a,b) => (a.price || 0) - (b.price || 0)).map(plan => (
                                             <option key={plan.id} value={plan.id}>{plan.name}</option>
                                         ))}
                                     </select>

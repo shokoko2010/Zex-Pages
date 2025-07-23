@@ -1,4 +1,3 @@
-
 export interface Target {
   id: string;
   name: string;
@@ -196,22 +195,29 @@ export interface InboxItem {
   authorId?:string;
 }
 
-export type AutoResponderAction = {
-  type: 'like' | 'reply';
-  delay: number; // in seconds
-  message?: string; // only for reply
-};
-
 export type AutoResponderTriggerSource = 'comments' | 'messages';
-export type AutoResponderMatchType = 'exact' | 'contains';
-export type AutoResponderActionType = 'like' | 'reply';
+export type AutoResponderMatchType = 'any' | 'all' | 'exact' | 'contains';
+export type AutoResponderActionType = 'like' | 'reply' | 'private_reply' | 'direct_message';
+
+export interface RuleAction {
+  type: AutoResponderActionType;
+  enabled: boolean;
+  messageVariations: string[];
+  delay?: number;
+  message?: string;
+}
 
 export interface AutoResponderRule {
   keywords: string[];
   response: string;
   active: boolean;
-  trigger: any;
-  actions: any;
+  trigger: {
+    source: AutoResponderTriggerSource;
+    matchType: AutoResponderMatchType;
+    keywords: string[];
+    negativeKeywords: string[];
+  };
+  actions: RuleAction[];
   enabled: boolean;
   name: string;
   id: string;
@@ -284,6 +290,10 @@ export interface TeamMember {
     uid: string;
     role: Role;
     email: string;
+}
+
+export interface DashboardPageProps {
+  onSyncHistory: (pageTarget: Target) => Promise<void>;
 }
 
 declare global {
