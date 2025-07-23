@@ -17,6 +17,7 @@ import { db } from '../services/firebaseService';
 import type { User } from '../services/firebaseService';
 import { generateContentPlan, generatePerformanceSummary, generatePostInsights, generateBestPostingTimesHeatmap, generateContentTypePerformance } from '../services/geminiService';
 
+
 // Icons
 import PencilSquareIcon from './icons/PencilSquareIcon';
 import CalendarIcon from './icons/CalendarIcon';
@@ -186,6 +187,22 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
       setEditingScheduledPostId(null);
     }, []);
     
+    // **RE-IMPLEMENTED MISSING FUNCTIONS**
+    const handlePageProfileChange = (newProfile: PageProfile) => {
+      setPageProfile(newProfile);
+      saveDataToFirestore({ pageProfile: newProfile });
+    };
+
+    const handleFetchProfile = async () => {
+        setIsFetchingProfile(true);
+        showNotification('partial', 'جاري جلب بيانات الصفحة من فيسبوك...');
+        // Placeholder for actual FB API call to fetch page data like description, contact info etc.
+        // For now, we'll just simulate a delay.
+        await new Promise(res => setTimeout(res, 1500));
+        showNotification('success', 'تم تحديث ملف الصفحة (محاكاة).');
+        setIsFetchingProfile(false);
+    };
+
     const syncFacebookData = useCallback(async (target: Target) => {
         if (!target.access_token) {
             showNotification('error', 'رمز الوصول للصفحة مفقود.');
@@ -195,7 +212,6 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
         showNotification('partial', `جاري مزامنة بيانات ${target.name}...`);
         
         try {
-            // **FIX for Facebook API change**
             const fields = "id,message,created_time,full_picture,likes.summary(true),comments.summary(true),shares,attachments{media,type,url}";
             const [fbScheduledPosts, fbPublishedPosts, fbFeed, fbConversations] = await Promise.all([
                  fetchWithPagination(`/${target.id}/scheduled_posts?fields=${fields}`, target.access_token),
@@ -231,7 +247,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
             fbFeed.forEach((post: any) => {
                 if (post.comments) {
                     post.comments.data.forEach((comment: any) => {
-                        if (comment.from.id !== target.id) { // Only add comments from users, not the page itself
+                        if (comment.from.id !== target.id) {
                             newInboxItems.push({
                                 id: comment.id, type: 'comment', from: comment.from,
                                 text: comment.message, timestamp: comment.created_time, status: 'new',
@@ -292,7 +308,6 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
                 setInboxItems(data.inboxItems || []);
             }
             
-            // **CRITICAL FIX FOR PERMISSIONS**
             if (isAdmin || loadedProfile.ownerUid === user.uid) {
                 setCurrentUserRole('owner');
             } else {
@@ -306,7 +321,6 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
         loadDataAndSync();
     }, [managedTarget.id, user.uid, isAdmin]);
 
-
     const handlePublish = async (postType: PostType) => { /* ... */ };
     const handleSaveDraft = async () => { /* ... */ };
     const handleEditScheduledPost = (postId: string) => { /* ... */ };
@@ -318,33 +332,6 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
     const onGeneratePerformanceSummary = async () => { /* ... */ };
     const onGenerateDeepAnalytics = async () => { /* ... */ };
     const onFetchPostInsights = async (postId: string) => { return null; };
-    
-    const renderView = () => {
-        // This function now correctly passes all required props
-        return (
-            <>
-                {view === 'composer' && <PostComposer {...composerProps} />}
-                {view === 'calendar' && <ContentCalendar {...calendarProps} />}
-                {/* ... other views */}
-            </>
-        )
-    };
-      
-      const composerProps = {
-          onPublish: handlePublish, onSaveDraft: handleSaveDraft, isPublishing, postText, onPostTextChange: setPostText,
-          onImageChange: (e: React.ChangeEvent<HTMLInputElement>) => setSelectedImage(e.target.files ? e.target.files[0] : null),
-          onImageGenerated: setSelectedImage, onImageRemove: () => setSelectedImage(null),
-          imagePreview, selectedImage, isScheduled, onIsScheduledChange: setIsScheduled,
-          scheduleDate, onScheduleDateChange: setScheduleDate, error: composerError, aiClient, stabilityApiKey, managedTarget,
-          linkedInstagramTarget, includeInstagram, onIncludeInstagramChange: setIncludeInstagram,
-          pageProfile, editingScheduledPostId, role: currentUserRole, userPlan
-      };
-
-      const calendarProps = {
-          posts: scheduledPosts, onEdit: handleEditScheduledPost, onDelete: handleDeleteScheduledPost,
-          managedTarget, userPlan, role: currentUserRole, onApprove: handleApprovePost,
-          onReject: handleRejectPost, onSync: () => syncFacebookData(managedTarget), isSyncing: !!syncingTargetId
-      };
       
       return (
         <>
@@ -371,15 +358,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
               </div>
             </aside>
             <main className="flex-grow min-w-0 p-4 sm:p-6 lg:p-8 bg-gray-50 dark:bg-gray-900 overflow-y-auto">
-              {/* Render logic simplified for clarity, replace with your full renderView function */}
-              {view === 'composer' && <PostComposer {...composerProps} />}
-              {view === 'calendar' && <ContentCalendar {...calendarProps} />}
-              {view === 'drafts' && <DraftsList drafts={drafts} onLoad={handleLoadDraft} onDelete={handleDeleteDraft} role={currentUserRole} />}
-              {/* Add other views here */}
-               {view === 'analytics' && <AnalyticsPage publishedPosts={publishedPosts} publishedPostsLoading={publishedPostsLoading} analyticsPeriod={analyticsPeriod} setAnalyticsPeriod={setAnalyticsPeriod} performanceSummaryData={performanceSummaryData} performanceSummaryText={performanceSummaryText} isGeneratingSummary={isGeneratingSummary} audienceGrowthData={audienceGrowthData} heatmapData={heatmapData} contentTypeData={contentTypeData} isGeneratingDeepAnalytics={isGeneratingDeepAnalytics} managedTarget={managedTarget} userPlan={userPlan} currentUserRole={currentUserRole} onGeneratePerformanceSummary={onGeneratePerformanceSummary} onGenerateDeepAnalytics={onGenerateDeepAnalytics} onFetchPostInsights={onFetchPostInsights} />}
-                {view === 'inbox' && <InboxPage items={inboxItems} isLoading={isInboxLoading} autoResponderSettings={autoResponderSettings} onAutoResponderSettingsChange={(settings) => {setAutoResponderSettings(settings); saveDataToFirestore({ autoResponderSettings: settings });}} repliedUsersPerPost={{}} currentUserRole={currentUserRole} isSyncing={isPolling} onSync={() => syncFacebookData(managedTarget)} onReply={async ()=>{return true}} onMarkAsDone={()=>{}} onGenerateSmartReplies={async ()=>{return []}} onFetchMessageHistory={() => {}} aiClient={aiClient} role={currentUserRole} onLike={async () => {}} selectedTarget={managedTarget}/>}
-                {view === 'profile' && <PageProfilePage profile={pageProfile} onProfileChange={handlePageProfileChange} isFetchingProfile={isFetchingProfile} onFetchProfile={handleFetchProfile} role={currentUserRole} user={user} />}
-                {view === 'ads' && <AdsManagerPage selectedTarget={managedTarget} role={currentUserRole} />}
+                 {view === 'profile' && <PageProfilePage profile={pageProfile} onProfileChange={handlePageProfileChange} isFetchingProfile={isFetchingProfile} onFetchProfile={handleFetchProfile} role={currentUserRole} user={user} />}
             </main>
           </div>
         </>
