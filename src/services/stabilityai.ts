@@ -54,42 +54,54 @@ export const generateImageWithStabilityAI = async (
     const finalPrompt = await translatePromptIfNeeded(prompt, aiClient);
     
     const isV1Engine = model.includes('stable-diffusion-v1');
-    const apiHost = `https://api.stability.ai/${isV1Engine ? `v1/generation/${model}/text-to-image` : `v2beta/stable-image/generate/${model === 'core' ? 'core' : 'sd3'}`}`;
-    
-    const formData = new FormData();
     const enhancedPrompt = `A high-quality, ${style.toLowerCase()} image of: ${finalPrompt}`;
 
+    let response: Response;
+
     if (isV1Engine) {
-        // V1 API Payload
-        formData.append('text_prompts[0][text]', enhancedPrompt);
-        formData.append('text_prompts[0][weight]', '1');
-        formData.append('cfg_scale', '7');
-        formData.append('samples', '1');
-        formData.append('steps', '30');
+        // V1 API (e.g., stable-diffusion-v1-6) expects JSON payload
+        const apiHost = `https://api.stability.ai/v1/generation/${model}/text-to-image`;
         const [widthRatio, heightRatio] = aspectRatio.split(':').map(Number);
-        const baseSize = 512; // Common base for v1 models
+        const baseSize = 512; 
         const width = widthRatio >= heightRatio ? baseSize : Math.round(baseSize * (widthRatio / heightRatio));
         const height = heightRatio > widthRatio ? baseSize : Math.round(baseSize * (heightRatio / widthRatio));
-        formData.append('width', width.toString());
-        formData.append('height', height.toString());
+
+        response = await fetch(apiHost, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${apiKey}`,
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                text_prompts: [{ text: enhancedPrompt, weight: 1 }],
+                cfg_scale: 7,
+                samples: 1,
+                steps: 30,
+                width: width,
+                height: height,
+            }),
+        });
     } else {
-        // V2 (SD3) API Payload
+        // V2 (SD3) API expects FormData payload
+        const apiHost = `https://api.stability.ai/v2beta/stable-image/generate/${model === 'core' ? 'core' : 'sd3'}`;
+        const formData = new FormData();
         formData.append('prompt', enhancedPrompt);
         formData.append('output_format', 'jpeg');
         formData.append('aspect_ratio', aspectRatio);
         if (model === 'ultra') {
             formData.append('model', 'sd3-ultra');
         }
-    }
 
-    const response = await fetch(apiHost, {
-        method: 'POST',
-        headers: {
-            Authorization: `Bearer ${apiKey}`,
-            Accept: 'application/json',
-        },
-        body: formData,
-    });
+        response = await fetch(apiHost, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${apiKey}`,
+                Accept: 'application/json',
+            },
+            body: formData,
+        });
+    }
 
     if (!response.ok) {
         await handleStabilityAIError(response);

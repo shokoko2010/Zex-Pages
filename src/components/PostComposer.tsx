@@ -159,7 +159,7 @@ const PostComposer: React.FC<PostComposerProps> = ({
       getStabilityAIModels(stabilityApiKey)
         .then(models => {
             const allModels = [
-                ...models.filter((m: { id: string | string[]; }) => m.id.includes('stable-diffusion-v1') || m.id.includes('sd3')).map((m: any) => ({id: m.id, name: m.name}))
+                ...models.map((m: any) => ({id: m.id, name: m.name}))
             ];
             setStabilityModels(allModels);
             if(allModels.length > 0 && !allModels.find(m => m.id === stabilityModel)) {

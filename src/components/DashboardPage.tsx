@@ -193,12 +193,171 @@ const handlePageProfileChange = (newProfile: PageProfile) => {
   saveDataToFirestore({ pageProfile: newProfile });
 };
 
-const handlePublish = async () => { /* Placeholder for actual publish logic */ };
-const handleSaveDraft = async () => { /* Placeholder for actual save draft logic */ };
-const handleLoadDraft = (draftId: string) => { /* Placeholder for actual load draft logic */ };
-const handleDeleteDraft = async (draftId: string) => { /* Placeholder for actual delete draft logic */ };
-const handleEditScheduledPost = (postId: string) => { /* Placeholder for actual edit logic */ };
-const handleDeleteScheduledPost = async (postId: string) => { /* Placeholder for actual delete logic */ };
+const handleSaveDraft = async () => {
+  if (!postText.trim() && !selectedImage) {
+    showNotification('error', 'لا يمكن حفظ مسودة فارغة.');
+    return;
+  }
+  // ملاحظة: لا يمكن حفظ ملف الصورة نفسه في المسودة بدون حل تخزين (مثل Firebase Storage).
+  // سيتم حفظ النص، وسيحتاج المستخدم إلى إعادة تحديد الصورة عند تحميل المسودة.
+  const newDraft: Draft = {
+    id: `draft_${Date.now()}`,
+    text: postText,
+    hasImage: !!selectedImage,
+    imagePreview: imagePreview || undefined, // رابط المعاينة مؤقت
+    createdAt: new Date().toISOString(),
+  };
+
+  const updatedDrafts = [...drafts, newDraft];
+  setDrafts(updatedDrafts);
+  await saveDataToFirestore({ drafts: updatedDrafts.map(d => ({...d, imageFile: null})) }); // لا تحفظ كائن الملف
+
+  showNotification('success', 'تم حفظ المسودة! ملاحظة: يجب إعادة تحديد الصورة عند التحميل.');
+  clearComposer();
+};
+
+const handleLoadDraft = (draftId: string) => {
+  const draftToLoad = drafts.find(d => d.id === draftId);
+  if (draftToLoad) {
+    clearComposer();
+    setPostText(draftToLoad.text);
+    if (draftToLoad.hasImage) {
+      showNotification('partial', 'تم تحميل نص المسودة. يرجى إعادة تحديد الصورة للمتابعة.');
+    } else {
+      showNotification('success', 'تم تحميل المسودة.');
+    }
+    setView('composer');
+    // حذف المسودة بعد تحميلها لمنع التكرار
+    const updatedDrafts = drafts.filter(d => d.id !== draftId);
+    setDrafts(updatedDrafts);
+    saveDataToFirestore({ drafts: updatedDrafts });
+  }
+};
+
+const handleDeleteDraft = async (draftId: string) => {
+  const updatedDrafts = drafts.filter(d => d.id !== draftId);
+  setDrafts(updatedDrafts);
+  await saveDataToFirestore({ drafts: updatedDrafts });
+  showNotification('success', 'تم حذف المسودة.');
+};
+
+const handleDeleteScheduledPost = async (postId: string, silent: boolean = false) => {
+  if (!managedTarget.access_token) {
+      if (!silent) showNotification('error', 'رمز الوصول غير صالح.');
+      return;
+  }
+  try {
+      const response = await fetch(`https://graph.facebook.com/v20.0/${postId}?access_token=${managedTarget.access_token}`, {
+          method: 'DELETE'
+      });
+      const resData = await response.json();
+      if (!resData.success) {
+          throw new Error(resData.error?.message || 'فشل حذف المنشور من فيسبوك.');
+      }
+      const updatedScheduled = scheduledPosts.filter(p => p.id !== postId);
+      setScheduledPosts(updatedScheduled);
+      await saveDataToFirestore({ scheduledPosts: updatedScheduled.map(p => ({...p, scheduledAt: p.scheduledAt.toISOString()})) });
+      if (!silent) showNotification('success', 'تم حذف المنشور المجدول بنجاح.');
+  } catch (error: any) {
+      if (!silent) showNotification('error', `فشل الحذف: ${error.message}`);
+  }
+};
+
+const handlePublish = async () => {
+  setComposerError('');
+  if (!managedTarget.access_token) {
+      setComposerError('رمز الوصول للصفحة غير صالح. حاول إعادة المزامنة أو المصادقة.');
+      showNotification('error', 'رمز الوصول للصفحة غير صالح.');
+      return;
+  }
+  setIsPublishing(true);
+
+  try {
+      // إذا كنا نقوم بتعديل منشور مجدول، يجب حذفه أولاً
+      if (editingScheduledPostId) {
+          await handleDeleteScheduledPost(editingScheduledPostId, true); // الحذف بصمت
+      }
+
+      const { access_token, id: pageId } = managedTarget;
+      let endpoint = `https://graph.facebook.com/v20.0/${pageId}/feed`;
+      let response;
+
+      if (selectedImage) {
+          endpoint = `https://graph.facebook.com/v20.0/${pageId}/photos`;
+          const formData = new FormData();
+          formData.append('source', selectedImage);
+          if (postText.trim()) formData.append('caption', postText);
+          formData.append('access_token', access_token);
+          if (isScheduled && scheduleDate) {
+              formData.append('published', 'false');
+              formData.append('scheduled_publish_time', Math.floor(new Date(scheduleDate).getTime() / 1000).toString());
+          }
+          response = await fetch(endpoint, { method: 'POST', body: formData });
+      } else {
+          const params: any = { message: postText, access_token };
+          if (isScheduled && scheduleDate) {
+              params.published = false;
+              params.scheduled_publish_time = Math.floor(new Date(scheduleDate).getTime() / 1000);
+          }
+          response = await fetch(endpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(params),
+          });
+      }
+
+      const responseData = await response.json();
+      if (!response.ok) {
+          throw new Error(responseData.error?.message || 'استجابة خطأ من فيسبوك.');
+      }
+
+      showNotification('success', isScheduled ? 'تمت جدولة المنشور بنجاح!' : 'تم نشر المنشور بنجاح!');
+      clearComposer();
+      await syncFacebookData(managedTarget); // مزامنة البيانات لإظهار المنشور الجديد
+
+  } catch (error: any) {
+      setComposerError(`فشل النشر: ${error.message}`);
+      showNotification('error', `فشل النشر: ${error.message}`);
+  } finally {
+      setIsPublishing(false);
+  }
+};
+
+const handleEditScheduledPost = async (postId: string) => {
+  const postToEdit = scheduledPosts.find(p => p.id === postId);
+  if (postToEdit) {
+      clearComposer();
+      setPostText(postToEdit.text);
+      setIsScheduled(true);
+      // تنسيق التاريخ ليتوافق مع حقل datetime-local
+      const date = new Date(postToEdit.scheduledAt);
+      date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+      setScheduleDate(date.toISOString().slice(0, 16));
+      
+      setEditingScheduledPostId(postId);
+
+      if (postToEdit.imageUrl) {
+          // محاولة تحميل الصورة الموجودة لمعاينتها وإعادة استخدامها
+          try {
+              const imageResponse = await fetch(postToEdit.imageUrl);
+              const blob = await imageResponse.blob();
+              const fileName = postToEdit.imageUrl.split('?')[0].split('/').pop() || 'image.jpg';
+              const imageFile = new File([blob], fileName, { type: blob.type });
+              setSelectedImage(imageFile); // هذا سيؤدي إلى تحديث المعاينة تلقائيًا
+              showNotification('success', 'تم تحميل المنشور المجدول وبياناته.');
+          } catch (e) {
+              showNotification('partial', 'تم تحميل نص المنشور، لكن فشل تحميل الصورة. يرجى إعادة تحديدها.');
+              setImagePreview(postToEdit.imageUrl);
+              setSelectedImage(null);
+          }
+      } else {
+          setImagePreview(null);
+          setSelectedImage(null);
+      }
+      setView('composer');
+  }
+};
+
 const handleApprovePost = async (postId: string) => { /* Placeholder for actual approve logic */ };
 const handleRejectPost = async (postId: string) => { /* Placeholder for actual reject logic */ };
 
