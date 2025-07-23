@@ -60,42 +60,24 @@ const NavItem: React.FC<{
     active: boolean;
     onClick: () => void;
     notificationCount?: number;
-    isPolling?: boolean;
     disabled?: boolean;
-    disabledTooltip?: string;
-}> = ({ icon, label, active, onClick, notificationCount, isPolling, disabled = false, disabledTooltip }) => (
-    <div className="relative group">
-        <button
-            onClick={onClick}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-semibold transition-colors text-right ${
-                active
-                    ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
-                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50'
-            } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-            disabled={disabled}
-        >
-            {icon}
-            <span className="flex-grow">{label}</span>
-            {isPolling && <ArrowPathIcon className="w-4 h-4 text-gray-400 animate-spin mr-1" />}
-            {notificationCount && notificationCount > 0 ? (
-                <span className="bg-red-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full">{(notificationCount)}</span>
-            ) : null}
-        </button>
-        {disabled && disabledTooltip && (
-            <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-max px-2 py-1 bg-gray-900 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none">
-                {disabledTooltip}
-            </div>
-        )}
-    </div>
+}> = ({ icon, label, active, onClick, notificationCount, disabled = false }) => (
+    <button
+        onClick={onClick}
+        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-semibold transition-colors text-right ${
+            active
+                ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
+                : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50'
+        } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+        disabled={disabled}
+    >
+        {icon}
+        <span className="flex-grow">{label}</span>
+        {notificationCount && notificationCount > 0 ? (
+            <span className="bg-red-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full">{notificationCount}</span>
+        ) : null}
+    </button>
 );
-
-const initialAutoResponderSettings: AutoResponderSettings = {
-  rules: [],
-  fallback: {
-    mode: 'off',
-    staticMessage: 'شكرًا على رسالتك! سيقوم أحد ممثلينا بالرد عليك في أقرب وقت ممكن.',
-  },
-};
 
 const initialPageProfile: PageProfile = {
     description: '', services: '', contactInfo: '', website: '',
@@ -106,9 +88,7 @@ const initialPageProfile: PageProfile = {
 
 
 const DashboardPage: React.FC<DashboardPageProps> = ({
-  user, isAdmin, userPlan, plans, allUsers, managedTarget, allTargets, onChangePage, onLogout,
-  isSimulationMode, aiClient, stabilityApiKey, onSettingsClick, fetchWithPagination,
-  theme, onToggleTheme, fbAccessToken, strategyHistory, onSavePlan, onDeleteStrategy
+  user, isAdmin, userPlan, managedTarget, allTargets, onChangePage, onLogout, aiClient, stabilityApiKey, onSettingsClick, fetchWithPagination, theme, onToggleTheme, strategyHistory, onSavePlan, onDeleteStrategy
 }) => {
     const [view, setView] = useState<DashboardView>('composer');
     const [postText, setPostText] = useState('');
@@ -120,23 +100,17 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
     const [includeInstagram, setIncludeInstagram] = useState(false);
     const [editingScheduledPostId, setEditingScheduledPostId] = useState<string | null>(null);
     const [isPublishing, setIsPublishing] = useState(false);
-    const [notification, setNotification] = useState<{type: 'success' | 'error' | 'partial', message: string, onUndo?: () => void} | null>(null);
+    const [notification, setNotification] = useState<{type: 'success' | 'error' | 'partial', message: string} | null>(null);
     const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [pageProfile, setPageProfile] = useState<PageProfile>(initialPageProfile);
     const [currentUserRole, setCurrentUserRole] = useState<Role>('viewer');
     const [scheduledPosts, setScheduledPosts] = useState<ScheduledPost[]>([]);
     const [drafts, setDrafts] = useState<Draft[]>([]);
-    const [bulkPosts, setBulkPosts] = useState<BulkPostItem[]>([]);
-    const [isSchedulingAll, setIsSchedulingAll] = useState(false);
-    const [schedulingStrategy, setSchedulingStrategy] = useState<'even' | 'weekly'>('even');
-    const [weeklyScheduleSettings, setWeeklyScheduleSettings] = useState<WeeklyScheduleSettings>({ days: [1, 3, 5], time: '19:00' });
-    const [contentPlan, setContentPlan] = useState<ContentPlanItem[] | null>(null);
-    const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
-    const [isFetchingProfile, setIsFetchingProfile] = useState(false);
-    const [isSchedulingStrategy, setIsSchedulingStrategy] = useState(false);
-    const [planError, setPlanError] = useState<string | null>(null);
     const [publishedPosts, setPublishedPosts] = useState<PublishedPost[]>([]);
+    const [inboxItems, setInboxItems] = useState<InboxItem[]>([]);
     const [publishedPostsLoading, setPublishedPostsLoading] = useState(true);
+    const [isInboxLoading, setIsInboxLoading] = useState(true);
+    const [syncingTargetId, setSyncingTargetId] = useState<string | null>(null); 
     const [analyticsPeriod, setAnalyticsPeriod] = useState<'7d' | '30d'>('30d');
     const [performanceSummaryData, setPerformanceSummaryData] = useState<PerformanceSummaryData | null>(null);
     const [performanceSummaryText, setPerformanceSummaryText] = useState('');
@@ -145,19 +119,15 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
     const [heatmapData, setHeatmapData] = useState<HeatmapDataPoint[]>([]);
     const [contentTypeData, setContentTypePerformanceData] = useState<ContentTypePerformanceData[]>([]);
     const [isGeneratingDeepAnalytics, setIsGeneratingDeepAnalytics] = useState(false);
-    const [inboxItems, setInboxItems] = useState<InboxItem[]>([]);
-    const [isInboxLoading, setIsInboxLoading] = useState(true);
-    const [autoResponderSettings, setAutoResponderSettings] = useState<AutoResponderSettings>(initialAutoResponderSettings);
-    const [isPolling, setIsPolling] = useState(false);
-    const [syncingTargetId, setSyncingTargetId] = useState<string | null>(null); 
+    const [isFetchingProfile, setIsFetchingProfile] = useState(false);
 
     const linkedInstagramTarget = useMemo(() => allTargets.find(t => t.type === 'instagram' && t.parentPageId === managedTarget.id) || null, [managedTarget, allTargets]);
 
     useEffect(() => {
       if (selectedImage) {
-        const newUrl = URL.createObjectURL(selectedImage);
-        setImagePreview(newUrl);
-        return () => URL.revokeObjectURL(newUrl);
+        const url = URL.createObjectURL(selectedImage);
+        setImagePreview(url);
+        return () => URL.revokeObjectURL(url);
       }
       setImagePreview(null);
     }, [selectedImage]);
@@ -169,22 +139,10 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
     }, []);
 
     const getTargetDataRef = useCallback(() => db.collection('targets_data').doc(managedTarget.id), [managedTarget]);
-
     const saveDataToFirestore = useCallback(async (dataToSave: { [key: string]: any }) => {
       try { await getTargetDataRef().set(dataToSave, { merge: true }); }
-      catch (error) { showNotification('error', 'فشل حفظ البيانات في السحابة.'); }
+      catch (error) { showNotification('error', 'فشل حفظ البيانات.'); }
     }, [getTargetDataRef, showNotification]);
-
-    const clearComposer = useCallback(() => {
-      setPostText('');
-      setSelectedImage(null);
-      setImagePreview(null);
-      setIsScheduled(false);
-      setScheduleDate('');
-      setComposerError('');
-      setIncludeInstagram(false);
-      setEditingScheduledPostId(null);
-    }, []);
     
     const handlePageProfileChange = (newProfile: PageProfile) => {
       setPageProfile(newProfile);
@@ -200,95 +158,73 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
     };
 
     const syncFacebookData = useCallback(async (target: Target) => {
-        if (!target.access_token) {
-            showNotification('error', 'رمز الوصول للصفحة مفقود.');
-            return;
-        }
+        if (!target.access_token) { showNotification('error', 'رمز الوصول للصفحة مفقود.'); return; }
         setSyncingTargetId(target.id);
         showNotification('partial', `جاري مزامنة بيانات ${target.name}...`);
         
         try {
-            // **FIX for Facebook API change: Removed full_picture, using attachments**
             const fields = "id,message,created_time,likes.summary(true),comments.summary(true),shares,attachments{subattachments,media,type,url}";
-            const [fbScheduledPosts, fbPublishedPosts, fbFeed, fbConversations] = await Promise.all([
+            const [fbScheduled, fbPublished, fbFeed, fbConvos] = await Promise.all([
                  fetchWithPagination(`/${target.id}/scheduled_posts?fields=${fields}`, target.access_token),
                  fetchWithPagination(`/${target.id}/published_posts?fields=${fields}`, target.access_token),
                  fetchWithPagination(`/${target.id}/feed?fields=comments.limit(10){from,message,created_time,id},message,link,from,attachments`, target.access_token),
                  fetchWithPagination(`/${target.id}/conversations?fields=participants,messages.limit(1){from,to,message,created_time}`, target.access_token)
             ]);
             
-            const getImageUrlFromPost = (post: any) => post.attachments?.data[0]?.media?.image?.src || post.attachments?.data[0]?.subattachments?.data[0]?.media?.image?.src;
+            const getImageUrl = (post: any) => post.attachments?.data[0]?.media?.image?.src || post.attachments?.data[0]?.subattachments?.data[0]?.media?.image?.src;
 
-            const newScheduledPosts: ScheduledPost[] = fbScheduledPosts.map((post: any) => ({
-                id: post.id, text: post.message || '',
-                scheduledAt: new Date(post.scheduled_publish_time * 1000),
-                imageUrl: getImageUrlFromPost(post),
-                hasImage: !!getImageUrlFromPost(post),
-                targetId: target.id, targetInfo: { name: target.name, avatarUrl: target.picture.data.url, type: target.type },
+            setScheduledPosts(fbScheduled.map((post: any) => ({
+                id: post.id, text: post.message || '', scheduledAt: new Date(post.scheduled_publish_time * 1000),
+                imageUrl: getImageUrl(post), hasImage: !!getImageUrl(post), targetId: target.id,
+                targetInfo: { name: target.name, avatarUrl: target.picture.data.url, type: target.type },
                 status: 'scheduled', isReminder: false, type: 'post'
-            }));
-            setScheduledPosts(newScheduledPosts);
+            } as ScheduledPost)));
 
-            const newPublishedPosts: PublishedPost[] = fbPublishedPosts.map((post: any) => ({
+            setPublishedPosts(fbPublished.map((post: any) => ({
                 id: post.id, text: post.message || '', publishedAt: new Date(post.created_time),
-                imagePreview: getImageUrlFromPost(post),
-                analytics: {
-                    likes: post.likes?.summary?.total_count || 0,
-                    comments: post.comments?.summary?.total_count || 0,
-                    shares: post.shares?.count || 0,
-                    lastUpdated: new Date().toISOString(),
-                },
+                imagePreview: getImageUrl(post),
+                analytics: { likes: post.likes?.summary?.total_count || 0, comments: post.comments?.summary?.total_count || 0, shares: post.shares?.count || 0, lastUpdated: new Date().toISOString() },
                 pageId: target.id, pageName: target.name, pageAvatarUrl: target.picture.data.url,
-            }));
-            setPublishedPosts(newPublishedPosts);
+            } as PublishedPost)));
 
-            const newInboxItems: InboxItem[] = [];
+            const newInbox: InboxItem[] = [];
             fbFeed.forEach((post: any) => {
-                if (post.comments) {
-                    post.comments.data.forEach((comment: any) => {
-                        if (comment.from.id !== target.id) {
-                            newInboxItems.push({
-                                id: comment.id, type: 'comment', from: comment.from,
-                                text: comment.message, timestamp: comment.created_time, status: 'new',
-                                link: post.link, post: { message: post.message, picture: getImageUrlFromPost(post) },
-                                authorName: comment.from.name,
-                                authorPictureUrl: `https://graph.facebook.com/${comment.from.id}/picture?type=normal`
-                            } as InboxItem);
-                        }
-                    });
-                }
+                if(post.comments) post.comments.data.forEach((comment: any) => {
+                    if (comment.from.id !== target.id) newInbox.push({
+                        id: comment.id, type: 'comment', from: comment.from, text: comment.message,
+                        timestamp: comment.created_time, status: 'new', link: post.link,
+                        post: { message: post.message, picture: getImageUrl(post) },
+                        authorName: comment.from.name, authorPictureUrl: `https://graph.facebook.com/${comment.from.id}/picture?type=normal`
+                    } as InboxItem);
+                });
             });
-            fbConversations.forEach((convo: any) => {
-                const lastMessage = convo.messages?.data[0];
-                if (lastMessage && lastMessage.from.id !== target.id) {
+            fbConvos.forEach((convo: any) => {
+                const lastMsg = convo.messages?.data[0];
+                if (lastMsg && lastMsg.from.id !== target.id) {
                      const participant = convo.participants.data.find((p: any) => p.id !== target.id);
-                     newInboxItems.push({
-                        id: lastMessage.id, type: 'message', from: participant,
-                        text: lastMessage.message, timestamp: lastMessage.created_time, status: 'new',
-                        conversationId: convo.id, authorName: participant.name,
-                        authorPictureUrl: `https://graph.facebook.com/${participant.id}/picture?type=normal`
+                     newInbox.push({
+                        id: lastMsg.id, type: 'message', from: participant, text: lastMsg.message,
+                        timestamp: lastMsg.created_time, status: 'new', conversationId: convo.id,
+                        authorName: participant.name, authorPictureUrl: `https://graph.facebook.com/${participant.id}/picture?type=normal`
                     } as InboxItem);
                 }
             });
-            newInboxItems.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-            setInboxItems(newInboxItems);
+            setInboxItems(newInbox.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
 
             await saveDataToFirestore({
-                scheduledPosts: newScheduledPosts.map(p => ({...p, scheduledAt: p.scheduledAt.toISOString()})),
-                publishedPosts: newPublishedPosts.map(p => ({...p, publishedAt: p.publishedAt.toISOString()})),
-                inboxItems: newInboxItems,
-                lastSync: new Date().toISOString()
+                scheduledPosts: scheduledPosts.map(p => ({...p, scheduledAt: p.scheduledAt.toISOString()})),
+                publishedPosts: publishedPosts.map(p => ({...p, publishedAt: p.publishedAt.toISOString()})),
+                inboxItems: newInbox, lastSync: new Date().toISOString()
             });
-            showNotification('success', 'تمت مزامنة بيانات فيسبوك بنجاح!');
+            showNotification('success', 'تمت المزامنة بنجاح!');
         } catch (error: any) {
-            console.error("Facebook Sync Error:", error);
-            showNotification('error', `فشل المزامنة مع فيسبوك: ${error.message}`);
+            showNotification('error', `فشل المزامنة: ${error.message}`);
         } finally {
             setSyncingTargetId(null);
             setIsInboxLoading(false);
             setPublishedPostsLoading(false);
         }
-    }, [fetchWithPagination, saveDataToFirestore, showNotification]);
+    }, [fetchWithPagination, saveDataToFirestore, showNotification, scheduledPosts, publishedPosts]);
 
     useEffect(() => {
         const loadDataAndSync = async () => {
@@ -302,23 +238,19 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
                 const data = docSnap.data()!;
                 loadedProfile = { ...initialPageProfile, ...(data.pageProfile || {}) };
                 setDrafts(data.drafts || []);
-                setScheduledPosts(data.scheduledPosts?.map((p: any) => ({...p, scheduledAt: new Date(p.scheduledAt)})) || []);
-                setPublishedPosts(data.publishedPosts?.map((p:any) => ({...p, publishedAt: new Date(p.publishedAt)})) || []);
-                setInboxItems(data.inboxItems || []);
             }
             
             if (isAdmin || loadedProfile.ownerUid === user.uid) {
                 setCurrentUserRole('owner');
             } else {
-                const teamMember = loadedProfile.team?.find(m => m.uid === user.uid);
-                setCurrentUserRole(teamMember?.role || 'viewer');
+                setCurrentUserRole(loadedProfile.team?.find(m => m.uid === user.uid)?.role || 'viewer');
             }
             
             setPageProfile(loadedProfile);
             await syncFacebookData(managedTarget);
         };
         loadDataAndSync();
-    }, [managedTarget.id, user.uid, isAdmin]);
+    }, [managedTarget.id, user.uid, isAdmin, getTargetDataRef, syncFacebookData]);
 
     const handlePublish = async (postType: PostType) => { /* ... */ };
     const handleSaveDraft = async () => { /* ... */ };
@@ -330,34 +262,31 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
     const handleDeleteDraft = (draftId: string) => { /* ... */ };
     const onGeneratePerformanceSummary = async () => { /* ... */ };
     const onGenerateDeepAnalytics = async () => { /* ... */ };
-    const onFetchPostInsights = async (postId: string) => { return null; };
+    const onFetchPostInsights = async (postId: string): Promise<any> => { return null; };
       
       const renderView = () => {
           switch (view) {
-              case 'composer':
-                  return <PostComposer onPublish={handlePublish} onSaveDraft={handleSaveDraft} isPublishing={isPublishing} postText={postText} onPostTextChange={setPostText} onImageChange={(e: React.ChangeEvent<HTMLInputElement>) => setSelectedImage(e.target.files ? e.target.files[0] : null)} onImageGenerated={setSelectedImage} onImageRemove={() => setSelectedImage(null)} imagePreview={imagePreview} selectedImage={selectedImage} isScheduled={isScheduled} onIsScheduledChange={setIsScheduled} scheduleDate={scheduleDate} onScheduleDateChange={setScheduleDate} error={composerError} aiClient={aiClient} stabilityApiKey={stabilityApiKey} managedTarget={managedTarget} linkedInstagramTarget={linkedInstagramTarget} includeInstagram={includeInstagram} onIncludeInstagramChange={setIncludeInstagram} pageProfile={pageProfile} editingScheduledPostId={editingScheduledPostId} role={currentUserRole} userPlan={userPlan} />;
-              case 'analytics':
-                  return <AnalyticsPage publishedPosts={publishedPosts} publishedPostsLoading={publishedPostsLoading} analyticsPeriod={analyticsPeriod} setAnalyticsPeriod={setAnalyticsPeriod} performanceSummaryData={performanceSummaryData} performanceSummaryText={performanceSummaryText} isGeneratingSummary={isGeneratingSummary} audienceGrowthData={audienceGrowthData} heatmapData={heatmapData} contentTypeData={contentTypeData} isGeneratingDeepAnalytics={isGeneratingDeepAnalytics} managedTarget={managedTarget} userPlan={userPlan} currentUserRole={currentUserRole} onGeneratePerformanceSummary={onGeneratePerformanceSummary} onGenerateDeepAnalytics={onGenerateDeepAnalytics} onFetchPostInsights={onFetchPostInsights} />;
-              case 'profile':
-                  return <PageProfilePage profile={pageProfile} onProfileChange={handlePageProfileChange} isFetchingProfile={isFetchingProfile} onFetchProfile={handleFetchProfile} role={currentUserRole} user={user} />;
-              case 'ads':
-                  return <AdsManagerPage selectedTarget={managedTarget} role={currentUserRole} />;
-              // Add other cases for other views
-              default:
-                  return <div>مرحباً بك في لوحة التحكم!</div>;
+              case 'composer': return <PostComposer onPublish={handlePublish} onSaveDraft={handleSaveDraft} isPublishing={isPublishing} postText={postText} onPostTextChange={setPostText} onImageChange={(e) => setSelectedImage(e.target.files ? e.target.files[0] : null)} onImageGenerated={setSelectedImage} onImageRemove={() => setSelectedImage(null)} imagePreview={imagePreview} selectedImage={selectedImage} isScheduled={isScheduled} onIsScheduledChange={setIsScheduled} scheduleDate={scheduleDate} onScheduleDateChange={setScheduleDate} error={composerError} aiClient={aiClient} stabilityApiKey={stabilityApiKey} managedTarget={managedTarget} linkedInstagramTarget={linkedInstagramTarget} includeInstagram={includeInstagram} onIncludeInstagramChange={setIncludeInstagram} pageProfile={pageProfile} editingScheduledPostId={editingScheduledPostId} role={currentUserRole} userPlan={userPlan} />;
+              case 'calendar': return <ContentCalendar posts={scheduledPosts} onEdit={handleEditScheduledPost} onDelete={handleDeleteScheduledPost} managedTarget={managedTarget} userPlan={userPlan} role={currentUserRole} onApprove={handleApprovePost} onReject={handleRejectPost} onSync={() => syncFacebookData(managedTarget)} isSyncing={!!syncingTargetId} />;
+              case 'drafts': return <DraftsList drafts={drafts} onLoad={handleLoadDraft} onDelete={handleDeleteDraft} role={currentUserRole} />;
+              case 'inbox': return <InboxPage items={inboxItems} isLoading={isInboxLoading} onReply={async () => true} onMarkAsDone={() => {}} onLike={async () => {}} onGenerateSmartReplies={async () => []} onFetchMessageHistory={() => {}} autoResponderSettings={{rules: [], fallback: {mode: 'off'}}} onAutoResponderSettingsChange={() => {}} onSync={() => syncFacebookData(managedTarget)} isSyncing={!!syncingTargetId} aiClient={aiClient} role={currentUserRole} repliedUsersPerPost={{}} currentUserRole={currentUserRole} selectedTarget={managedTarget} />;
+              case 'analytics': return <AnalyticsPage publishedPosts={publishedPosts} publishedPostsLoading={publishedPostsLoading} analyticsPeriod={analyticsPeriod} setAnalyticsPeriod={setAnalyticsPeriod} performanceSummaryData={performanceSummaryData} performanceSummaryText={performanceSummaryText} isGeneratingSummary={isGeneratingSummary} audienceGrowthData={audienceGrowthData} heatmapData={heatmapData} contentTypeData={contentTypeData} isGeneratingDeepAnalytics={isGeneratingDeepAnalytics} managedTarget={managedTarget} userPlan={userPlan} currentUserRole={currentUserRole} onGeneratePerformanceSummary={onGeneratePerformanceSummary} onGenerateDeepAnalytics={onGenerateDeepAnalytics} onFetchPostInsights={onFetchPostInsights} />;
+              case 'profile': return <PageProfilePage profile={pageProfile} onProfileChange={handlePageProfileChange} isFetchingProfile={isFetchingProfile} onFetchProfile={handleFetchProfile} role={currentUserRole} user={user} />;
+              case 'ads': return <AdsManagerPage selectedTarget={managedTarget} role={currentUserRole} />;
+              default: return <div className="p-8 text-center">اختر قسمًا من القائمة للبدء.</div>;
           }
       };
 
       return (
         <>
           <Header pageName={managedTarget.name} onChangePage={onChangePage} onLogout={onLogout} onSettingsClick={onSettingsClick} theme={theme} onToggleTheme={onToggleTheme} />
-          {notification && <div className={`fixed bottom-4 right-4 p-4 rounded-md text-white text-sm z-50 ${notification.type === 'success' ? 'bg-green-500' : notification.type === 'error' ? 'bg-red-500' : 'bg-yellow-500'}`}>{notification.message}</div>}
+          {notification && <div className={`fixed bottom-4 right-4 p-4 rounded-md text-white text-sm z-50 ${notification.type === 'success' ? 'bg-green-500' : 'bg-red-500'}`}>{notification.message}</div>}
           <div className="flex flex-col md:flex-row min-h-[calc(100vh-68px)]">
             <aside className="w-full md:w-64 bg-white dark:bg-gray-800 p-4 border-r dark:border-gray-700/50 flex-shrink-0">
               <nav className="space-y-2">
                  <NavItem icon={<PencilSquareIcon className="w-5 h-5" />} label="إنشاء منشور" active={view === 'composer'} onClick={() => setView('composer')} />
-                 <NavItem icon={<QueueListIcon className="w-5 h-5" />} label="الجدولة المجمعة" active={view === 'bulk'} onClick={() => setView('bulk')} />
-                 <NavItem icon={<BrainCircuitIcon className="w-5 h-5" />} label="استراتيجيات المحتوى" active={view === 'planner'} onClick={() => setView('planner')} />
+                 <NavItem icon={<QueueListIcon className="w-5 h-5" />} label="الجدولة المجمعة" active={view === 'bulk'} onClick={() => setView('bulk')} disabled={currentUserRole==='viewer'} />
+                 <NavItem icon={<BrainCircuitIcon className="w-5 h-5" />} label="استراتيجيات المحتوى" active={view === 'planner'} onClick={() => setView('planner')} disabled={currentUserRole==='viewer'}/>
                  <NavItem icon={<CalendarIcon className="w-5 h-5" />} label="تقويم المحتوى" active={view === 'calendar'} onClick={() => setView('calendar')} />
                  <NavItem icon={<ArchiveBoxIcon className="w-5 h-5" />} label="المسودات" active={view === 'drafts'} onClick={() => setView('drafts')} />
                  <NavItem icon={<InboxArrowDownIcon className="w-5 h-5" />} label="صندوق الوارد" active={view === 'inbox'} onClick={() => setView('inbox')} notificationCount={inboxItems.filter(i => i.status === 'new').length} />

@@ -9,17 +9,14 @@ import { Target, PageProfile, Role, Plan, PostType } from '../types';
 import InstagramIcon from './icons/InstagramIcon';
 import HashtagIcon from './icons/HashtagIcon';
 import CanvaIcon from './icons/CanvaIcon';
-import ArrowPathIcon from './icons/ArrowPathIcon';
-import ArrowUpTrayIcon from './icons/ArrowUpTrayIcon';
 import XCircleIcon from './icons/XCircleIcon';
-import PencilSquareIcon from './icons/PencilSquareIcon';
 import Squares2x2Icon from './icons/Squares2x2Icon';
 import StarIcon from './icons/StarIcon';
 import ClockIcon from './icons/ClockIcon';
 
-// Assume these service functions exist and are imported
+// Assume these service functions exist and are imported correctly
 import { generatePostSuggestion, generateImageFromPrompt, getBestPostingTime, generateHashtags, generateDescriptionForImage } from '../services/geminiService';
-import { generateImageWithStabilityAI, getStabilityAIModels, imageToImageWithStabilityAI, upscaleImageWithStabilityAI, inpaintingWithStabilityAI } from '../services/stabilityai';
+import { generateImageWithStabilityAI } from '../services/stabilityai';
 
 
 interface PostComposerProps {
@@ -72,19 +69,15 @@ const PostComposer: React.FC<PostComposerProps> = ({
   const [isGeneratingText, setIsGeneratingText] = useState(false);
   const [aiTextError, setAiTextError] = useState('');
   
-  const [imageService, setImageService] = useState<'gemini' | 'stability'>('gemini');
   const [aiImagePrompt, setAiImagePrompt] = useState('');
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [aiImageError, setAiImageError] = useState('');
-  const [isGeneratingDesc, setIsGeneratingDesc] = useState(false);
-  const [imageStyle, setImageStyle] = useState('Photographic');
-  const [imageAspectRatio, setImageAspectRatio] = useState('1:1');
-
+  
   const [postType, setPostType] = useState<PostType>('post');
   const isViewer = role === 'viewer';
 
   const handleGenerateTextWithAI = async () => {
-    if (!aiClient || !aiTopic.trim()) return;
+    if (!aiClient || !aiTopic.trim() || isViewer) return;
     setIsGeneratingText(true);
     setAiTextError('');
     try {
@@ -98,7 +91,7 @@ const PostComposer: React.FC<PostComposerProps> = ({
   };
 
   const handleGenerateImageWithAI = async () => {
-    if (!aiImagePrompt.trim()) {
+    if (!aiImagePrompt.trim() || isViewer) {
       setAiImageError('Please enter a prompt.');
       return;
     }
@@ -106,10 +99,10 @@ const PostComposer: React.FC<PostComposerProps> = ({
     setAiImageError('');
     try {
       let base64Bytes: string;
-      if (imageService === 'stability' && stabilityApiKey) {
-        base64Bytes = await generateImageWithStabilityAI(stabilityApiKey, aiImagePrompt, imageStyle, imageAspectRatio, 'stable-diffusion-v1-6', aiClient);
+      if (stabilityApiKey) {
+        base64Bytes = await generateImageWithStabilityAI(stabilityApiKey, aiImagePrompt, 'Photographic', '1:1', 'stable-diffusion-v1-6', aiClient);
       } else if (aiClient) {
-        base64Bytes = await generateImageFromPrompt(aiClient, aiImagePrompt, imageStyle, imageAspectRatio);
+        base64Bytes = await generateImageFromPrompt(aiClient, aiImagePrompt, 'Photographic', '1:1');
       } else {
         throw new Error("AI service not configured.");
       }
@@ -139,21 +132,21 @@ const PostComposer: React.FC<PostComposerProps> = ({
       <h2 className="text-2xl font-bold text-gray-800 dark:text-white">{editingScheduledPostId ? 'تعديل المنشور' : 'إنشاء منشور جديد'}</h2>
       
       <div className="p-4 border rounded-lg bg-gray-50 dark:bg-gray-700/50">
-          <label htmlFor="ai-topic" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">مساعد النصوص بالذكاء الاصطناعي</label>
+          <label htmlFor="ai-topic" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">مساعد النصوص بالذكاء الاصطناعي ✨</label>
           <div className="flex gap-2">
-            <input id="ai-topic" type="text" value={aiTopic} onChange={(e) => setAiTopic(e.target.value)} placeholder="اكتب فكرة للمنشور..." className="flex-grow p-2 border rounded-md" disabled={isGeneratingText || !aiClient || isViewer}/>
-            <Button onClick={handleGenerateTextWithAI} isLoading={isGeneratingText} disabled={!aiClient || isViewer}><SparklesIcon className="w-5 h-5"/> توليد نص</Button>
+            <input id="ai-topic" type="text" value={aiTopic} onChange={(e) => setAiTopic(e.target.value)} placeholder="اكتب فكرة للمنشور..." className="flex-grow p-2 border rounded-md bg-white dark:bg-gray-800" disabled={isGeneratingText || !aiClient || isViewer}/>
+            <Button onClick={handleGenerateTextWithAI} isLoading={isGeneratingText} disabled={!aiClient || isViewer}><SparklesIcon className="w-5 h-5 ml-1"/> توليد نص</Button>
           </div>
           {aiTextError && <p className="text-red-500 text-sm mt-2">{aiTextError}</p>}
       </div>
 
-      <textarea value={postText} onChange={(e) => onPostTextChange(e.target.value)} placeholder="بماذا تفكر؟" className="w-full h-48 p-3 border rounded-md" disabled={isViewer} />
+      <textarea value={postText} onChange={(e) => onPostTextChange(e.target.value)} placeholder="بماذا تفكر؟ اكتب منشورك هنا..." className="w-full h-48 p-3 border rounded-md dark:bg-gray-700 dark:text-white" disabled={isViewer} />
       
         <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">نوع المحتوى</label>
             <div className="flex bg-gray-200 dark:bg-gray-700 rounded-lg p-1 space-x-1">
                 {postTypeOptions.map(({ type, label, icon: Icon, available }) => (
-                    <button key={type} onClick={() => setPostType(type)} disabled={!available || isViewer} className={`flex-1 p-2 rounded-md text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 ${postType === type ? 'bg-white dark:bg-gray-900 shadow' : 'hover:bg-gray-300 dark:hover:bg-gray-600'}`}>
+                    <button key={type} onClick={() => setPostType(type)} disabled={!available || isViewer} className={`flex-1 p-2 rounded-md text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition-colors ${postType === type ? 'bg-white dark:bg-gray-900 shadow text-blue-600' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'}`}>
                         <Icon className="w-5 h-5" /> {label}
                     </button>
                 ))}
@@ -163,39 +156,39 @@ const PostComposer: React.FC<PostComposerProps> = ({
       {imagePreview && (
         <div className="relative w-40">
           <img src={imagePreview} alt="Preview" className="rounded-lg w-full h-auto" />
-          {!isViewer && <button onClick={onImageRemove} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1">&times;</button>}
+          {!isViewer && <button onClick={onImageRemove} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 w-6 h-6 flex items-center justify-center">&times;</button>}
         </div>
       )}
 
       <div className="p-4 border rounded-lg bg-gray-50 dark:bg-gray-700/50 space-y-3">
-          <label className="block text-sm font-medium">مولّد الصور بالذكاء الاصطناعي</label>
+          <label className="block text-sm font-medium">مولّد الصور بالذكاء الاصطناعي 🤖</label>
           <div className="flex gap-2">
-            <input id="ai-image-prompt" type="text" value={aiImagePrompt} onChange={(e) => setAiImagePrompt(e.target.value)} placeholder="وصف الصورة..." className="flex-grow p-2 border rounded-md" disabled={isGeneratingImage || isViewer} />
+            <input id="ai-image-prompt" type="text" value={aiImagePrompt} onChange={(e) => setAiImagePrompt(e.target.value)} placeholder="وصف الصورة، مثلاً: رائد فضاء على المريخ" className="flex-grow p-2 border rounded-md bg-white dark:bg-gray-800" disabled={isGeneratingImage || isViewer} />
             <Button onClick={handleGenerateImageWithAI} isLoading={isGeneratingImage} disabled={isViewer || (!aiClient && !stabilityApiKey)}>
-                <PhotoIcon className="w-5 h-5"/> إنشاء صورة
+                <PhotoIcon className="w-5 h-5 ml-1"/> إنشاء صورة
             </Button>
           </div>
           {aiImageError && <p className="text-red-500 text-sm mt-2">{aiImageError}</p>}
       </div>
 
-      <div className="p-4 border rounded-lg">
+      <div className="p-4 border rounded-lg dark:border-gray-700">
         <div className="flex items-center">
-            <input id="schedule-checkbox" type="checkbox" checked={isScheduled} onChange={e => onIsScheduledChange(e.target.checked)} className="h-4 w-4 rounded" disabled={isViewer}/>
+            <input id="schedule-checkbox" type="checkbox" checked={isScheduled} onChange={e => onIsScheduledChange(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-blue-600" disabled={isViewer}/>
             <label htmlFor="schedule-checkbox" className="mr-2 text-sm font-medium">جدولة المنشور</label>
         </div>
         {isScheduled && (
             <div className="mt-3">
-                <input type="datetime-local" value={scheduleDate} onChange={e => onScheduleDateChange(e.target.value)} className="p-2 border rounded-md" disabled={isViewer}/>
+                <input type="datetime-local" value={scheduleDate} onChange={e => onScheduleDateChange(e.target.value)} className="p-2 border rounded-md dark:bg-gray-800" disabled={isViewer}/>
             </div>
         )}
       </div>
 
-      <div className="flex justify-between items-center">
-        <div>
+      <div className="flex justify-between items-center flex-wrap gap-2">
+        <div className="flex items-center gap-2">
             <input type="file" id="imageUpload" className="hidden" accept="image/*" onChange={onImageChange} />
-            <Button variant="secondary" onClick={() => document.getElementById('imageUpload')?.click()} disabled={isViewer}><PhotoIcon className="w-5 h-5"/> أضف صورة</Button>
+            <Button variant="secondary" onClick={() => document.getElementById('imageUpload')?.click()} disabled={isViewer}><PhotoIcon className="w-5 h-5 ml-1"/> أضف صورة</Button>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
          <Button variant="secondary" onClick={onSaveDraft} disabled={isPublishing || isViewer}>حفظ كمسودة</Button>
         <Button onClick={() => onPublish(postType)} isLoading={isPublishing} disabled={isViewer}>{getPublishButtonText()}</Button>
         </div>
