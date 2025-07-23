@@ -401,7 +401,6 @@ const App: React.FC = () => {
             user={user}
             isAdmin={appUser.isAdmin || false}
             userPlan={userPlan}
-            plans={plans}
             allUsers={allUsers}
             managedTarget={selectedTarget}
             allTargets={targets}
