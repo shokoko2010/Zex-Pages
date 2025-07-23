@@ -1,13 +1,14 @@
+
 export interface Target {
   id: string;
   name: string;
   picture: {
-      data: {
-          url: string;
-      };
+    data: {
+      url: string;
+    };
   };
   access_token?: string;
-  parentPageId?: string; // For Instagram business accounts linked to a Facebook Page
+  parentPageId?: string; 
   type: 'facebook' | 'instagram';
   isFavorite?: boolean;
 }
@@ -22,8 +23,8 @@ export interface PostAnalytics {
   likes?: number;
   comments?: number;
   shares?: number;
-  loading?: boolean; // Added
-  lastUpdated?: string; // ISO string, Added
+  loading?: boolean;
+  lastUpdated?: string;
 }
 
 export interface PublishedPost {
@@ -32,29 +33,29 @@ export interface PublishedPost {
   publishedAt: Date;
   imagePreview?: string;
   analytics: PostAnalytics;
-  pageId: string; // Added
-  pageName: string; // Added
-  pageAvatarUrl: string; // Added
+  pageId: string;
+  pageName: string;
+  pageAvatarUrl: string;
 }
 
 export interface ScheduledPost {
-  id: string; // This can be the local ID or the Facebook post ID after syncing
-  postId?: string; // The definitive Facebook Post ID from FB Graph API
+  id: string;
+  postId?: string;
   text: string;
   imageUrl?: string;
-  imageFile?: File; // For reminder re-publishing, or initially uploaded file
-  hasImage?: boolean; // To track if an image exists, even if preview is gone
-  scheduledAt: Date; // Actual scheduled date for FB scheduler
-  isReminder: boolean; // Is this a reminder post (not directly from FB scheduler)
-  targetId: string; // ID of the target (page/group/ig)
-  targetInfo: { // Simplified target info for scheduled post display
-      name: string;
-      avatarUrl: string;
-      type: 'facebook' | 'instagram';
+  imageFile?: File;
+  hasImage?: boolean;
+  scheduledAt: Date;
+  isReminder: boolean;
+  targetId: string;
+  targetInfo: {
+    name: string;
+    avatarUrl: string;
+    type: 'facebook' | 'instagram';
   }
-  publishedAt?: string; // ISO string for when it was actually published by FB
-  isSynced?: boolean; // To indicate it's synced with Facebook's scheduler
-  status?: 'pending' | 'approved' | 'rejected' | 'scheduled' | 'error'; // Updated status types
+  publishedAt?: string;
+  isSynced?: boolean;
+  status?: 'pending' | 'approved' | 'rejected' | 'scheduled' | 'error';
 }
 
 export interface Draft {
@@ -63,6 +64,7 @@ export interface Draft {
   imagePreview?: string;
   imageFile?: File;
   createdAt: string;
+  hasImage?: boolean;
 }
 
 export interface ContentPlanItem {
@@ -88,8 +90,8 @@ export interface StrategyRequest {
 }
 
 export interface WeeklyScheduleSettings {
-  days: number[]; // Array of day numbers (0 for Sunday, 6 for Saturday)
-  time: string; // "HH:MM"
+  days: number[];
+  time: string;
 }
 
 export interface BulkPostItem {
@@ -98,10 +100,10 @@ export interface BulkPostItem {
   imageFile?: File;
   imagePreview?: string;
   hasImage: boolean;
-  scheduleDate: string; // ISO string
-  targetIds: string[]; // Array of selected target IDs
-  service?: 'gemini' | 'stability'; // For AI image generation
-  prompt?: string; // For AI image generation
+  scheduleDate: string;
+  targetIds: string[];
+  service?: 'gemini' | 'stability';
+  prompt?: string;
 }
 
 export interface PageProfile {
@@ -109,15 +111,15 @@ export interface PageProfile {
   services: string;
   contactInfo: string;
   website: string;
-  links: { label: string; url: string }[];
+  links: Link[];
   currentOffers: string;
   address: string;
   country: string;
-  language: 'ar' | 'en' | 'mix'; // Primary language of the page content
-  contentGenerationLanguages: ('ar' | 'en')[]; // Languages AI should generate content in
-  ownerUid: string; // User ID of the page owner
-  team: { uid: string; role: Role }[]; // Array of team members and their roles
-  members: string[]; // UIDs of all members (owner + team members)
+  language: 'ar' | 'en' | 'mix';
+  contentGenerationLanguages: ('ar' | 'en')[];
+  ownerUid: string;
+  team: TeamMember[];
+  members: string[];
 }
 
 export type Role = 'owner' | 'admin' | 'editor' | 'viewer';
@@ -127,9 +129,19 @@ export interface AppUser {
   email: string;
   displayName: string | null;
   photoURL: string | null;
-  currentPlan: string; // ID of the active plan (e.g., 'free', 'pro')
-  planExpiryDate?: string; // ISO string
-  // Add other user profile info as needed
+  currentPlan: string;
+  planExpiryDate?: string;
+  isAdmin?: boolean;
+  geminiApiKey?: string;
+  stabilityApiKey?: string;
+  favoriteTargetIds?: string[];
+  onboardingCompleted?: boolean;
+  targets?: Target[];
+  fbAccessToken?: string;
+  planId?: string;
+  createdAt?: number;
+  name?: string;
+  lastLoginIp?: string;
 }
 
 export interface Plan {
@@ -139,47 +151,71 @@ export interface Plan {
   priceAnnual: number;
   description: string;
   features: string[];
-  limits: {
-      maxPages: number;
-      maxTeamMembers: number;
-      aiFeatures: boolean;
-      bulkScheduling: boolean;
-      contentPlanner: boolean;
-      autoResponder: boolean;
-      contentApprovalWorkflow: boolean;
-      maxScheduledPostsPerMonth: number;
-      imageGenerationQuota: number; // e.g., number of images per month
-  };
-  adminOnly?: boolean; // If this plan is for internal admins only
+  limits: PlanLimits;
+  adminOnly?: boolean;
+  price?: number;
+  pricePeriod?: 'monthly' | 'annual';
 }
 
 export interface StrategyHistoryItem {
   id: string;
   strategyRequest: StrategyRequest;
   contentPlan: ContentPlanItem[];
-  timestamp: string; // ISO string
+  timestamp: string;
   pageId: string;
+  summary?: string;
+  createdAt?: number;
+  plan?: any;
 }
 
+export interface InboxMessage {
+    id: string;
+    text: string;
+    from: 'user' | 'page';
+    timestamp: string;
+}
 export interface InboxItem {
-  id: string; // Unique ID for the conversation/comment
+  id: string;
   type: 'comment' | 'message';
   from: {
-      id: string;
-      name: string;
-      profilePictureUrl?: string;
+    id: string;
+    name: string;
+    profilePictureUrl?: string;
   };
   text: string;
-  timestamp: string; // ISO string
-  status: 'new' | 'replied' | 'done'; // 'new', 'replied', 'done'
-  context?: string; // e.g., post ID or message thread ID
-  link?: string; // Link to the comment/message on Facebook/Instagram
+  timestamp: string;
+  status: 'new' | 'replied' | 'done';
+  context?: string;
+  link?: string;
+  messages: InboxMessage[];
+  conversationId: string;
+  isReplied: boolean;
+  authorPictureUrl: string;
+  authorName: string;
+  post?:any;
+  authorId?:string;
 }
+
+export type AutoResponderAction = {
+  type: 'like' | 'reply';
+  delay: number; // in seconds
+  message?: string; // only for reply
+};
+
+export type AutoResponderTriggerSource = 'comments' | 'messages';
+export type AutoResponderMatchType = 'exact' | 'contains';
+export type AutoResponderActionType = 'like' | 'reply';
 
 export interface AutoResponderRule {
   keywords: string[];
   response: string;
   active: boolean;
+  trigger: any;
+  actions: any;
+  enabled: boolean;
+  name: string;
+  id: string;
+  replyOncePerUser: boolean;
 }
 
 export interface AutoResponderFallback {
@@ -193,14 +229,14 @@ export interface AutoResponderSettings {
 }
 
 export interface AudienceGrowthData {
-  date: string; // YYYY-MM-DD
-  followers: number;
+  date: string;
+  fanCount: number;
 }
 
 export interface HeatmapDataPoint {
-  day: number; // 0 (Sunday) to 6 (Saturday)
-  hour: number; // 0 to 23
-  engagement: number; // Normalized from 0 to 1
+  day: number;
+  hour: number;
+  engagement: number;
 }
 
 export interface ContentTypePerformanceData {
@@ -213,4 +249,45 @@ export interface PerformanceSummaryData {
   totalPosts: number;
   averageEngagement: number;
   growthRate: number;
+  totalReach: number;
+  totalEngagement: number;
+  engagementRate: number;
+  topPosts: any[];
+  postCount: number;
+}
+
+export interface Link {
+    id: string;
+    label: string;
+    url: string;
+}
+
+export interface PlanLimits {
+    maxPages: number;
+    maxTeamMembers: number;
+    aiFeatures: boolean;
+    bulkScheduling: boolean;
+    contentPlanner: boolean;
+    autoResponder: boolean;
+    contentApprovalWorkflow: boolean;
+    maxScheduledPostsPerMonth: number;
+    imageGenerationQuota: number;
+    pages: number;
+    scheduledPosts: number;
+    drafts: number;
+    aiText: boolean;
+    aiImage: boolean;
+    deepAnalytics: boolean;
+}
+
+export interface TeamMember {
+    uid: string;
+    role: Role;
+    email: string;
+}
+
+declare global {
+    interface Window {
+        FB: any;
+    }
 }
