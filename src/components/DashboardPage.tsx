@@ -173,19 +173,21 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
             
             const getImageUrl = (post: any) => post.attachments?.data[0]?.media?.image?.src || post.attachments?.data[0]?.subattachments?.data[0]?.media?.image?.src;
 
-            setScheduledPosts(fbScheduled.map((post: any) => ({
+            const newScheduled = fbScheduled.map((post: any) => ({
                 id: post.id, text: post.message || '', scheduledAt: new Date(post.scheduled_publish_time * 1000),
                 imageUrl: getImageUrl(post), hasImage: !!getImageUrl(post), targetId: target.id,
                 targetInfo: { name: target.name, avatarUrl: target.picture.data.url, type: target.type },
                 status: 'scheduled', isReminder: false, type: 'post'
-            } as ScheduledPost)));
+            } as ScheduledPost));
+            setScheduledPosts(newScheduled);
 
-            setPublishedPosts(fbPublished.map((post: any) => ({
+            const newPublished = fbPublished.map((post: any) => ({
                 id: post.id, text: post.message || '', publishedAt: new Date(post.created_time),
                 imagePreview: getImageUrl(post),
                 analytics: { likes: post.likes?.summary?.total_count || 0, comments: post.comments?.summary?.total_count || 0, shares: post.shares?.count || 0, lastUpdated: new Date().toISOString() },
                 pageId: target.id, pageName: target.name, pageAvatarUrl: target.picture.data.url,
-            } as PublishedPost)));
+            } as PublishedPost));
+            setPublishedPosts(newPublished);
 
             const newInbox: InboxItem[] = [];
             fbFeed.forEach((post: any) => {
@@ -212,8 +214,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
             setInboxItems(newInbox.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
 
             await saveDataToFirestore({
-                scheduledPosts: scheduledPosts.map(p => ({...p, scheduledAt: p.scheduledAt.toISOString()})),
-                publishedPosts: publishedPosts.map(p => ({...p, publishedAt: p.publishedAt.toISOString()})),
+                scheduledPosts: newScheduled.map(p => ({...p, scheduledAt: p.scheduledAt.toISOString()})),
+                publishedPosts: newPublished.map(p => ({...p, publishedAt: p.publishedAt.toISOString()})),
                 inboxItems: newInbox, lastSync: new Date().toISOString()
             });
             showNotification('success', 'تمت المزامنة بنجاح!');
@@ -224,7 +226,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
             setIsInboxLoading(false);
             setPublishedPostsLoading(false);
         }
-    }, [fetchWithPagination, saveDataToFirestore, showNotification, scheduledPosts, publishedPosts]);
+    }, [fetchWithPagination, saveDataToFirestore, showNotification]);
 
     useEffect(() => {
         const loadDataAndSync = async () => {
@@ -252,21 +254,21 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
         loadDataAndSync();
     }, [managedTarget.id, user.uid, isAdmin, getTargetDataRef, syncFacebookData]);
 
-    const handlePublish = async (postType: PostType) => { /* ... */ };
-    const handleSaveDraft = async () => { /* ... */ };
-    const handleEditScheduledPost = (postId: string) => { /* ... */ };
-    const handleDeleteScheduledPost = (postId: string) => { /* ... */ };
-    const handleApprovePost = (postId: string) => { /* ... */ };
-    const handleRejectPost = (postId: string) => { /* ... */ };
-    const handleLoadDraft = (draftId: string) => { /* ... */ };
-    const handleDeleteDraft = (draftId: string) => { /* ... */ };
-    const onGeneratePerformanceSummary = async () => { /* ... */ };
-    const onGenerateDeepAnalytics = async () => { /* ... */ };
+    const handlePublish = async (postType: PostType) => { /* Placeholder */ };
+    const handleSaveDraft = async () => { /* Placeholder */ };
+    const handleEditScheduledPost = (postId: string) => { /* Placeholder */ };
+    const handleDeleteScheduledPost = (postId: string) => { /* Placeholder */ };
+    const handleApprovePost = (postId: string) => { /* Placeholder */ };
+    const handleRejectPost = (postId: string) => { /* Placeholder */ };
+    const handleLoadDraft = (draftId: string) => { /* Placeholder */ };
+    const handleDeleteDraft = (draftId: string) => { /* Placeholder */ };
+    const onGeneratePerformanceSummary = async () => { /* Placeholder */ };
+    const onGenerateDeepAnalytics = async () => { /* Placeholder */ };
     const onFetchPostInsights = async (postId: string): Promise<any> => { return null; };
       
       const renderView = () => {
           switch (view) {
-              case 'composer': return <PostComposer onPublish={handlePublish} onSaveDraft={handleSaveDraft} isPublishing={isPublishing} postText={postText} onPostTextChange={setPostText} onImageChange={(e) => setSelectedImage(e.target.files ? e.target.files[0] : null)} onImageGenerated={setSelectedImage} onImageRemove={() => setSelectedImage(null)} imagePreview={imagePreview} selectedImage={selectedImage} isScheduled={isScheduled} onIsScheduledChange={setIsScheduled} scheduleDate={scheduleDate} onScheduleDateChange={setScheduleDate} error={composerError} aiClient={aiClient} stabilityApiKey={stabilityApiKey} managedTarget={managedTarget} linkedInstagramTarget={linkedInstagramTarget} includeInstagram={includeInstagram} onIncludeInstagramChange={setIncludeInstagram} pageProfile={pageProfile} editingScheduledPostId={editingScheduledPostId} role={currentUserRole} userPlan={userPlan} />;
+              case 'composer': return <div className="grid grid-cols-1 lg:grid-cols-2 gap-8"><PostComposer onPublish={handlePublish} onSaveDraft={handleSaveDraft} isPublishing={isPublishing} postText={postText} onPostTextChange={setPostText} onImageChange={(e) => setSelectedImage(e.target.files ? e.target.files[0] : null)} onImageGenerated={setSelectedImage} onImageRemove={() => setSelectedImage(null)} imagePreview={imagePreview} selectedImage={selectedImage} isScheduled={isScheduled} onIsScheduledChange={setIsScheduled} scheduleDate={scheduleDate} onScheduleDateChange={setScheduleDate} error={composerError} aiClient={aiClient} stabilityApiKey={stabilityApiKey} managedTarget={managedTarget} linkedInstagramTarget={linkedInstagramTarget} includeInstagram={includeInstagram} onIncludeInstagramChange={setIncludeInstagram} pageProfile={pageProfile} editingScheduledPostId={editingScheduledPostId} role={currentUserRole} userPlan={userPlan} /><PostPreview postText={postText} imagePreview={imagePreview} type={includeInstagram && linkedInstagramTarget ? 'instagram' : 'facebook'} pageName={managedTarget.name} pageAvatar={managedTarget.picture.data.url} /></div>;
               case 'calendar': return <ContentCalendar posts={scheduledPosts} onEdit={handleEditScheduledPost} onDelete={handleDeleteScheduledPost} managedTarget={managedTarget} userPlan={userPlan} role={currentUserRole} onApprove={handleApprovePost} onReject={handleRejectPost} onSync={() => syncFacebookData(managedTarget)} isSyncing={!!syncingTargetId} />;
               case 'drafts': return <DraftsList drafts={drafts} onLoad={handleLoadDraft} onDelete={handleDeleteDraft} role={currentUserRole} />;
               case 'inbox': return <InboxPage items={inboxItems} isLoading={isInboxLoading} onReply={async () => true} onMarkAsDone={() => {}} onLike={async () => {}} onGenerateSmartReplies={async () => []} onFetchMessageHistory={() => {}} autoResponderSettings={{rules: [], fallback: {mode: 'off'}}} onAutoResponderSettingsChange={() => {}} onSync={() => syncFacebookData(managedTarget)} isSyncing={!!syncingTargetId} aiClient={aiClient} role={currentUserRole} repliedUsersPerPost={{}} currentUserRole={currentUserRole} selectedTarget={managedTarget} />;
