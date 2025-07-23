@@ -283,8 +283,6 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     }, [managedTarget.id, user.uid, isAdmin, getTargetDataRef, syncFacebookData]); // Dependencies adjusted
 
 
-    // Implementations for Placeholder Functions
-
     const handlePublish = async (postType: PostType) => {
         setComposerError('');
         if (!managedTarget.access_token) {
