@@ -54,7 +54,7 @@ export const generateImageWithStabilityAI = async (
     const finalPrompt = await translatePromptIfNeeded(prompt, aiClient);
     
     const isV1Engine = model.includes('stable-diffusion-v1');
-    const apiHost = `https://api.stability.ai/${isV1Engine ? 'v1/generation' : 'v2beta/stable-image/generate'}/${isV1Engine ? model : (model === 'core' ? 'core' : 'sd3')}`;
+    const apiHost = `https://api.stability.ai/${isV1Engine ? `v1/generation/${model}/text-to-image` : `v2beta/stable-image/generate/${model === 'core' ? 'core' : 'sd3'}`}`;
     
     const formData = new FormData();
     const enhancedPrompt = `A high-quality, ${style.toLowerCase()} image of: ${finalPrompt}`;
@@ -239,6 +239,7 @@ export const getStabilityAIModels = async (apiKey: string) => {
             return [];
         }
         const data = await response.json();
+        console.log("Stability AI Models API Response:", data); // Log the full response
         // Filter for relevant image generation models
         return data.filter((engine: any) => engine.type === 'PICTURE');
     } catch (error) {
