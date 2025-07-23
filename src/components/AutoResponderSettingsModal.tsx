@@ -159,10 +159,8 @@ const AutoResponderRuleEditorCard: React.FC<{
                     {action.enabled && (
                       <div className="pl-5 space-y-2">
                         <textarea
-                          value={action.messageVariations.join('
-')}
-                          onChange={e => handleActionChange(action.type, 'messageVariations', e.target.value.split('
-'))}
+                          value={action.messageVariations.join('')}
+                          onChange={e => handleActionChange(action.type, 'messageVariations', e.target.value.split(''))}
                           className="w-full text-sm p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700"
                           rows={4}
                           placeholder="اكتب ردًا أو أكثر (كل رد في سطر)"
