@@ -1,5 +1,4 @@
 
-
 import React from 'react';
 import { PageProfile, Link, Role } from '../types';
 import Button from './ui/Button';
@@ -145,29 +144,29 @@ const PageProfilePage: React.FC<PageProfilePageProps> = ({ profile, onProfileCha
                 أضف روابط مهمة أخرى مثل صفحات التواصل الاجتماعي، قائمة الطعام، صفحة الحجوزات، إلخ.
               </p>
               <div className="space-y-4">
-                {(profile.links || []).map((link) => (
-                  <div key={link.id} className="flex flex-col sm:flex-row items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                {(profile.links || []).map((link, index) => (
+                  <div key={link.id || index} className="flex flex-col sm:flex-row items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                     <div className="w-full sm:w-1/3">
-                      <label htmlFor={`link-label-${link.id}`} className="sr-only">العنوان</label>
+                      <label htmlFor={`link-label-${link.id || index}`} className="sr-only">العنوان</label>
                       <input
                         type="text"
-                        id={`link-label-${link.id}`}
+                        id={`link-label-${link.id || index}`}
                         placeholder="العنوان (مثال: قائمة الطعام)"
                         value={link.label}
-                        onChange={(e) => handleLinkChange(link.id, 'label', e.target.value)}
+                        onChange={(e) => handleLinkChange(link.id || '', 'label', e.target.value)}
                         className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 disabled:opacity-70"
                         disabled={readOnly}
                       />
                     </div>
                     <div className="flex-grow w-full">
-                      <label htmlFor={`link-url-${link.id}`} className="sr-only">الرابط</label>
+                      <label htmlFor={`link-url-${link.id || index}`} className="sr-only">الرابط</label>
                       <input
                         type="url"
                         dir="ltr"
-                        id={`link-url-${link.id}`}
+                        id={`link-url-${link.id || index}`}
                         placeholder="https://example.com/menu"
                         value={link.url}
-                        onChange={(e) => handleLinkChange(link.id, 'url', e.target.value)}
+                        onChange={(e) => handleLinkChange(link.id || '', 'url', e.target.value)}
                         className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-left disabled:opacity-70"
                         disabled={readOnly}
                       />
@@ -175,7 +174,7 @@ const PageProfilePage: React.FC<PageProfilePageProps> = ({ profile, onProfileCha
                     <div className="flex-shrink-0">
                       <Button
                         variant="danger"
-                        onClick={() => handleRemoveLink(link.id)}
+                        onClick={() => handleRemoveLink(link.id || '')}
                         className="!p-2"
                         aria-label="Remove link"
                         disabled={readOnly}
@@ -246,7 +245,7 @@ const PageProfilePage: React.FC<PageProfilePageProps> = ({ profile, onProfileCha
                       <div className="flex flex-col sm:flex-row gap-4">
                           <div className="flex items-center"><input type="radio" id="lang-ar" name="language" value="ar" checked={profile.language === 'ar'} onChange={handleLanguageChange} className="w-4 h-4 text-blue-600 disabled:opacity-70" disabled={readOnly} /><label htmlFor="lang-ar" className="mr-2 text-sm">العربية</label></div>
                           <div className="flex items-center"><input type="radio" id="lang-en" name="language" value="en" checked={profile.language === 'en'} onChange={handleLanguageChange} className="w-4 h-4 text-blue-600 disabled:opacity-70" disabled={readOnly} /><label htmlFor="lang-en" className="mr-2 text-sm">الإنجليزية</label></div>
-                          <div className="flex items-center"><input type="radio" id="lang-mixed" name="language" value="mixed" checked={profile.language === 'mixed'} onChange={handleLanguageChange} className="w-4 h-4 text-blue-600 disabled:opacity-70" disabled={readOnly} /><label htmlFor="lang-mixed" className="mr-2 text-sm">مختلطة</label></div>
+                          <div className="flex items-center"><input type="radio" id="lang-mixed" name="language" value="mix" checked={profile.language === 'mix'} onChange={handleLanguageChange} className="w-4 h-4 text-blue-600 disabled:opacity-70" disabled={readOnly} /><label htmlFor="lang-mixed" className="mr-2 text-sm">مختلطة</label></div>
                       </div>
                   </div>
                   <div>

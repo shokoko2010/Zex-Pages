@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Plan, PlanLimits } from '../types';
 import Button from './ui/Button';
@@ -10,6 +11,11 @@ interface PlanEditorModalProps {
 }
 
 const initialPlanLimits: PlanLimits = {
+  maxPages: 1,
+  maxTeamMembers: 1,
+  aiFeatures: true,
+  maxScheduledPostsPerMonth: 50,
+  imageGenerationQuota: 20,
   pages: 1,
   aiText: true,
   aiImage: true,
@@ -30,6 +36,9 @@ const initialPlan: Plan = {
   features: [],
   limits: initialPlanLimits,
   adminOnly: false,
+  priceMonthly: 0,
+  priceAnnual: 0,
+  description: ''
 };
 
 const PlanEditorModal: React.FC<PlanEditorModalProps> = ({ isOpen, onClose, onSave, plan }) => {
@@ -150,11 +159,15 @@ const PlanEditorModal: React.FC<PlanEditorModalProps> = ({ isOpen, onClose, onSa
             </label>
             <textarea
               id="features"
-              value={draftPlan.features.join('')}
-              onChange={(e) => setDraftPlan(p => ({...p, features: e.target.value.split('')}))}
+              value={draftPlan.features.join('
+')}
+              onChange={(e) => setDraftPlan(p => ({...p, features: e.target.value.split('
+')}))}
               rows={6}
               className="w-full px-4 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-              placeholder={`- Feature 1 - Feature 2 - Feature 3`}
+              placeholder={`- Feature 1
+- Feature 2
+- Feature 3`}
             />
           </div>
 

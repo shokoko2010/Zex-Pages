@@ -23,8 +23,8 @@ const MOCK_TARGETS: Target[] = [
 ];
 
 const MOCK_BUSINESSES: Business[] = [
-    { id: 'b1', name: 'الوكالة الرقمية الإبداعية' },
-    { id: 'b2', name: 'مجموعة مطاعم النكهة الأصيلة' },
+    { id: 'b1', name: 'الوكالة الرقمية الإبداعية', pictureUrl: 'https://via.placeholder.com/150' },
+    { id: 'b2', name: 'مجموعة مطاعم النكهة الأصيلة', pictureUrl: 'https://via.placeholder.com/150' },
 ];
 
 const getIpAddress = async (): Promise<string> => {
@@ -106,8 +106,11 @@ const App: React.FC = () => {
                    uid: currentUser.uid,
                    isAdmin: false,
                    planId: 'free',
-                   createdAt: new Date().toISOString(),
+                   createdAt: Date.now(),
                    lastLoginIp: await getIpAddress(),
+                   currentPlan: 'free',
+                   displayName: '',
+                   photoURL: ''
                };
                await userDocRef.set(userData, { merge: true });
             }
@@ -372,7 +375,15 @@ const App: React.FC = () => {
             price: 0,
             pricePeriod: 'monthly',
             features: ['All features for admin'],
+            priceAnnual: 0,
+            priceMonthly: 0,
+            description: "Admin",
             limits: {
+              maxPages: -1, // Unlimited
+              maxTeamMembers: -1,
+              aiFeatures: true,
+              maxScheduledPostsPerMonth: -1,
+              imageGenerationQuota: -1,
               pages: -1, // Unlimited
               aiText: true,
               aiImage: true,
@@ -393,7 +404,7 @@ const App: React.FC = () => {
         return (
           <DashboardPage
             user={user}
-            isAdmin={appUser.isAdmin}
+            isAdmin={appUser.isAdmin || false}
             userPlan={userPlan}
             plans={plans}
             allUsers={allUsers}

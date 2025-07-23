@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { InboxItem, AutoResponderSettings, InboxMessage, Role } from '../types';
 import Button from './ui/Button';
@@ -282,9 +281,9 @@ const InboxPage: React.FC<InboxPageProps> = ({
             <div className="flex-grow overflow-y-auto p-4 space-y-4">
               {!selectedItem.messages ? <p className="text-center text-gray-500">جاري تحميل المحادثة...</p> : 
                 selectedItem.messages.map((msg: InboxMessage) => (
-                    <div key={msg.id} className={`flex items-end gap-2 ${msg.from.id !== selectedItem.authorId ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-md p-3 rounded-2xl ${msg.from.id !== selectedItem.authorId ? 'bg-blue-600 text-white rounded-br-none' : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-bl-none'}`}>
-                        <p className="whitespace-pre-wrap break-words">{msg.message}</p>
+                    <div key={msg.id} className={`flex items-end gap-2 ${msg.from !== 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-md p-3 rounded-2xl ${msg.from !== 'user' ? 'bg-blue-600 text-white rounded-br-none' : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-bl-none'}`}>
+                        <p className="whitespace-pre-wrap break-words">{msg.text}</p>
                       </div>
                     </div>
                 ))

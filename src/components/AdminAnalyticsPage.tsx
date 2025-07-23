@@ -1,5 +1,4 @@
 
-
 import React, { useMemo } from 'react';
 import { AppUser, Plan } from '../types';
 import KpiCard from './ui/KpiCard';
@@ -32,9 +31,9 @@ const AdminAnalyticsPage: React.FC<AdminAnalyticsPageProps> = ({ users, plans })
     
     // MRR
     const monthlyRecurringRevenue = users.reduce((total, user) => {
-      const plan = plansMap.get(user.planId);
-      if (plan && plan.price > 0) {
-        if (plan.pricePeriod === 'yearly') {
+      const plan = plansMap.get(user.planId || 'free');
+      if (plan && typeof plan.price === 'number' && plan.price > 0) {
+        if (plan.pricePeriod === 'annual') {
           return total + (plan.price / 12);
         }
         if (plan.pricePeriod === 'monthly') {
@@ -51,7 +50,7 @@ const AdminAnalyticsPage: React.FC<AdminAnalyticsPageProps> = ({ users, plans })
 
     // Subscriptions per plan
     const subscriptionsPerPlan = users.reduce<Record<string, number>>((acc, user) => {
-      const plan = plansMap.get(user.planId);
+      const plan = plansMap.get(user.planId || 'free');
       const planName = plan?.name || 'غير معروف';
       acc[planName] = (acc[planName] || 0) + 1;
       return acc;

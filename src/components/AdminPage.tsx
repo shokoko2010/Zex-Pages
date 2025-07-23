@@ -50,7 +50,7 @@ const AdminPage: React.FC<AdminPageProps> = ({
             const plansCollection = db.collection('plans');
             const planSnapshot = await plansCollection.get();
             const planList = planSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Plan));
-            setPlans(planList.sort((a,b) => a.price - b.price));
+            setPlans(planList.sort((a,b) => (a.price || 0) - (b.price || 0)));
         } catch (error) {
             console.error("Error fetching plans: ", error);
             alert("فشل تحميل الخطط. تحقق من صلاحيات Firestore.");
@@ -61,7 +61,7 @@ const AdminPage: React.FC<AdminPageProps> = ({
 
     // Use initialPlans and update when it changes
     useEffect(() => {
-        setPlans(initialPlans.sort((a,b) => a.price - b.price));
+        setPlans(initialPlans.sort((a,b) => (a.price || 0) - (b.price || 0)));
     }, [initialPlans]);
 
     // Corrected useEffect to use appUser.targets
@@ -160,7 +160,7 @@ const AdminPage: React.FC<AdminPageProps> = ({
                                 <div key={plan.id} className="p-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg flex flex-col">
                                     <div className="flex-grow">
                                         <h2 className="text-2xl font-bold text-blue-500">{plan.name}</h2>
-                                        <p className="font-semibold text-lg my-2">{plan.price} ر.س / {plan.pricePeriod === 'monthly' ? 'شهرياً' : (plan.pricePeriod === 'yearly' ? 'سنوياً' : 'مرة واحدة')}</p>
+                                        <p className="font-semibold text-lg my-2">{plan.price} ر.س / {plan.pricePeriod === 'monthly' ? 'شهرياً' : (plan.pricePeriod === 'annual' ? 'سنوياً' : 'مرة واحدة')}</p>
                                         {plan.adminOnly && (
                                             <span className="inline-block bg-red-100 text-red-700 text-xs font-semibold px-2 py-1 rounded-full">خاص بالمسؤولين</span>
                                         )}
@@ -210,10 +210,11 @@ const AdminPage: React.FC<AdminPageProps> = ({
                                                 <td className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">{u.email}</td>
                                                 <td className="px-6 py-4">{u.name || '-'}</td>
                                                 <td className="px-6 py-4">{plans.find(p => p.id === u.planId)?.name || u.planId}</td>
-                                                <td className="px-6 py-4">{new Date(u.createdAt).toLocaleDateString()}</td>
+                                                <td className="px-6 py-4">{u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '-'}</td>
                                                 <td className="px-6 py-4">{u.lastLoginIp || '-'}</td>
                                             </tr>
                                         ))}
+
                                     </tbody>
                                 </table>
                             </div>

@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { AutoResponderSettings, AutoResponderRule, AutoResponderAction, AutoResponderTriggerSource, AutoResponderMatchType, AutoResponderActionType } from '../types';
 import Button from './ui/Button';
@@ -69,17 +70,17 @@ const AutoResponderRuleEditorCard: React.FC<{
     onUpdate({ ...rule, trigger: { ...rule.trigger, [key]: value } });
   };
   
-  const handleActionChange = <K extends keyof AutoResponderAction>(actionType: AutoResponderActionType, key: K, value: AutoResponderAction[K]) => {
+  const handleActionChange = <K extends keyof AutoResponderAction>(actionType: AutoResponderActionType, key: K, value: any) => {
       onUpdate({
           ...rule,
-          actions: rule.actions.map(a => 
+          actions: rule.actions.map((a: any) => 
               a.type === actionType ? { ...a, [key]: value } : a
           )
       });
   };
   
   const handleGenerateVariations = async (actionType: AutoResponderActionType) => {
-    const action = rule.actions.find(a => a.type === actionType);
+    const action: any = rule.actions.find((a:any) => a.type === actionType);
     if (!aiClient || !action || action.messageVariations.length === 0 || !action.messageVariations[0]) return;
     setIsGenerating(prev => ({...prev, [action.type]: true}));
     try {
@@ -93,14 +94,14 @@ const AutoResponderRuleEditorCard: React.FC<{
     }
   };
 
-  const actionConfig: Record<AutoResponderActionType, { label: string, source: AutoResponderTriggerSource }> = {
-    'public_reply': { label: 'إرسال رد عام', source: 'comment'},
-    'private_reply': { label: 'إرسال رد خاص', source: 'comment'},
-    'direct_message': { label: 'إرسال رسالة', source: 'message'},
+  const actionConfig: Record<string, { label: string, source: AutoResponderTriggerSource }> = {
+    'reply': { label: 'إرسال رد عام', source: 'comments'},
+    'private_reply': { label: 'إرسال رد خاص', source: 'comments'},
+    'direct_message': { label: 'إرسال رسالة', source: 'messages'},
   }
   
   return (
-    <div className={`p-4 border rounded-lg ${!rule.enabled ? 'opacity-50' : ''} ${rule.trigger.source === 'comment' ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'}`}>
+    <div className={`p-4 border rounded-lg ${!rule.enabled ? 'opacity-50' : ''} ${rule.trigger.source === 'comments' ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'}`}>
         <div className="flex items-center justify-between gap-4 mb-4">
             <div className="flex items-center gap-2 flex-grow">
                 <div className="cursor-grab" title="اسحب للترتيب">
@@ -124,11 +125,11 @@ const AutoResponderRuleEditorCard: React.FC<{
         {/* Trigger Section */}
         <div className="space-y-4 p-3 bg-white dark:bg-gray-800 rounded-md shadow-sm">
           <h4 className="font-bold text-gray-700 dark:text-gray-300">المُشغّل (متى تعمل القاعدة؟)</h4>
-          <div><label className="text-sm font-medium">المصدر:</label><select value={rule.trigger.source} onChange={e => handleTriggerChange('source', e.target.value as any)} className="w-full text-sm p-2 mt-1 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700"><option value="comment">تعليق جديد</option><option value="message">رسالة جديدة</option></select></div>
+          <div><label className="text-sm font-medium">المصدر:</label><select value={rule.trigger.source} onChange={e => handleTriggerChange('source', e.target.value as any)} className="w-full text-sm p-2 mt-1 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700"><option value="comments">تعليق جديد</option><option value="messages">رسالة جديدة</option></select></div>
           <div><label className="text-sm font-medium">نوع المطابقة:</label><select value={rule.trigger.matchType} onChange={e => handleTriggerChange('matchType', e.target.value as any)} className="w-full text-sm p-2 mt-1 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700"><option value="any">أي كلمة</option><option value="all">كل الكلمات</option><option value="exact">مطابقة تامة</option></select></div>
           <div><label className="text-sm font-medium">الكلمات المفتاحية (اضغط Enter للإضافة):</label><TagInput tags={rule.trigger.keywords} onTagsChange={(tags) => handleTriggerChange('keywords', tags)} placeholder="السعر، بكم..."/></div>
           <div><label className="text-sm font-medium">الكلمات السلبية (تمنع القاعدة):</label><TagInput tags={rule.trigger.negativeKeywords} onTagsChange={(tags) => handleTriggerChange('negativeKeywords', tags)} placeholder="مشكلة، غالي..."/></div>
-          {rule.trigger.source === 'comment' && (
+          {rule.trigger.source === 'comments' && (
               <div className="flex items-center pt-2">
                   <input type="checkbox" id={`reply-once-${rule.id}`} checked={!!rule.replyOncePerUser} onChange={e => onUpdate({...rule, replyOncePerUser: e.target.checked})} className="h-4 w-4 rounded border-gray-300" />
                   <label htmlFor={`reply-once-${rule.id}`} className="block text-sm text-gray-700 dark:text-gray-300 mr-2">الرد مرة واحدة فقط لكل مستخدم على نفس المنشور.</label>
@@ -138,8 +139,8 @@ const AutoResponderRuleEditorCard: React.FC<{
         {/* Actions Section */}
         <div className="space-y-4 p-3 bg-white dark:bg-gray-800 rounded-md shadow-sm">
           <h4 className="font-bold text-gray-700 dark:text-gray-300">الإجراءات (ماذا سيحدث؟)</h4>
-          {rule.actions.filter(a => a.type in actionConfig && actionConfig[a.type].source === rule.trigger.source)
-             .map((action) => {
+          {rule.actions.filter((a: any) => a.type in actionConfig && actionConfig[a.type].source === rule.trigger.source)
+             .map((action: any) => {
                 const { label } = actionConfig[action.type];
                 return (
                   <div key={action.type} className="space-y-2">
@@ -158,8 +159,10 @@ const AutoResponderRuleEditorCard: React.FC<{
                     {action.enabled && (
                       <div className="pl-5 space-y-2">
                         <textarea
-                          value={action.messageVariations.join('\n')}
-                          onChange={e => handleActionChange(action.type, 'messageVariations', e.target.value.split('\n'))}
+                          value={action.messageVariations.join('
+')}
+                          onChange={e => handleActionChange(action.type, 'messageVariations', e.target.value.split('
+'))}
                           className="w-full text-sm p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700"
                           rows={4}
                           placeholder="اكتب ردًا أو أكثر (كل رد في سطر)"
@@ -205,12 +208,15 @@ const AutoResponderEditor: React.FC<{
             name: 'قاعدة جديدة',
             enabled: true,
             replyOncePerUser: true,
-            trigger: { source: 'comment', matchType: 'any', keywords: [], negativeKeywords: [] },
+            trigger: { source: 'comments', matchType: 'any', keywords: [], negativeKeywords: [] },
             actions: [
-              { type: 'public_reply', enabled: false, messageVariations: [] },
+              { type: 'reply', enabled: false, messageVariations: [] },
               { type: 'private_reply', enabled: false, messageVariations: [] },
               { type: 'direct_message', enabled: false, messageVariations: [] },
             ],
+            keywords: [],
+            response: '',
+            active: true
         };
         setDraftSettings({ ...draftSettings, rules: [newRule, ...rules]});
     };

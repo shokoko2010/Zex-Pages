@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { StrategyHistoryItem, ContentPlanItem } from '../types';
 import Button from './ui/Button';
@@ -18,10 +19,10 @@ const StrategyHistoryCard: React.FC<StrategyHistoryCardProps> = ({ item, onLoad,
           {item.summary}
         </h4>
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-          تم الإنشاء في: {new Date(item.createdAt).toLocaleDateString('ar-EG')}
+          تم الإنشاء في: {item.createdAt ? new Date(item.createdAt).toLocaleDateString('ar-EG') : 'غير معروف'}
         </p>
         <div className="space-y-2 border-t border-gray-100 dark:border-gray-700 pt-3">
-          {item.plan.slice(0, 2).map((planItem, index) => (
+          {item.plan.slice(0, 2).map((planItem: ContentPlanItem, index: number) => (
             <div key={index} className="text-xs p-2 bg-gray-50 dark:bg-gray-700/50 rounded-md">
               <p className="font-semibold text-gray-800 dark:text-gray-200 truncate" title={planItem.headline}>{planItem.headline}</p>
               <p className="text-gray-600 dark:text-gray-400 truncate" title={planItem.body}>{planItem.body}</p>
