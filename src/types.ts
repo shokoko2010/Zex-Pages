@@ -1,3 +1,30 @@
+
+// ... (الكود السابق بدون تغيير)
+
+export type PostType = 'post' | 'story' | 'reel'; // <-- جديد: تعريف أنواع المنشورات
+
+export interface ScheduledPost {
+  id: string;
+  postId?: string;
+  text: string;
+  imageUrl?: string;
+  imageFile?: File;
+  hasImage?: boolean;
+  scheduledAt: Date;
+  isReminder: boolean;
+  targetId: string;
+  targetInfo: {
+    name: string;
+    avatarUrl: string;
+    type: 'facebook' | 'instagram';
+  }
+  publishedAt?: string;
+  isSynced?: boolean;
+  status?: 'pending' | 'approved' | 'rejected' | 'scheduled' | 'error';
+  type: PostType; // <-- جديد: إضافة نوع المنشور
+}
+
+// ... (بقية الكود بدون تغيير)
 export interface Target {
   id: string;
   name: string;
@@ -35,26 +62,6 @@ export interface PublishedPost {
   pageId: string;
   pageName: string;
   pageAvatarUrl: string;
-}
-
-export interface ScheduledPost {
-  id: string;
-  postId?: string;
-  text: string;
-  imageUrl?: string;
-  imageFile?: File;
-  hasImage?: boolean;
-  scheduledAt: Date;
-  isReminder: boolean;
-  targetId: string;
-  targetInfo: {
-    name: string;
-    avatarUrl: string;
-    type: 'facebook' | 'instagram';
-  }
-  publishedAt?: string;
-  isSynced?: boolean;
-  status?: 'pending' | 'approved' | 'rejected' | 'scheduled' | 'error';
 }
 
 export interface Draft {

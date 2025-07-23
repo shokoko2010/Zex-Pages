@@ -1,10 +1,11 @@
-
 import React from 'react';
 import { PerformanceSummaryData } from '../types';
 import KpiCard from './ui/KpiCard';
 import EyeIcon from './icons/EyeIcon';
 import UsersIcon from './icons/UsersIcon';
 import CursorArrowRaysIcon from './icons/CursorArrowRaysIcon';
+import SparklesIcon from './icons/SparklesIcon';
+import Button from './ui/Button';
 
 interface AnalyticsSummaryDashboardProps {
   period: '7d' | '30d';
@@ -12,6 +13,8 @@ interface AnalyticsSummaryDashboardProps {
   summaryData: PerformanceSummaryData | null;
   aiSummary: string;
   isGeneratingSummary: boolean;
+  onGenerateSummary: () => void; // <-- إضافة الخاصية
+  isGenerationAllowed: boolean; // <-- إضافة الخاصية
 }
 
 const AnalyticsSummaryDashboard: React.FC<AnalyticsSummaryDashboardProps> = ({
@@ -19,7 +22,9 @@ const AnalyticsSummaryDashboard: React.FC<AnalyticsSummaryDashboardProps> = ({
   onPeriodChange,
   summaryData,
   aiSummary,
-  isGeneratingSummary
+  isGeneratingSummary,
+  onGenerateSummary, // <-- استقبال الخاصية
+  isGenerationAllowed // <-- استقبال الخاصية
 }) => {
   const kpiData = [
     { 
@@ -94,6 +99,17 @@ const AnalyticsSummaryDashboard: React.FC<AnalyticsSummaryDashboardProps> = ({
             ) : (
                 <p className="text-gray-700 dark:text-gray-300">{aiSummary}</p>
             )}
+            <div className="mt-3 text-right">
+                <Button
+                    onClick={onGenerateSummary}
+                    isLoading={isGeneratingSummary}
+                    disabled={!isGenerationAllowed}
+                    variant="secondary"
+                    size="sm"
+                >
+                    <SparklesIcon className="w-4 h-4 ml-1" /> {isGeneratingSummary ? 'جاري التوليد...' : 'توليد رؤية جديدة'}
+                </Button>
+            </div>
           </div>
         </div>
       )}

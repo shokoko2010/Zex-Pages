@@ -1,105 +1,86 @@
-import React, { useState } from 'react';
+
+import React from 'react';
 import AnalyticsSummaryDashboard from './AnalyticsSummaryDashboard';
 import PublishedPostsList from './PublishedPostsList';
 import AudienceGrowthChart from './AudienceGrowthChart';
 import ContentTypePerformanceChart from './ContentTypePerformanceChart';
-import { PerformanceSummaryData, PublishedPost, AudienceGrowthData, HeatmapDataPoint, ContentTypePerformanceData, Role, Plan, PostAnalytics } from '../types';
+import PostingTimesHeatmap from './PostingTimesHeatmap';
+import AudienceDemographics from './AudienceDemographics';
+import { PerformanceSummaryData, PublishedPost, AudienceGrowthData, HeatmapDataPoint, ContentTypePerformanceData, Role, Plan, Target } from '../types';
+import Button from './ui/Button';
 
 interface AnalyticsPageProps {
   publishedPosts: PublishedPost[];
   publishedPostsLoading: boolean;
   analyticsPeriod: "7d" | "30d";
   setAnalyticsPeriod: React.Dispatch<React.SetStateAction<"7d" | "30d">>;
+  performanceSummaryData: PerformanceSummaryData | null;
   performanceSummaryText: string;
-  setPerformanceSummaryText: React.Dispatch<React.SetStateAction<string>>; 
   isGeneratingSummary: boolean;
-  setIsGeneratingSummary: React.Dispatch<React.SetStateAction<boolean>>; 
   audienceGrowthData: AudienceGrowthData[];
-  setAudienceGrowthData: React.Dispatch<React.SetStateAction<AudienceGrowthData[]>>; 
   heatmapData: HeatmapDataPoint[];
-  setHeatmapData: React.Dispatch<React.SetStateAction<HeatmapDataPoint[]>>; 
   contentTypeData: ContentTypePerformanceData[];
-  setContentTypePerformanceData: React.Dispatch<React.SetStateAction<ContentTypePerformanceData[]>>; 
   isGeneratingDeepAnalytics: boolean;
-  setIsGeneratingDeepAnalytics: React.Dispatch<React.SetStateAction<boolean>>; 
-  managedTarget: any; // You might want to define a proper type for this
+  managedTarget: Target; 
   userPlan: Plan | null;
-  isSimulationMode: boolean;
-  aiClient: any; // You might want to define a proper type for this
-  pageProfile: any; // You might want to define a proper type for this
   currentUserRole: Role;
-  showNotification: (type: 'success' | 'error' | 'partial', message: string, onUndo?: () => void) => void;
-  generatePerformanceSummary: (ai: any, summaryData: PerformanceSummaryData, pageProfile: any, period: "7d" | "30d") => Promise<string>; 
-  generatePostInsights: (ai: any, postText: string, analytics: PostAnalytics, comments: { message: string; }[]) => Promise<{ performanceSummary: string; sentiment: { positive: number; negative: number; neutral: number; }; }>; 
-  generateOptimalSchedule: (ai: any, pageProfile: any, publishedPosts: PublishedPost[]) => Promise<any>; // Define return type
-  generateBestPostingTimesHeatmap: (ai: any, posts: PublishedPost[]) => Promise<HeatmapDataPoint[]>;
-  generateContentTypePerformance: (ai: any, posts: PublishedPost[]) => Promise<ContentTypePerformanceData[]>;
+  onGeneratePerformanceSummary: () => void;
+  onGenerateDeepAnalytics: () => void;
+  onFetchPostInsights: (postId: string) => Promise<any>;
 }
+
 
 const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
   publishedPosts,
   publishedPostsLoading,
   analyticsPeriod,
   setAnalyticsPeriod,
+  performanceSummaryData,
   performanceSummaryText,
-  setPerformanceSummaryText,
   isGeneratingSummary,
-  setIsGeneratingSummary,
   audienceGrowthData,
-  setAudienceGrowthData,
   heatmapData,
-  setHeatmapData,
   contentTypeData,
-  setContentTypePerformanceData,
   isGeneratingDeepAnalytics,
-  setIsGeneratingDeepAnalytics,
-  managedTarget,
   userPlan,
-  isSimulationMode,
-  aiClient,
-  pageProfile,
   currentUserRole,
-  showNotification,
-  generatePerformanceSummary,
-  generatePostInsights,
-  generateOptimalSchedule,
-  generateBestPostingTimesHeatmap,
-  generateContentTypePerformance,
+  onGeneratePerformanceSummary,
+  onGenerateDeepAnalytics,
+  onFetchPostInsights
 }) => {
   const canViewDeepAnalytics = userPlan?.limits.deepAnalytics ?? false;
 
   return (
     <div className="space-y-8 fade-in">
-      {/* AnalyticsSummaryDashboard expects period, onPeriodChange, summaryData, aiSummary */}
       <AnalyticsSummaryDashboard
-        period={analyticsPeriod} // Using analyticsPeriod
-        onPeriodChange={setAnalyticsPeriod} // Using setAnalyticsPeriod
-        summaryData={null} // summaryData is not passed, using null or fetching here
-        aiSummary={performanceSummaryText} // Using performanceSummaryText
+        period={analyticsPeriod}
+        onPeriodChange={setAnalyticsPeriod}
+        summaryData={performanceSummaryData}
+        aiSummary={performanceSummaryText}
         isGeneratingSummary={isGeneratingSummary}
+        onGenerateSummary={onGeneratePerformanceSummary}
+        isGenerationAllowed={canViewDeepAnalytics && !!performanceSummaryData}
       />
+      
+      <AudienceDemographics />
 
-      <AudienceGrowthChart data={audienceGrowthData} isLoading={publishedPostsLoading} /> 
-
-      {/* EngagementHeatmap and DeepAnalyticsSection removed due to missing files */}
-      {/* <EngagementHeatmap data={heatmapData} isLoading={publishedPostsLoading} /> */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2">
+            <AudienceGrowthChart data={audienceGrowthData} isLoading={publishedPostsLoading} /> 
+        </div>
+        <div className="lg:col-span-1">
+            <PostingTimesHeatmap data={heatmapData} />
+        </div>
+      </div>
 
       <ContentTypePerformanceChart data={contentTypeData} isLoading={publishedPostsLoading} /> 
 
       {canViewDeepAnalytics && (
-        // DeepAnalyticsSection was removed, this block is commented out
-        <>
-        {/*
-        <DeepAnalyticsSection
-          publishedPosts={publishedPosts}
-          publishedPostsLoading={publishedPostsLoading}
-          onFetchAnalytics={onFetchAnalytics} 
-          onGenerateInsights={onGenerateInsights} 
-          isGeneratingDeepAnalytics={isGeneratingDeepAnalytics}
-          role={currentUserRole} 
-        />
-        */}
-        </>
+        <div className="text-center py-6">
+            <Button onClick={onGenerateDeepAnalytics} isLoading={isGeneratingDeepAnalytics} size="lg" variant="primary">
+                تحليل معمق بالذكاء الاصطناعي
+            </Button>
+        </div>
       )}
 
       <div>
@@ -109,7 +90,9 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
         <PublishedPostsList
           posts={publishedPosts} 
           isLoading={publishedPostsLoading} 
-          role={currentUserRole} 
+          role={currentUserRole}
+          onFetchInsights={onFetchPostInsights}
+          isInsightsAllowed={canViewDeepAnalytics}
         />
       </div>
     </div>

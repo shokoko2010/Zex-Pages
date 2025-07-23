@@ -12,9 +12,9 @@ import PostInsights from './PostInsights';
 interface PublishedPostsListProps {
   posts: PublishedPost[];
   isLoading: boolean;
-  // Removed onFetchAnalytics: (postId: string) => void;
-  // Removed onGenerateInsights: (postId: string) => void;
   role: Role;
+  onFetchInsights: (postId: string) => Promise<{ performanceSummary: string; sentiment: any; } | null>; // More specific type
+  isInsightsAllowed: boolean;
 }
 
 const StatCard: React.FC<{ icon: React.ReactNode, value?: number, label: string }> = ({ icon, value, label }) => (
@@ -49,11 +49,31 @@ const PostSkeleton: React.FC = () => (
     </div>
 );
 
-const PublishedPostsList: React.FC<PublishedPostsListProps> = ({ posts, isLoading, role }) => { // Removed onFetchAnalytics, onGenerateInsights
+const PublishedPostsList: React.FC<PublishedPostsListProps> = ({ posts, isLoading, role, onFetchInsights, isInsightsAllowed }) => {
   const [openInsightsPostId, setOpenInsightsPostId] = useState<string | null>(null);
+  const [postInsights, setPostInsights] = useState<{ performanceSummary: string; sentiment: any; } | null>(null);
+  const [isLoadingInsights, setIsLoadingInsights] = useState(false);
+
   const isViewer = role === 'viewer';
 
-  // Removed toggleInsights function as it used onGenerateInsights
+  const toggleInsights = async (postId: string) => {
+    if (openInsightsPostId === postId) {
+      setOpenInsightsPostId(null);
+      setPostInsights(null);
+    } else {
+      setIsLoadingInsights(true);
+      setOpenInsightsPostId(postId);
+      try {
+        const insights = await onFetchInsights(postId);
+        setPostInsights(insights);
+      } catch (error) {
+        console.error("Failed to fetch post insights", error);
+        setPostInsights(null);
+      } finally {
+        setIsLoadingInsights(false);
+      }
+    }
+  };
 
   if (isLoading) {
     return (
@@ -107,8 +127,18 @@ const PublishedPostsList: React.FC<PublishedPostsListProps> = ({ posts, isLoadin
                     <StatCard icon={<ShareIcon className="w-5 h-5 text-green-500" />} value={post.analytics.shares} label="مشاركة" />
                 </div>
                 <div className="flex items-center gap-2">
-                     {/* Removed Button for toggling insights */}
-                    {/* Removed Button for fetching analytics */}
+                    {isInsightsAllowed && (
+                        <Button 
+                            onClick={() => toggleInsights(post.id)} 
+                            variant="secondary" 
+                            size="sm"
+                            isLoading={isLoadingInsights && openInsightsPostId === post.id}
+                            disabled={isViewer}
+                        >
+                            <LightBulbIcon className="w-4 h-4 ml-2" />
+                            {openInsightsPostId === post.id ? 'إخفاء الرؤى' : 'احصل على رؤى'}
+                        </Button>
+                    )}
                 </div>
             </div>
              {post.analytics.lastUpdated && 
@@ -117,7 +147,12 @@ const PublishedPostsList: React.FC<PublishedPostsListProps> = ({ posts, isLoadin
                 </p>
             }
           </div>
-           {/* Removed PostInsights usage */}
+           {openInsightsPostId === post.id && (
+                <PostInsights 
+                    summary={postInsights?.performanceSummary}
+                    sentiment={postInsights?.sentiment}
+                />
+           )}
         </div>
       ))}
     </div>

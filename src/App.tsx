@@ -6,6 +6,7 @@ import SettingsModal from './components/SettingsModal';
 import PrivacyPolicyPage from './components/PrivacyPolicyPage';
 import OnboardingTour from './components/OnboardingTour';
 import AdminPage from './components/AdminPage';
+
 import { GoogleGenAI } from '@google/genai';
 import { initializeGoogleGenAI } from './services/geminiService';
 import { Target, Business, PublishedPost, InboxItem, Plan, AppUser, StrategyHistoryItem, ContentPlanItem, StrategyRequest } from './types';
@@ -68,7 +69,7 @@ const App: React.FC = () => {
   const [favoriteTargetIds, setFavoriteTargetIds] = useState<Set<string>>(new Set());
   
   const [loadingBusinessId, setLoadingBusinessId] = useState<string | null>(null);
-  const [loadedBusinessIds, setLoadedBusinessIds] = useState<Set<string>>(new Set()); // Correctly initialized
+  const [loadedBusinessIds, setLoadedBusinessIds] = useState<Set<string>>(new Set());
   const [strategyHistory, setStrategyHistory] = useState<StrategyHistoryItem[]>([]);
 
 
@@ -190,13 +191,13 @@ const App: React.FC = () => {
     await db.collection('users').doc(user.uid).set({ favoriteTargetIds: Array.from(newFavorites) }, { merge: true });
   };
 
-  const handleToggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  const handleToggleTheme = useCallback(() => setTheme(prev => prev === 'light' ? 'dark' : 'light'), []);
 
   useEffect(() => {
     setAiClient(apiKey ? initializeGoogleGenAI(apiKey) : null);
   }, [apiKey]);
 
-  const handleSaveKeys = async (keys: { gemini: string; stability: string; }) => {
+  const handleSaveKeys = useCallback(async (keys: { gemini: string; stability: string; }) => {
     if (!user) return;
     setApiKey(keys.gemini);
     setStabilityApiKey(keys.stability);
@@ -204,7 +205,7 @@ const App: React.FC = () => {
       geminiApiKey: keys.gemini,
       stabilityApiKey: keys.stability
     }, { merge: true });
-  };
+  }, [user]);
   
   const fetchWithPagination = useCallback(async (initialPath: string, accessToken?: string): Promise<any[]> => {
       let allData: any[] = [];
@@ -314,18 +315,16 @@ const App: React.FC = () => {
     }
   }, [fetchWithPagination, fetchInstagramAccounts]);
 
-  const handleFullHistorySync = useCallback(async (pageTarget: Target) => { /* Sync logic remains unchanged */ }, []);
-
-  const handleEmailSignUp = async (email: string, password: string) => {
+  const handleEmailSignUp = useCallback(async (email: string, password: string) => {
     setAuthError(null);
     try {
         await auth.createUserWithEmailAndPassword(email, password);
     } catch (error: any) {
         setAuthError(error.code === 'auth/email-already-in-use' ? 'هذا البريد الإلكتروني مسجل بالفعل.' : 'حدث خطأ أثناء إنشاء الحساب.');
     }
-  };
+  }, []);
 
-  const handleEmailSignIn = async (email: string, password: string) => {
+  const handleEmailSignIn = useCallback(async (email: string, password: string) => {
     setAuthError(null);
     try {
         const cred = await auth.signInWithEmailAndPassword(email, password);
@@ -333,9 +332,9 @@ const App: React.FC = () => {
     } catch (error: any) {
         setAuthError('البريد الإلكتروني أو كلمة المرور غير صحيحة.');
     }
-  };
+  }, []);
   
-  const handleFacebookConnect = async () => {
+  const handleFacebookConnect = useCallback(async () => {
     if (!user) return;
     const facebookProvider = new firebase.auth.FacebookAuthProvider();
     facebookProvider.addScope('email,public_profile,business_management,pages_show_list,read_insights,pages_manage_posts,pages_read_engagement,pages_manage_engagement,pages_messaging,instagram_basic,instagram_manage_comments,instagram_manage_messages');
@@ -353,51 +352,49 @@ const App: React.FC = () => {
         if (error.code === 'auth/credential-already-in-use') alert("هذا الحساب الفيسبوك مرتبط بالفعل بحساب آخر.");
         else alert(`فشل الاتصال بفيسبوك. السبب: ${error.message}`);
     }
-  };
+  }, [user]);
 
   const handleLogout = useCallback(async () => { await auth.signOut(); }, []);
 
   const renderContent = () => {
-      if (currentPath === '/privacy-policy.html') return <PrivacyPolicyPage />;
+      if (currentPath.startsWith('/privacy-policy')) return <PrivacyPolicyPage />;
       if (loadingUser) return <div className="flex items-center justify-center min-h-screen">جاري التحميل...</div>;
       
       if (!user || !appUser) return <HomePage onSignIn={handleEmailSignIn} onSignUp={handleEmailSignUp} authError={authError} />;
       
       let userPlan = plans.find(p => p.id === appUser.planId) || plans.find(p => p.id === 'free') || null;
 
-      // If admin, grant all features
       if (appUser.isAdmin) {
           userPlan = {
             id: 'admin',
             name: 'Admin Plan',
-            price: 0,
-            pricePeriod: 'monthly',
-            features: ['All features for admin'],
-            priceAnnual: 0,
             priceMonthly: 0,
+            priceAnnual: 0,
             description: "Admin",
+            features: ['All features for admin'],
             limits: {
-              maxPages: -1, // Unlimited
+              maxPages: -1, 
               maxTeamMembers: -1,
               aiFeatures: true,
               maxScheduledPostsPerMonth: -1,
               imageGenerationQuota: -1,
-              pages: -1, // Unlimited
+              pages: -1, 
               aiText: true,
               aiImage: true,
-              scheduledPosts: -1, // Unlimited
-              drafts: -1, // Unlimited
+              scheduledPosts: -1, 
+              drafts: -1, 
               bulkScheduling: true,
               contentPlanner: true,
               deepAnalytics: true,
               autoResponder: true,
-              contentApprovalWorkflow: false, // Admins don't need approval for themselves
+              contentApprovalWorkflow: false, 
             },
             adminOnly: true,
-          };
+            price: 0,
+            pricePeriod: 'monthly',
+          } as Plan; 
       }
 
-      // Prioritize selectedTarget for admins as well
       if (selectedTarget) {
         return (
           <DashboardPage
@@ -417,7 +414,7 @@ const App: React.FC = () => {
             fetchWithPagination={fetchWithPagination}
             theme={theme}
             onToggleTheme={handleToggleTheme}
-            fbAccessToken={appUser.fbAccessToken || null} // Ensure it's not undefined
+            fbAccessToken={appUser.fbAccessToken || null} 
             strategyHistory={strategyHistory}
             onSavePlan={handleSaveContentPlan}
             onDeleteStrategy={handleDeleteStrategy}
@@ -448,7 +445,7 @@ const App: React.FC = () => {
           isFacebookConnected={!!appUser.fbAccessToken}
           onConnectFacebook={handleFacebookConnect}
           onRefreshPages={fetchFacebookData}
-          userPlan={userPlan} // Pass userPlan to PageSelectorPage
+          userPlan={userPlan}
         />
       );
   };
