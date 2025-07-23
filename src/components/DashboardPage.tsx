@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Target, PublishedPost, Draft, ScheduledPost, BulkPostItem, ContentPlanItem, StrategyRequest, WeeklyScheduleSettings, PageProfile, PerformanceSummaryData, StrategyHistoryItem, InboxItem, AutoResponderSettings, PostAnalytics, Plan, Role, AppUser, AudienceGrowthData, HeatmapDataPoint, ContentTypePerformanceData, PostType } from '../types';
+import { Target, PublishedPost, Draft, ScheduledPost, BulkPostItem, ContentPlanItem, StrategyRequest, WeeklyScheduleSettings, PageProfile, PerformanceSummaryData, StrategyHistoryItem, InboxItem, AutoResponderSettings, Plan, Role, AppUser, AudienceGrowthData, HeatmapDataPoint, ContentTypePerformanceData, PostType } from '../types';
 import Header from './Header';
 import PostComposer from './PostComposer';
 import PostPreview from './PostPreview';
@@ -16,7 +16,6 @@ import Button from './ui/Button';
 import { db } from '../services/firebaseService';
 import type { User } from '../services/firebaseService';
 import { generateContentPlan, generatePerformanceSummary, generatePostInsights, generateBestPostingTimesHeatmap, generateContentTypePerformance } from '../services/geminiService';
-
 
 // Icons
 import PencilSquareIcon from './icons/PencilSquareIcon';
@@ -187,7 +186,6 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
       setEditingScheduledPostId(null);
     }, []);
     
-    // **RE-IMPLEMENTED MISSING FUNCTIONS**
     const handlePageProfileChange = (newProfile: PageProfile) => {
       setPageProfile(newProfile);
       saveDataToFirestore({ pageProfile: newProfile });
@@ -196,8 +194,6 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
     const handleFetchProfile = async () => {
         setIsFetchingProfile(true);
         showNotification('partial', 'جاري جلب بيانات الصفحة من فيسبوك...');
-        // Placeholder for actual FB API call to fetch page data like description, contact info etc.
-        // For now, we'll just simulate a delay.
         await new Promise(res => setTimeout(res, 1500));
         showNotification('success', 'تم تحديث ملف الصفحة (محاكاة).');
         setIsFetchingProfile(false);
@@ -212,19 +208,22 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
         showNotification('partial', `جاري مزامنة بيانات ${target.name}...`);
         
         try {
-            const fields = "id,message,created_time,full_picture,likes.summary(true),comments.summary(true),shares,attachments{media,type,url}";
+            // **FIX for Facebook API change: Removed full_picture, using attachments**
+            const fields = "id,message,created_time,likes.summary(true),comments.summary(true),shares,attachments{subattachments,media,type,url}";
             const [fbScheduledPosts, fbPublishedPosts, fbFeed, fbConversations] = await Promise.all([
                  fetchWithPagination(`/${target.id}/scheduled_posts?fields=${fields}`, target.access_token),
                  fetchWithPagination(`/${target.id}/published_posts?fields=${fields}`, target.access_token),
-                 fetchWithPagination(`/${target.id}/feed?fields=comments.limit(10){from,message,created_time,id},message,full_picture,link,from`, target.access_token),
+                 fetchWithPagination(`/${target.id}/feed?fields=comments.limit(10){from,message,created_time,id},message,link,from,attachments`, target.access_token),
                  fetchWithPagination(`/${target.id}/conversations?fields=participants,messages.limit(1){from,to,message,created_time}`, target.access_token)
             ]);
             
+            const getImageUrlFromPost = (post: any) => post.attachments?.data[0]?.media?.image?.src || post.attachments?.data[0]?.subattachments?.data[0]?.media?.image?.src;
+
             const newScheduledPosts: ScheduledPost[] = fbScheduledPosts.map((post: any) => ({
                 id: post.id, text: post.message || '',
                 scheduledAt: new Date(post.scheduled_publish_time * 1000),
-                imageUrl: post.attachments?.data[0]?.media?.image?.src,
-                hasImage: !!post.attachments?.data[0]?.media?.image?.src,
+                imageUrl: getImageUrlFromPost(post),
+                hasImage: !!getImageUrlFromPost(post),
                 targetId: target.id, targetInfo: { name: target.name, avatarUrl: target.picture.data.url, type: target.type },
                 status: 'scheduled', isReminder: false, type: 'post'
             }));
@@ -232,7 +231,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
 
             const newPublishedPosts: PublishedPost[] = fbPublishedPosts.map((post: any) => ({
                 id: post.id, text: post.message || '', publishedAt: new Date(post.created_time),
-                imagePreview: post.full_picture,
+                imagePreview: getImageUrlFromPost(post),
                 analytics: {
                     likes: post.likes?.summary?.total_count || 0,
                     comments: post.comments?.summary?.total_count || 0,
@@ -251,7 +250,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
                             newInboxItems.push({
                                 id: comment.id, type: 'comment', from: comment.from,
                                 text: comment.message, timestamp: comment.created_time, status: 'new',
-                                link: post.link, post: { message: post.message, picture: post.full_picture },
+                                link: post.link, post: { message: post.message, picture: getImageUrlFromPost(post) },
                                 authorName: comment.from.name,
                                 authorPictureUrl: `https://graph.facebook.com/${comment.from.id}/picture?type=normal`
                             } as InboxItem);
@@ -333,6 +332,22 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
     const onGenerateDeepAnalytics = async () => { /* ... */ };
     const onFetchPostInsights = async (postId: string) => { return null; };
       
+      const renderView = () => {
+          switch (view) {
+              case 'composer':
+                  return <PostComposer onPublish={handlePublish} onSaveDraft={handleSaveDraft} isPublishing={isPublishing} postText={postText} onPostTextChange={setPostText} onImageChange={(e: React.ChangeEvent<HTMLInputElement>) => setSelectedImage(e.target.files ? e.target.files[0] : null)} onImageGenerated={setSelectedImage} onImageRemove={() => setSelectedImage(null)} imagePreview={imagePreview} selectedImage={selectedImage} isScheduled={isScheduled} onIsScheduledChange={setIsScheduled} scheduleDate={scheduleDate} onScheduleDateChange={setScheduleDate} error={composerError} aiClient={aiClient} stabilityApiKey={stabilityApiKey} managedTarget={managedTarget} linkedInstagramTarget={linkedInstagramTarget} includeInstagram={includeInstagram} onIncludeInstagramChange={setIncludeInstagram} pageProfile={pageProfile} editingScheduledPostId={editingScheduledPostId} role={currentUserRole} userPlan={userPlan} />;
+              case 'analytics':
+                  return <AnalyticsPage publishedPosts={publishedPosts} publishedPostsLoading={publishedPostsLoading} analyticsPeriod={analyticsPeriod} setAnalyticsPeriod={setAnalyticsPeriod} performanceSummaryData={performanceSummaryData} performanceSummaryText={performanceSummaryText} isGeneratingSummary={isGeneratingSummary} audienceGrowthData={audienceGrowthData} heatmapData={heatmapData} contentTypeData={contentTypeData} isGeneratingDeepAnalytics={isGeneratingDeepAnalytics} managedTarget={managedTarget} userPlan={userPlan} currentUserRole={currentUserRole} onGeneratePerformanceSummary={onGeneratePerformanceSummary} onGenerateDeepAnalytics={onGenerateDeepAnalytics} onFetchPostInsights={onFetchPostInsights} />;
+              case 'profile':
+                  return <PageProfilePage profile={pageProfile} onProfileChange={handlePageProfileChange} isFetchingProfile={isFetchingProfile} onFetchProfile={handleFetchProfile} role={currentUserRole} user={user} />;
+              case 'ads':
+                  return <AdsManagerPage selectedTarget={managedTarget} role={currentUserRole} />;
+              // Add other cases for other views
+              default:
+                  return <div>مرحباً بك في لوحة التحكم!</div>;
+          }
+      };
+
       return (
         <>
           <Header pageName={managedTarget.name} onChangePage={onChangePage} onLogout={onLogout} onSettingsClick={onSettingsClick} theme={theme} onToggleTheme={onToggleTheme} />
@@ -345,7 +360,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
                  <NavItem icon={<BrainCircuitIcon className="w-5 h-5" />} label="استراتيجيات المحتوى" active={view === 'planner'} onClick={() => setView('planner')} />
                  <NavItem icon={<CalendarIcon className="w-5 h-5" />} label="تقويم المحتوى" active={view === 'calendar'} onClick={() => setView('calendar')} />
                  <NavItem icon={<ArchiveBoxIcon className="w-5 h-5" />} label="المسودات" active={view === 'drafts'} onClick={() => setView('drafts')} />
-                 <NavItem icon={<InboxArrowDownIcon className="w-5 h-5" />} label="صندوق الوارد" active={view === 'inbox'} onClick={() => setView('inbox')} notificationCount={inboxItems.length} />
+                 <NavItem icon={<InboxArrowDownIcon className="w-5 h-5" />} label="صندوق الوارد" active={view === 'inbox'} onClick={() => setView('inbox')} notificationCount={inboxItems.filter(i => i.status === 'new').length} />
                  <NavItem icon={<ChartBarIcon className="w-5 h-5" />} label="التحليلات" active={view === 'analytics'} onClick={() => setView('analytics')} />
                  <NavItem icon={<BriefcaseIcon className="w-5 h-5" />} label="مدير الإعلانات" active={view === 'ads'} onClick={() => setView('ads')} />
                  <NavItem icon={<UserCircleIcon className="w-5 h-5" />} label="ملف الصفحة" active={view === 'profile'} onClick={() => setView('profile')} />
@@ -358,7 +373,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
               </div>
             </aside>
             <main className="flex-grow min-w-0 p-4 sm:p-6 lg:p-8 bg-gray-50 dark:bg-gray-900 overflow-y-auto">
-                 {view === 'profile' && <PageProfilePage profile={pageProfile} onProfileChange={handlePageProfileChange} isFetchingProfile={isFetchingProfile} onFetchProfile={handleFetchProfile} role={currentUserRole} user={user} />}
+              {renderView()}
             </main>
           </div>
         </>
