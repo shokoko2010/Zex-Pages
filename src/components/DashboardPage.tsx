@@ -211,55 +211,131 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     setSyncingTargetId(target.id);
     showNotification('partial', `جاري مزامنة بيانات ${target.name}...`);
 
-    try {
-        // --- FINAL, SEQUENTIAL IMPLEMENTATION ---
-        // Abandoning Promise.all to run API calls one-by-one and avoid conflicts.
+    // Helper function to add delay between requests
+    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+    try {
         const getImageUrl = (post: any): string | undefined => {
             if (!post.attachments?.data?.[0]) return undefined;
             const attachment = post.attachments.data[0];
+            
+            // For newer API versions, check these fields
+            if (attachment.media_type === 'photo' && attachment.media?.source) {
+                return attachment.media.source;
+            }
+            if (attachment.media_type === 'photo' && attachment.media?.image?.src) {
+                return attachment.media.image.src;
+            }
+            if (attachment.subattachments?.data?.[0]?.media?.source) {
+                return attachment.subattachments.data[0].media.source;
+            }
+            if (attachment.subattachments?.data?.[0]?.media?.image?.src) {
+                return attachment.subattachments.data[0].media.image.src;
+            }
+            
+            // Fallback for older structure
             if (attachment.media?.image?.src) return attachment.media.image.src;
-            if (attachment.subattachments?.data?.[0]?.media?.image?.src) return attachment.subattachments.data[0].media.image.src;
+            
             return undefined;
         };
 
         // STEP 1: Fetch Scheduled Posts
-        const scheduledPostFields = "id,message,scheduled_publish_time,attachments{media,subattachments}";
+        console.log('Step 1: Fetching scheduled posts...');
+        showNotification('partial', `جاري جلب المنشورات المجدولة...`);
+        
+        const scheduledPostFields = "id,message,scheduled_publish_time,attachments{media_type,media,subattachments{media_type,media}}";
         const fbScheduled = await fetchWithPagination(`/${target.id}/scheduled_posts?fields=${scheduledPostFields}`, target.access_token);
+        
         const finalScheduled = fbScheduled.map((post: any) => ({
-            id: post.id, text: post.message || '', scheduledAt: new Date(post.scheduled_publish_time * 1000),
-            imageUrl: getImageUrl(post), hasImage: !!getImageUrl(post), targetId: target.id,
+            id: post.id, 
+            text: post.message || '', 
+            scheduledAt: new Date(post.scheduled_publish_time * 1000),
+            imageUrl: getImageUrl(post), 
+            hasImage: !!getImageUrl(post), 
+            targetId: target.id,
             targetInfo: { name: target.name, avatarUrl: target.picture.data.url, type: target.type },
-            status: 'scheduled', isReminder: false, type: 'post'
+            status: 'scheduled', 
+            isReminder: false, 
+            type: 'post'
         } as ScheduledPost));
+        
         setScheduledPosts(finalScheduled);
+        console.log(`Step 1 completed: ${finalScheduled.length} scheduled posts`);
+        
+        // Wait before next request
+        await delay(1000);
 
-        // STEP 2: Fetch Published Post Content
-        const postContentFields = "id,message,created_time,attachments{media,subattachments}";
+        // STEP 2: Fetch Published Post Content Only
+        console.log('Step 2: Fetching published post content...');
+        showNotification('partial', `جاري جلب المنشورات المنشورة...`);
+        
+        const postContentFields = "id,message,created_time,attachments{media_type,media,subattachments{media_type,media}}";
         const fbPublishedContent = await fetchWithPagination(`/${target.id}/published_posts?fields=${postContentFields}`, target.access_token);
+        
+        console.log(`Step 2 completed: ${fbPublishedContent.length} published posts`);
+        
+        // Wait before next request
+        await delay(1000);
 
-        // STEP 3: Fetch Published Post Engagement in a separate Batch request
-        const postEngagementFields = "likes.summary(true),comments.summary(true),shares.summary(true)";
-        const engagementBatchRequest = fbPublishedContent.map(post => ({
-            method: 'GET', relative_url: `${post.id}?fields=${postEngagementFields}`
-        }));
-        let engagementData: any[] = [];
-        if (engagementBatchRequest.length > 0) {
-            engagementData = await new Promise(resolve => window.FB.api('/', 'POST', { batch: JSON.stringify(engagementBatchRequest), access_token: target.access_token }, (res: any) => resolve(res)));
-        }
+        // STEP 3: Fetch Engagement Data Separately (in smaller batches)
+        console.log('Step 3: Fetching engagement data...');
+        showNotification('partial', `جاري جلب بيانات التفاعل...`);
+        
         const engagementMap = new Map<string, any>();
-        engagementData.forEach(res => {
-            if (res && res.code === 200) {
-                const body = JSON.parse(res.body);
-                engagementMap.set(body.id, body);
+        const batchSize = 5; // Process only 5 posts at a time
+        
+        for (let i = 0; i < fbPublishedContent.length; i += batchSize) {
+            const batch = fbPublishedContent.slice(i, i + batchSize);
+            const postEngagementFields = "likes.summary(true),comments.summary(true),shares.summary(true)";
+            
+            const engagementBatchRequest = batch.map(post => ({
+                method: 'GET', 
+                relative_url: `${post.id}?fields=${postEngagementFields}`
+            }));
+
+            if (engagementBatchRequest.length > 0) {
+                try {
+                    const engagementData = await new Promise<any[]>((resolve, reject) => {
+                        window.FB.api('/', 'POST', { 
+                            batch: JSON.stringify(engagementBatchRequest), 
+                            access_token: target.access_token 
+                        }, (res: any) => {
+                            if (res && !res.error) {
+                                resolve(res);
+                            } else {
+                                reject(new Error(res?.error?.message || 'Unknown engagement fetch error'));
+                            }
+                        });
+                    });
+
+                    engagementData.forEach(res => {
+                        if (res && res.code === 200) {
+                            try {
+                                const body = JSON.parse(res.body);
+                                engagementMap.set(body.id, body);
+                            } catch (parseError) {
+                                console.warn('Failed to parse engagement response:', parseError);
+                            }
+                        }
+                    });
+                } catch (error) {
+                    console.warn(`Failed to fetch engagement for batch ${i}-${i + batchSize}:`, error);
+                }
+                
+                // Wait between batches
+                if (i + batchSize < fbPublishedContent.length) {
+                    await delay(500);
+                }
             }
-        });
+        }
 
         // Combine content and engagement
         const finalPublished = fbPublishedContent.map((post: any) => {
             const engagement = engagementMap.get(post.id) || {};
             return {
-                id: post.id, text: post.message || '', publishedAt: new Date(post.created_time),
+                id: post.id, 
+                text: post.message || '', 
+                publishedAt: new Date(post.created_time),
                 imagePreview: getImageUrl(post),
                 analytics: {
                     likes: engagement.likes?.summary?.total_count || 0,
@@ -267,53 +343,116 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                     shares: engagement.shares?.summary?.total_count || 0,
                     lastUpdated: new Date().toISOString()
                 },
-                pageId: target.id, pageName: target.name, pageAvatarUrl: target.picture.data.url,
+                pageId: target.id, 
+                pageName: target.name, 
+                pageAvatarUrl: target.picture.data.url,
             } as PublishedPost;
         });
-        setPublishedPosts(finalPublished);
         
-        // STEP 4: Fetch Inbox data (Feed and Conversations)
+        setPublishedPosts(finalPublished);
+        console.log(`Step 3 completed: ${finalPublished.length} posts with engagement data`);
+        
+        // Wait before next request
+        await delay(1000);
+        
+        // STEP 4A: Fetch Feed Comments
+        console.log('Step 4A: Fetching feed comments...');
+        showNotification('partial', `جاري جلب التعليقات...`);
+        
         const newInbox: InboxItem[] = [];
-        const feedFields = "comments.limit(10){from,message,created_time,id},message,link,from";
-        const fbFeed = await fetchWithPagination(`/${target.id}/feed?fields=${feedFields}`, target.access_token);
-        fbFeed.forEach((post: any) => {
-            if (post.comments) post.comments.data.forEach((comment: any) => {
-                if (comment.from.id !== target.id) newInbox.push({
-                    id: comment.id, type: 'comment', from: comment.from, text: comment.message,
-                    timestamp: comment.created_time, status: 'new', link: post.link,
-                    post: { message: post.message, picture: undefined }, // Picture is unavailable to prevent crash
-                    authorName: comment.from.name, authorPictureUrl: `https://graph.facebook.com/${comment.from.id}/picture?type=normal`
-                } as InboxItem);
+        
+        try {
+            const feedFields = "comments.limit(10){from,message,created_time,id},message,link,from";
+            const fbFeed = await fetchWithPagination(`/${target.id}/feed?fields=${feedFields}`, target.access_token);
+            
+            fbFeed.forEach((post: any) => {
+                if (post.comments) {
+                    post.comments.data.forEach((comment: any) => {
+                        if (comment.from.id !== target.id) {
+                            newInbox.push({
+                                id: comment.id, 
+                                type: 'comment', 
+                                from: comment.from, 
+                                text: comment.message,
+                                timestamp: comment.created_time, 
+                                status: 'new', 
+                                link: post.link,
+                                post: { message: post.message, picture: undefined },
+                                authorName: comment.from.name, 
+                                authorPictureUrl: `https://graph.facebook.com/${comment.from.id}/picture?type=normal`
+                            } as InboxItem);
+                        }
+                    });
+                }
             });
-        });
+            
+            console.log(`Step 4A completed: ${fbFeed.length} feed posts processed`);
+        } catch (error) {
+            console.warn('Failed to fetch feed comments:', error);
+            showNotification('partial', 'تعذر جلب تعليقات الخلاصة، سيتم المتابعة...');
+        }
+        
+        // Wait before next request
+        await delay(1000);
 
-        const convoFields = "participants,messages.limit(1){from,to,message,created_time}";
-        const fbConvos = await fetchWithPagination(`/${target.id}/conversations?fields=${convoFields}`, target.access_token);
-        fbConvos.forEach((convo: any) => {
-            const lastMsg = convo.messages?.data?.[0];
-            if (lastMsg && lastMsg.from.id !== target.id) {
-                const participant = convo.participants.data.find((p: any) => p.id !== target.id);
-                newInbox.push({
-                    id: lastMsg.id, type: 'message', from: participant, text: lastMsg.message,
-                    timestamp: lastMsg.created_time, status: 'new', conversationId: convo.id,
-                    authorName: participant.name, authorPictureUrl: `https://graph.facebook.com/${participant.id}/picture?type=normal`
-                } as InboxItem);
-            }
-        });
-        setInboxItems(newInbox.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+        // STEP 4B: Fetch Conversations
+        console.log('Step 4B: Fetching conversations...');
+        showNotification('partial', `جاري جلب المحادثات...`);
+        
+        try {
+            const convoFields = "participants,messages.limit(1){from,to,message,created_time}";
+            const fbConvos = await fetchWithPagination(`/${target.id}/conversations?fields=${convoFields}`, target.access_token);
+            
+            fbConvos.forEach((convo: any) => {
+                const lastMsg = convo.messages?.data?.[0];
+                if (lastMsg && lastMsg.from.id !== target.id) {
+                    const participant = convo.participants.data.find((p: any) => p.id !== target.id);
+                    if (participant) {
+                        newInbox.push({
+                            id: lastMsg.id, 
+                            type: 'message', 
+                            from: participant, 
+                            text: lastMsg.message,
+                            timestamp: lastMsg.created_time, 
+                            status: 'new', 
+                            conversationId: convo.id,
+                            authorName: participant.name, 
+                            authorPictureUrl: `https://graph.facebook.com/${participant.id}/picture?type=normal`
+                        } as InboxItem);
+                    }
+                }
+            });
+            
+            console.log(`Step 4B completed: ${fbConvos.length} conversations processed`);
+        } catch (error) {
+            console.warn('Failed to fetch conversations:', error);
+            showNotification('partial', 'تعذر جلب المحادثات، سيتم المتابعة...');
+        }
+        
+        // Sort inbox items
+        const sortedInbox = newInbox.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        setInboxItems(sortedInbox);
+
+        // Wait before final save
+        await delay(500);
 
         // STEP 5: Save all data
+        console.log('Step 5: Saving data to Firestore...');
+        showNotification('partial', `جاري حفظ البيانات...`);
+        
         await saveDataToFirestore({
             scheduledPosts: finalScheduled.map(p => ({ ...p, scheduledAt: p.scheduledAt.toISOString() })),
             publishedPosts: finalPublished.map(p => ({ ...p, publishedAt: p.publishedAt.toISOString() })),
-            inboxItems: newInbox,
+            inboxItems: sortedInbox,
             lastSync: new Date().toISOString()
         });
 
+        console.log('Sync completed successfully');
         showNotification('success', 'تمت المزامنة بنجاح!');
+        
     } catch (error: any) {
-        showNotification('error', `فشل المزامنة: ${error.message}`);
         console.error("Facebook Sync Error details:", error);
+        showNotification('error', `فشل المزامنة: ${error.message}`);
     } finally {
         setSyncingTargetId(null);
         setIsInboxLoading(false);
