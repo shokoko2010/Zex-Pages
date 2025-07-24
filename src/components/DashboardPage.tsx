@@ -209,9 +209,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     showNotification('partial', `جاري مزامنة بيانات ${target.name}...`);
     
     try {
-        // **FINAL FIX for Facebook API fields request**
-        // Removed 'attachments' completely to avoid the deprecation error.
-        // Relying on `full_picture` which is more stable for getting a single image preview.
+        // **FINAL FIX for Facebook API fields request - simplified for maximum compatibility**
         const postFields = "id,message,created_time,likes.summary(true),comments.summary(true),shares,full_picture";
         const feedFields = "comments.limit(10){from,message,created_time,id},message,link,from,full_picture";
         const convoFields = "participants,messages.limit(1){from,to,message,created_time}";
@@ -280,6 +278,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         setPublishedPostsLoading(false);
     }
 }, [fetchWithPagination, saveDataToFirestore, showNotification]);
+
 
 
     useEffect(() => {
