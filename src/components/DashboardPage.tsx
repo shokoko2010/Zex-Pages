@@ -209,43 +209,39 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     showNotification('partial', `جاري مزامنة بيانات ${target.name}...`);
     
     try {
-        // **FIXED API fields - removed deprecated attachment fields**
-        const postFields = "id,message,created_time,likes.summary(true),comments.summary(true),shares.summary(true),full_picture";
+        // --- FINAL FIX ---
+        // Use 'attachments' for all post types and avoid engagement fields for scheduled posts.
+        const postFields = "id,message,created_time,likes.summary(true),comments.summary(true),shares.summary(true),attachments{media,subattachments}";
         const feedFields = "comments.limit(10){from,message,created_time,id},message,link,from,attachments{media,subattachments}";
         const convoFields = "participants,messages.limit(1){from,to,message,created_time}";
         const scheduledPostFields = "id,message,scheduled_publish_time,attachments{media,subattachments}";
 
         const [fbScheduled, fbPublished, fbFeed, fbConvos] = await Promise.all([
-            fetchWithPagination(`/${target.id}/scheduled_posts?fields=${scheduledPostFields}`, target.access_token),
-            fetchWithPagination(`/${target.id}/published_posts?fields=${postFields}`, target.access_token),
-            fetchWithPagination(`/${target.id}/feed?fields=${feedFields}`, target.access_token),
-            fetchWithPagination(`/${target.id}/conversations?fields=${convoFields}`, target.access_token)
+             fetchWithPagination(`/${target.id}/scheduled_posts?fields=${scheduledPostFields}`, target.access_token),
+             fetchWithPagination(`/${target.id}/published_posts?fields=${postFields}`, target.access_token),
+             fetchWithPagination(`/${target.id}/feed?fields=${feedFields}`, target.access_token),
+             fetchWithPagination(`/${target.id}/conversations?fields=${convoFields}`, target.access_token)
         ]);
         
-        // **UPDATED: Use full_picture directly instead of deprecated attachment fields**
+        // This helper function correctly parses the new 'attachments' structure.
         const getImageUrl = (post: any): string | undefined => {
-            // Use full_picture field which is the standard way to get post images
-            return post.full_picture || undefined;
+            if (!post.attachments?.data?.[0]) return undefined;
+            const attachment = post.attachments.data[0];
+            if (attachment.media?.image?.src) return attachment.media.image.src;
+            if (attachment.subattachments?.data?.[0]?.media?.image?.src) return attachment.subattachments.data[0].media.image.src;
+            return undefined;
         };
 
         const finalScheduled = fbScheduled.map((post: any) => ({
-            id: post.id, 
-            text: post.message || '', 
-            scheduledAt: new Date(post.scheduled_publish_time * 1000),
-            imageUrl: getImageUrl(post), 
-            hasImage: !!getImageUrl(post), 
-            targetId: target.id,
+            id: post.id, text: post.message || '', scheduledAt: new Date(post.scheduled_publish_time * 1000),
+            imageUrl: getImageUrl(post), hasImage: !!getImageUrl(post), targetId: target.id,
             targetInfo: { name: target.name, avatarUrl: target.picture.data.url, type: target.type },
-            status: 'scheduled', 
-            isReminder: false, 
-            type: 'post'
+            status: 'scheduled', isReminder: false, type: 'post'
         } as ScheduledPost));
         setScheduledPosts(finalScheduled);
 
         const finalPublished = fbPublished.map((post: any) => ({
-            id: post.id, 
-            text: post.message || '', 
-            publishedAt: new Date(post.created_time),
+            id: post.id, text: post.message || '', publishedAt: new Date(post.created_time),
             imagePreview: getImageUrl(post),
             analytics: { 
                 likes: post.likes?.summary?.total_count || 0, 
@@ -253,9 +249,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                 shares: post.shares?.summary?.total_count || 0, 
                 lastUpdated: new Date().toISOString() 
             },
-            pageId: target.id, 
-            pageName: target.name, 
-            pageAvatarUrl: target.picture.data.url,
+            pageId: target.id, pageName: target.name, pageAvatarUrl: target.picture.data.url,
         } as PublishedPost));
         setPublishedPosts(finalPublished);
 
@@ -263,34 +257,21 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         fbFeed.forEach((post: any) => {
             if(post.comments) post.comments.data.forEach((comment: any) => {
                 if (comment.from.id !== target.id) newInbox.push({
-                    id: comment.id, 
-                    type: 'comment', 
-                    from: comment.from, 
-                    text: comment.message,
-                    timestamp: comment.created_time, 
-                    status: 'new' as 'new' | 'replied' | 'done', 
-                    link: post.link,
+                    id: comment.id, type: 'comment', from: comment.from, text: comment.message,
+                    timestamp: comment.created_time, status: 'new' as 'new' | 'replied' | 'done', link: post.link,
                     post: { message: post.message, picture: getImageUrl(post) },
-                    authorName: comment.from.name, 
-                    authorPictureUrl: `https://graph.facebook.com/${comment.from.id}/picture?type=normal`
+                    authorName: comment.from.name, authorPictureUrl: `https://graph.facebook.com/${comment.from.id}/picture?type=normal`
                 } as InboxItem);
             });
         });
-        
         fbConvos.forEach((convo: any) => {
             const lastMsg = convo.messages?.data?.[0];
             if (lastMsg && lastMsg.from.id !== target.id) {
                  const participant = convo.participants.data.find((p: any) => p.id !== target.id);
                  newInbox.push({
-                    id: lastMsg.id, 
-                    type: 'message', 
-                    from: participant, 
-                    text: lastMsg.message,
-                    timestamp: lastMsg.created_time, 
-                    status: 'new' as 'new' | 'replied' | 'done', 
-                    conversationId: convo.id,
-                    authorName: participant.name, 
-                    authorPictureUrl: `https://graph.facebook.com/${participant.id}/picture?type=normal`
+                    id: lastMsg.id, type: 'message', from: participant, text: lastMsg.message,
+                    timestamp: lastMsg.created_time, status: 'new' as 'new' | 'replied' | 'done', conversationId: convo.id,
+                    authorName: participant.name, authorPictureUrl: `https://graph.facebook.com/${participant.id}/picture?type=normal`
                 } as InboxItem);
             }
         });
@@ -299,8 +280,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         await saveDataToFirestore({
             scheduledPosts: finalScheduled.map(p => ({...p, scheduledAt: p.scheduledAt.toISOString()})),
             publishedPosts: finalPublished.map(p => ({...p, publishedAt: p.publishedAt.toISOString()})),
-            inboxItems: newInbox, 
-            lastSync: new Date().toISOString()
+            inboxItems: newInbox, lastSync: new Date().toISOString()
         });
         showNotification('success', 'تمت المزامنة بنجاح!');
     } catch (error: any) {
