@@ -210,18 +210,34 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     
     try {
         // **FINAL FIX for Facebook API fields request - simplified for maximum compatibility**
-        const postFields = "id,message,created_time,likes.summary(true),comments.summary(true),shares.summary(true),full_picture";
+        const postFields = "id,message,created_time,likes.summary(true),comments.summary(true),shares.summary(true),attachments{media,subattachments}";
         const feedFields = "comments.limit(10){from,message,created_time,id},message,link,from,full_picture";
         const convoFields = "participants,messages.limit(1){from,to,message,created_time}";
+        const scheduledPostFields = "id,message,scheduled_publish_time,full_picture";
 
         const [fbScheduled, fbPublished, fbFeed, fbConvos] = await Promise.all([
-             fetchWithPagination(`/${target.id}/scheduled_posts?fields=${postFields}`, target.access_token),
-             fetchWithPagination(`/${target.id}/published_posts?fields=${postFields}`, target.access_token),
-             fetchWithPagination(`/${target.id}/feed?fields=${feedFields}`, target.access_token),
-             fetchWithPagination(`/${target.id}/conversations?fields=${convoFields}`, target.access_token)
-        ]);
+            fetchWithPagination(`/${target.id}/scheduled_posts?fields=${scheduledPostFields}`, target.access_token),
+            fetchWithPagination(`/${target.id}/published_posts?fields=${postFields}`, target.access_token),
+            fetchWithPagination(`/${target.id}/feed?fields=${feedFields}`, target.access_token),
+            fetchWithPagination(`/${target.id}/conversations?fields=${convoFields}`, target.access_token)
+       ]);
+       
         
-        const getImageUrl = (post: any) => post.full_picture || undefined;
+        const getImageUrl = (post: any): string | undefined => {
+    if (!post.attachments) return undefined;
+    const attachmentData = post.attachments.data?.[0];
+    if (!attachmentData) return undefined;
+
+    // Handle single photo/video posts from the main attachment
+    if (attachmentData.media?.image?.src) {
+        return attachmentData.media.image.src;
+    }
+    // Handle carousel/album posts from sub-attachments, returning the first image
+    if (attachmentData.subattachments?.data?.[0]?.media?.image?.src) {
+        return attachmentData.subattachments.data[0].media.image.src;
+    }
+    return undefined;
+};
 
         const finalScheduled = fbScheduled.map((post: any) => ({
             id: post.id, text: post.message || '', scheduledAt: new Date(post.scheduled_publish_time * 1000),
