@@ -212,15 +212,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     showNotification('partial', `جاري مزامنة بيانات ${target.name}...`);
 
     try {
-        // --- DEFINITIVE FIX ---
-        // The conflict is requesting 'comments' and 'attachments' together on the /feed endpoint.
-        // The fix is to remove 'attachments' from the 'feedFields' request.
-
-        const postContentFields = "id,message,created_time,attachments{media,subattachments}";
-        const postEngagementFields = "likes.summary(true),comments.summary(true),shares.summary(true)";
-        const feedFields = "comments.limit(10){from,message,created_time,id},message,link,from"; // REMOVED attachments
-        const convoFields = "participants,messages.limit(1){from,to,message,created_time}";
-        const scheduledPostFields = "id,message,scheduled_publish_time,attachments{media,subattachments}";
+        // --- FINAL, SEQUENTIAL IMPLEMENTATION ---
+        // Abandoning Promise.all to run API calls one-by-one and avoid conflicts.
 
         const getImageUrl = (post: any): string | undefined => {
             if (!post.attachments?.data?.[0]) return undefined;
@@ -230,27 +223,30 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             return undefined;
         };
 
-        const [fbScheduled, fbPublishedContent, fbFeed, fbConvos] = await Promise.all([
-            fetchWithPagination(`/${target.id}/scheduled_posts?fields=${scheduledPostFields}`, target.access_token),
-            fetchWithPagination(`/${target.id}/published_posts?fields=${postContentFields}`, target.access_token),
-            fetchWithPagination(`/${target.id}/feed?fields=${feedFields}`, target.access_token), // Uses the corrected feedFields
-            fetchWithPagination(`/${target.id}/conversations?fields=${convoFields}`, target.access_token),
-        ]);
+        // STEP 1: Fetch Scheduled Posts
+        const scheduledPostFields = "id,message,scheduled_publish_time,attachments{media,subattachments}";
+        const fbScheduled = await fetchWithPagination(`/${target.id}/scheduled_posts?fields=${scheduledPostFields}`, target.access_token);
+        const finalScheduled = fbScheduled.map((post: any) => ({
+            id: post.id, text: post.message || '', scheduledAt: new Date(post.scheduled_publish_time * 1000),
+            imageUrl: getImageUrl(post), hasImage: !!getImageUrl(post), targetId: target.id,
+            targetInfo: { name: target.name, avatarUrl: target.picture.data.url, type: target.type },
+            status: 'scheduled', isReminder: false, type: 'post'
+        } as ScheduledPost));
+        setScheduledPosts(finalScheduled);
 
+        // STEP 2: Fetch Published Post Content
+        const postContentFields = "id,message,created_time,attachments{media,subattachments}";
+        const fbPublishedContent = await fetchWithPagination(`/${target.id}/published_posts?fields=${postContentFields}`, target.access_token);
+
+        // STEP 3: Fetch Published Post Engagement in a separate Batch request
+        const postEngagementFields = "likes.summary(true),comments.summary(true),shares.summary(true)";
         const engagementBatchRequest = fbPublishedContent.map(post => ({
-            method: 'GET',
-            relative_url: `${post.id}?fields=${postEngagementFields}`
+            method: 'GET', relative_url: `${post.id}?fields=${postEngagementFields}`
         }));
-
         let engagementData: any[] = [];
         if (engagementBatchRequest.length > 0) {
-            engagementData = await new Promise(resolve => window.FB.api(
-                '/',
-                'POST', { batch: JSON.stringify(engagementBatchRequest), access_token: target.access_token },
-                (res: any) => resolve(res)
-            ));
+            engagementData = await new Promise(resolve => window.FB.api('/', 'POST', { batch: JSON.stringify(engagementBatchRequest), access_token: target.access_token }, (res: any) => resolve(res)));
         }
-
         const engagementMap = new Map<string, any>();
         engagementData.forEach(res => {
             if (res && res.code === 200) {
@@ -259,12 +255,11 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             }
         });
 
+        // Combine content and engagement
         const finalPublished = fbPublishedContent.map((post: any) => {
             const engagement = engagementMap.get(post.id) || {};
             return {
-                id: post.id,
-                text: post.message || '',
-                publishedAt: new Date(post.created_time),
+                id: post.id, text: post.message || '', publishedAt: new Date(post.created_time),
                 imagePreview: getImageUrl(post),
                 analytics: {
                     likes: engagement.likes?.summary?.total_count || 0,
@@ -272,58 +267,49 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                     shares: engagement.shares?.summary?.total_count || 0,
                     lastUpdated: new Date().toISOString()
                 },
-                pageId: target.id,
-                pageName: target.name,
-                pageAvatarUrl: target.picture.data.url,
+                pageId: target.id, pageName: target.name, pageAvatarUrl: target.picture.data.url,
             } as PublishedPost;
         });
         setPublishedPosts(finalPublished);
-
-        const finalScheduled = fbScheduled.map((post: any) => ({
-            id: post.id,
-            text: post.message || '',
-            scheduledAt: new Date(post.scheduled_publish_time * 1000),
-            imageUrl: getImageUrl(post),
-            hasImage: !!getImageUrl(post),
-            targetId: target.id,
-            targetInfo: { name: target.name, avatarUrl: target.picture.data.url, type: target.type },
-            status: 'scheduled',
-            isReminder: false,
-            type: 'post'
-        } as ScheduledPost));
-        setScheduledPosts(finalScheduled);
-
+        
+        // STEP 4: Fetch Inbox data (Feed and Conversations)
         const newInbox: InboxItem[] = [];
+        const feedFields = "comments.limit(10){from,message,created_time,id},message,link,from";
+        const fbFeed = await fetchWithPagination(`/${target.id}/feed?fields=${feedFields}`, target.access_token);
         fbFeed.forEach((post: any) => {
             if (post.comments) post.comments.data.forEach((comment: any) => {
                 if (comment.from.id !== target.id) newInbox.push({
                     id: comment.id, type: 'comment', from: comment.from, text: comment.message,
-                    timestamp: comment.created_time, status: 'new' as 'new' | 'replied' | 'done', link: post.link,
-                    // The 'picture' field is now undefined, but this is necessary to prevent the crash.
-                    post: { message: post.message, picture: undefined },
+                    timestamp: comment.created_time, status: 'new', link: post.link,
+                    post: { message: post.message, picture: undefined }, // Picture is unavailable to prevent crash
                     authorName: comment.from.name, authorPictureUrl: `https://graph.facebook.com/${comment.from.id}/picture?type=normal`
                 } as InboxItem);
             });
         });
+
+        const convoFields = "participants,messages.limit(1){from,to,message,created_time}";
+        const fbConvos = await fetchWithPagination(`/${target.id}/conversations?fields=${convoFields}`, target.access_token);
         fbConvos.forEach((convo: any) => {
             const lastMsg = convo.messages?.data?.[0];
             if (lastMsg && lastMsg.from.id !== target.id) {
                 const participant = convo.participants.data.find((p: any) => p.id !== target.id);
                 newInbox.push({
                     id: lastMsg.id, type: 'message', from: participant, text: lastMsg.message,
-                    timestamp: lastMsg.created_time, status: 'new' as 'new' | 'replied' | 'done', conversationId: convo.id,
+                    timestamp: lastMsg.created_time, status: 'new', conversationId: convo.id,
                     authorName: participant.name, authorPictureUrl: `https://graph.facebook.com/${participant.id}/picture?type=normal`
                 } as InboxItem);
             }
         });
         setInboxItems(newInbox.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
 
+        // STEP 5: Save all data
         await saveDataToFirestore({
             scheduledPosts: finalScheduled.map(p => ({ ...p, scheduledAt: p.scheduledAt.toISOString() })),
             publishedPosts: finalPublished.map(p => ({ ...p, publishedAt: p.publishedAt.toISOString() })),
             inboxItems: newInbox,
             lastSync: new Date().toISOString()
         });
+
         showNotification('success', 'تمت المزامنة بنجاح!');
     } catch (error: any) {
         showNotification('error', `فشل المزامنة: ${error.message}`);
@@ -334,8 +320,6 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         setPublishedPostsLoading(false);
     }
 }, [fetchWithPagination, saveDataToFirestore, showNotification]);
-
-
 
 
     useEffect(() => {
