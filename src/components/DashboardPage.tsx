@@ -211,9 +211,9 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     try {
         // **FIXED API fields - removed deprecated attachment fields**
         const postFields = "id,message,created_time,likes.summary(true),comments.summary(true),shares.summary(true),full_picture";
-        const feedFields = "comments.limit(10){from,message,created_time,id},message,link,from,full_picture";
+        const feedFields = "comments.limit(10){from,message,created_time,id},message,link,from,attachments{media,subattachments}";
         const convoFields = "participants,messages.limit(1){from,to,message,created_time}";
-        const scheduledPostFields = "id,message,scheduled_publish_time,full_picture";
+        const scheduledPostFields = "id,message,scheduled_publish_time,attachments{media,subattachments}";
 
         const [fbScheduled, fbPublished, fbFeed, fbConvos] = await Promise.all([
             fetchWithPagination(`/${target.id}/scheduled_posts?fields=${scheduledPostFields}`, target.access_token),
