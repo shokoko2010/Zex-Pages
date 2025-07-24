@@ -204,26 +204,21 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
   
 
   const syncFacebookData = useCallback(async (target: Target) => {
-    if (!target.access_token) { showNotification('error', 'رمز الوصول للصفحة مفقود.'); return; }
+    if (!target.access_token) {
+        showNotification('error', 'رمز الوصول للصفحة مفقود.');
+        return;
+    }
     setSyncingTargetId(target.id);
     showNotification('partial', `جاري مزامنة بيانات ${target.name}...`);
-    
+
     try {
-        // --- FINAL FIX ---
-        // Use 'attachments' for all post types and avoid engagement fields for scheduled posts.
-        const postFields = "id,message,created_time,likes.summary(true),comments.summary(true),shares.summary(true),attachments{media,subattachments}";
+        // Step 1: Define field sets, separating content from engagement
+        const postContentFields = "id,message,created_time,attachments{media,subattachments}";
+        const postEngagementFields = "likes.summary(true),comments.summary(true),shares.summary(true)";
         const feedFields = "comments.limit(10){from,message,created_time,id},message,link,from,attachments{media,subattachments}";
         const convoFields = "participants,messages.limit(1){from,to,message,created_time}";
         const scheduledPostFields = "id,message,scheduled_publish_time,attachments{media,subattachments}";
 
-        const [fbScheduled, fbPublished, fbFeed, fbConvos] = await Promise.all([
-             fetchWithPagination(`/${target.id}/scheduled_posts?fields=${scheduledPostFields}`, target.access_token),
-             fetchWithPagination(`/${target.id}/published_posts?fields=${postFields}`, target.access_token),
-             fetchWithPagination(`/${target.id}/feed?fields=${feedFields}`, target.access_token),
-             fetchWithPagination(`/${target.id}/conversations?fields=${convoFields}`, target.access_token)
-        ]);
-        
-        // This helper function correctly parses the new 'attachments' structure.
         const getImageUrl = (post: any): string | undefined => {
             if (!post.attachments?.data?.[0]) return undefined;
             const attachment = post.attachments.data[0];
@@ -232,30 +227,75 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             return undefined;
         };
 
+        // Step 2: Fetch initial data without engagement fields to avoid conflicts
+        const [fbScheduled, fbPublishedContent, fbFeed, fbConvos] = await Promise.all([
+            fetchWithPagination(`/${target.id}/scheduled_posts?fields=${scheduledPostFields}`, target.access_token),
+            fetchWithPagination(`/${target.id}/published_posts?fields=${postContentFields}`, target.access_token),
+            fetchWithPagination(`/${target.id}/feed?fields=${feedFields}`, target.access_token),
+            fetchWithPagination(`/${target.id}/conversations?fields=${convoFields}`, target.access_token),
+        ]);
+
+        // Step 3: Use a BATCH request to fetch engagement data for the published posts
+        const engagementBatchRequest = fbPublishedContent.map(post => ({
+            method: 'GET',
+            relative_url: `${post.id}?fields=${postEngagementFields}`
+        }));
+
+        let engagementData: any[] = [];
+        if (engagementBatchRequest.length > 0) {
+            engagementData = await new Promise(resolve => window.FB.api(
+                '/',
+                'POST', { batch: JSON.stringify(engagementBatchRequest), access_token: target.access_token },
+                (res: any) => resolve(res)
+            ));
+        }
+
+        const engagementMap = new Map<string, any>();
+        engagementData.forEach(res => {
+            if (res && res.code === 200) {
+                const body = JSON.parse(res.body);
+                engagementMap.set(body.id, body);
+            }
+        });
+
+        // Step 4: Combine content and engagement data
+        const finalPublished = fbPublishedContent.map((post: any) => {
+            const engagement = engagementMap.get(post.id) || {};
+            return {
+                id: post.id,
+                text: post.message || '',
+                publishedAt: new Date(post.created_time),
+                imagePreview: getImageUrl(post),
+                analytics: {
+                    likes: engagement.likes?.summary?.total_count || 0,
+                    comments: engagement.comments?.summary?.total_count || 0,
+                    shares: engagement.shares?.summary?.total_count || 0,
+                    lastUpdated: new Date().toISOString()
+                },
+                pageId: target.id,
+                pageName: target.name,
+                pageAvatarUrl: target.picture.data.url,
+            } as PublishedPost;
+        });
+        setPublishedPosts(finalPublished);
+
         const finalScheduled = fbScheduled.map((post: any) => ({
-            id: post.id, text: post.message || '', scheduledAt: new Date(post.scheduled_publish_time * 1000),
-            imageUrl: getImageUrl(post), hasImage: !!getImageUrl(post), targetId: target.id,
+            id: post.id,
+            text: post.message || '',
+            scheduledAt: new Date(post.scheduled_publish_time * 1000),
+            imageUrl: getImageUrl(post),
+            hasImage: !!getImageUrl(post),
+            targetId: target.id,
             targetInfo: { name: target.name, avatarUrl: target.picture.data.url, type: target.type },
-            status: 'scheduled', isReminder: false, type: 'post'
+            status: 'scheduled',
+            isReminder: false,
+            type: 'post'
         } as ScheduledPost));
         setScheduledPosts(finalScheduled);
 
-        const finalPublished = fbPublished.map((post: any) => ({
-            id: post.id, text: post.message || '', publishedAt: new Date(post.created_time),
-            imagePreview: getImageUrl(post),
-            analytics: { 
-                likes: post.likes?.summary?.total_count || 0, 
-                comments: post.comments?.summary?.total_count || 0, 
-                shares: post.shares?.summary?.total_count || 0, 
-                lastUpdated: new Date().toISOString() 
-            },
-            pageId: target.id, pageName: target.name, pageAvatarUrl: target.picture.data.url,
-        } as PublishedPost));
-        setPublishedPosts(finalPublished);
-
         const newInbox: InboxItem[] = [];
         fbFeed.forEach((post: any) => {
-            if(post.comments) post.comments.data.forEach((comment: any) => {
+            if (post.comments) post.comments.data.forEach((comment: any) => {
                 if (comment.from.id !== target.id) newInbox.push({
                     id: comment.id, type: 'comment', from: comment.from, text: comment.message,
                     timestamp: comment.created_time, status: 'new' as 'new' | 'replied' | 'done', link: post.link,
@@ -267,8 +307,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         fbConvos.forEach((convo: any) => {
             const lastMsg = convo.messages?.data?.[0];
             if (lastMsg && lastMsg.from.id !== target.id) {
-                 const participant = convo.participants.data.find((p: any) => p.id !== target.id);
-                 newInbox.push({
+                const participant = convo.participants.data.find((p: any) => p.id !== target.id);
+                newInbox.push({
                     id: lastMsg.id, type: 'message', from: participant, text: lastMsg.message,
                     timestamp: lastMsg.created_time, status: 'new' as 'new' | 'replied' | 'done', conversationId: convo.id,
                     authorName: participant.name, authorPictureUrl: `https://graph.facebook.com/${participant.id}/picture?type=normal`
@@ -278,9 +318,10 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         setInboxItems(newInbox.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
 
         await saveDataToFirestore({
-            scheduledPosts: finalScheduled.map(p => ({...p, scheduledAt: p.scheduledAt.toISOString()})),
-            publishedPosts: finalPublished.map(p => ({...p, publishedAt: p.publishedAt.toISOString()})),
-            inboxItems: newInbox, lastSync: new Date().toISOString()
+            scheduledPosts: finalScheduled.map(p => ({ ...p, scheduledAt: p.scheduledAt.toISOString() })),
+            publishedPosts: finalPublished.map(p => ({ ...p, publishedAt: p.publishedAt.toISOString() })),
+            inboxItems: newInbox,
+            lastSync: new Date().toISOString()
         });
         showNotification('success', 'تمت المزامنة بنجاح!');
     } catch (error: any) {
