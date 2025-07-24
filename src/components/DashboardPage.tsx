@@ -210,7 +210,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     
     try {
         // **FINAL FIX for Facebook API fields request - simplified for maximum compatibility**
-        const postFields = "id,message,created_time,likes.summary(true),comments.summary(true),shares,full_picture";
+        const postFields = "id,message,created_time,likes.summary(true),comments.summary(true),shares.summary(true),full_picture";
         const feedFields = "comments.limit(10){from,message,created_time,id},message,link,from,full_picture";
         const convoFields = "participants,messages.limit(1){from,to,message,created_time}";
 
@@ -234,7 +234,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         const finalPublished = fbPublished.map((post: any) => ({
             id: post.id, text: post.message || '', publishedAt: new Date(post.created_time),
             imagePreview: getImageUrl(post),
-            analytics: { likes: post.likes?.summary?.total_count || 0, comments: post.comments?.summary?.total_count || 0, shares: post.shares?.count || 0, lastUpdated: new Date().toISOString() },
+            analytics: { likes: post.likes?.summary?.total_count || 0, comments: post.comments?.summary?.total_count || 0, shares: post.shares?.summary?.total_count || 0, lastUpdated: new Date().toISOString() },
             pageId: target.id, pageName: target.name, pageAvatarUrl: target.picture.data.url,
         } as PublishedPost));
         setPublishedPosts(finalPublished);
