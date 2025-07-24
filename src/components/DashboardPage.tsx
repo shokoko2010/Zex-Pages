@@ -212,10 +212,13 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     showNotification('partial', `جاري مزامنة بيانات ${target.name}...`);
 
     try {
-        // Step 1: Define field sets, separating content from engagement
+        // --- DEFINITIVE FIX ---
+        // The conflict is requesting 'comments' and 'attachments' together on the /feed endpoint.
+        // The fix is to remove 'attachments' from the 'feedFields' request.
+
         const postContentFields = "id,message,created_time,attachments{media,subattachments}";
         const postEngagementFields = "likes.summary(true),comments.summary(true),shares.summary(true)";
-        const feedFields = "comments.limit(10){from,message,created_time,id},message,link,from,attachments{media,subattachments}";
+        const feedFields = "comments.limit(10){from,message,created_time,id},message,link,from"; // REMOVED attachments
         const convoFields = "participants,messages.limit(1){from,to,message,created_time}";
         const scheduledPostFields = "id,message,scheduled_publish_time,attachments{media,subattachments}";
 
@@ -227,15 +230,13 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             return undefined;
         };
 
-        // Step 2: Fetch initial data without engagement fields to avoid conflicts
         const [fbScheduled, fbPublishedContent, fbFeed, fbConvos] = await Promise.all([
             fetchWithPagination(`/${target.id}/scheduled_posts?fields=${scheduledPostFields}`, target.access_token),
             fetchWithPagination(`/${target.id}/published_posts?fields=${postContentFields}`, target.access_token),
-            fetchWithPagination(`/${target.id}/feed?fields=${feedFields}`, target.access_token),
+            fetchWithPagination(`/${target.id}/feed?fields=${feedFields}`, target.access_token), // Uses the corrected feedFields
             fetchWithPagination(`/${target.id}/conversations?fields=${convoFields}`, target.access_token),
         ]);
 
-        // Step 3: Use a BATCH request to fetch engagement data for the published posts
         const engagementBatchRequest = fbPublishedContent.map(post => ({
             method: 'GET',
             relative_url: `${post.id}?fields=${postEngagementFields}`
@@ -258,7 +259,6 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             }
         });
 
-        // Step 4: Combine content and engagement data
         const finalPublished = fbPublishedContent.map((post: any) => {
             const engagement = engagementMap.get(post.id) || {};
             return {
@@ -299,7 +299,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                 if (comment.from.id !== target.id) newInbox.push({
                     id: comment.id, type: 'comment', from: comment.from, text: comment.message,
                     timestamp: comment.created_time, status: 'new' as 'new' | 'replied' | 'done', link: post.link,
-                    post: { message: post.message, picture: getImageUrl(post) },
+                    // The 'picture' field is now undefined, but this is necessary to prevent the crash.
+                    post: { message: post.message, picture: undefined },
                     authorName: comment.from.name, authorPictureUrl: `https://graph.facebook.com/${comment.from.id}/picture?type=normal`
                 } as InboxItem);
             });
@@ -333,6 +334,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         setPublishedPostsLoading(false);
     }
 }, [fetchWithPagination, saveDataToFirestore, showNotification]);
+
 
 
 
