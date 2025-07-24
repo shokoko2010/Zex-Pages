@@ -203,95 +203,84 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
   };
   
 
-    const syncFacebookData = useCallback(async (target: Target) => {
-        if (!target.access_token) { showNotification('error', 'رمز الوصول للصفحة مفقود.'); return; }
-        setSyncingTargetId(target.id);
-        showNotification('partial', `جاري مزامنة بيانات ${target.name}...`);
+  const syncFacebookData = useCallback(async (target: Target) => {
+    if (!target.access_token) { showNotification('error', 'رمز الوصول للصفحة مفقود.'); return; }
+    setSyncingTargetId(target.id);
+    showNotification('partial', `جاري مزامنة بيانات ${target.name}...`);
+    
+    try {
+        // **FINAL FIX for Facebook API fields request**
+        // Removed 'attachments' completely to avoid the deprecation error.
+        // Relying on `full_picture` which is more stable for getting a single image preview.
+        const postFields = "id,message,created_time,likes.summary(true),comments.summary(true),shares,full_picture";
+        const feedFields = "comments.limit(10){from,message,created_time,id},message,link,from,full_picture";
+        const convoFields = "participants,messages.limit(1){from,to,message,created_time}";
+
+        const [fbScheduled, fbPublished, fbFeed, fbConvos] = await Promise.all([
+             fetchWithPagination(`/${target.id}/scheduled_posts?fields=${postFields}`, target.access_token),
+             fetchWithPagination(`/${target.id}/published_posts?fields=${postFields}`, target.access_token),
+             fetchWithPagination(`/${target.id}/feed?fields=${feedFields}`, target.access_token),
+             fetchWithPagination(`/${target.id}/conversations?fields=${convoFields}`, target.access_token)
+        ]);
         
-        try {
-            // **FIXED Facebook API fields request for attachments (removed problematic fields, added compatible ones)**
-            // Added `source` for videos/other media, `src` for images within media
-            const postFields = "id,message,created_time,likes.summary(true),comments.summary(true),shares,full_picture,attachments{media{image{src},source},target{url},type}";
-            const feedFields = "comments.limit(10){from,message,created_time,id},message,link,from,full_picture,attachments{media{image{src},source},target{url},type}";
-            const convoFields = "participants,messages.limit(1){from,to,message,created_time}";
+        const getImageUrl = (post: any) => post.full_picture || undefined;
 
+        const finalScheduled = fbScheduled.map((post: any) => ({
+            id: post.id, text: post.message || '', scheduledAt: new Date(post.scheduled_publish_time * 1000),
+            imageUrl: getImageUrl(post), hasImage: !!getImageUrl(post), targetId: target.id,
+            targetInfo: { name: target.name, avatarUrl: target.picture.data.url, type: target.type },
+            status: 'scheduled', isReminder: false, type: 'post'
+        } as ScheduledPost));
+        setScheduledPosts(finalScheduled);
 
-            const [fbScheduled, fbPublished, fbFeed, fbConvos] = await Promise.all([
-                 fetchWithPagination(`/${target.id}/scheduled_posts?fields=${postFields}`, target.access_token),
-                 fetchWithPagination(`/${target.id}/published_posts?fields=${postFields}`, target.access_token),
-                 fetchWithPagination(`/${target.id}/feed?fields=${feedFields}`, target.access_token),
-                 fetchWithPagination(`/${target.id}/conversations?fields=${convoFields}`, target.access_token)
-            ]);
-            
-            // Helper to get image URL from various attachment structures
-const getImageUrl = (post: any) => {
-  // Try full_picture first for broader compatibility (older posts/APIs)
-  if (post.full_picture) return post.full_picture;
+        const finalPublished = fbPublished.map((post: any) => ({
+            id: post.id, text: post.message || '', publishedAt: new Date(post.created_time),
+            imagePreview: getImageUrl(post),
+            analytics: { likes: post.likes?.summary?.total_count || 0, comments: post.comments?.summary?.total_count || 0, shares: post.shares?.count || 0, lastUpdated: new Date().toISOString() },
+            pageId: target.id, pageName: target.name, pageAvatarUrl: target.picture.data.url,
+        } as PublishedPost));
+        setPublishedPosts(finalPublished);
 
-  const attachment = post.attachments?.data?.[0];
-  if (!attachment) return undefined;
-  if (attachment.media?.image?.src) return attachment.media.image.src; // Standard image URL from media
-  if (attachment.media?.source) return attachment.media.source; // Video thumbnail or other media source
-  if (attachment.subattachments?.data?.[0]?.media?.image?.src) return attachment.subattachments.data[0].media.image.src; // Album first image
-  return undefined;
-};
-
-            const finalScheduled = fbScheduled.map((post: any) => ({
-                id: post.id, text: post.message || '', scheduledAt: new Date(post.scheduled_publish_time * 1000),
-                imageUrl: getImageUrl(post), hasImage: !!getImageUrl(post), targetId: target.id,
-                targetInfo: { name: target.name, avatarUrl: target.picture.data.url, type: target.type },
-                status: 'scheduled', isReminder: false, type: 'post'
-            } as ScheduledPost));
-            setScheduledPosts(finalScheduled);
-
-            const finalPublished = fbPublished.map((post: any) => ({
-                id: post.id, text: post.message || '', publishedAt: new Date(post.created_time),
-                imagePreview: getImageUrl(post),
-                analytics: { likes: post.likes?.summary?.total_count || 0, comments: post.comments?.summary?.total_count || 0, shares: post.shares?.count || 0, lastUpdated: new Date().toISOString() },
-                pageId: target.id, pageName: target.name, pageAvatarUrl: target.picture.data.url,
-            } as PublishedPost));
-            setPublishedPosts(finalPublished);
-
-            const newInbox: InboxItem[] = [];
-            fbFeed.forEach((post: any) => {
-                if(post.comments) post.comments.data.forEach((comment: any) => {
-                    if (comment.from.id !== target.id) newInbox.push({
-                      id: comment.id, type: 'comment', from: comment.from, text: comment.message,
-                      timestamp: comment.created_time, status: 'new' as 'new' | 'replied' | 'done', link: post.link,
-                      post: { message: post.message, picture: getImageUrl(post) },
-                      authorName: comment.from.name, authorPictureUrl: `https://graph.facebook.com/${comment.from.id}/picture?type=normal`
-                  } as InboxItem);                  
-                });
+        const newInbox: InboxItem[] = [];
+        fbFeed.forEach((post: any) => {
+            if(post.comments) post.comments.data.forEach((comment: any) => {
+                if (comment.from.id !== target.id) newInbox.push({
+                    id: comment.id, type: 'comment', from: comment.from, text: comment.message,
+                    timestamp: comment.created_time, status: 'new' as 'new' | 'replied' | 'done', link: post.link,
+                    post: { message: post.message, picture: getImageUrl(post) },
+                    authorName: comment.from.name, authorPictureUrl: `https://graph.facebook.com/${comment.from.id}/picture?type=normal`
+                } as InboxItem);
             });
-            fbConvos.forEach((convo: any) => {
-                const lastMsg = convo.messages?.data?.[0];
-                if (lastMsg && lastMsg.from.id !== target.id) {
-                     const participant = convo.participants.data.find((p: any) => p.id !== target.id);
-                     newInbox.push({
-                      id: lastMsg.id, type: 'message', from: participant, text: lastMsg.message,
-                      timestamp: lastMsg.created_time, status: 'new' as 'new' | 'replied' | 'done', conversationId: convo.id,
-                      authorName: participant.name, authorPictureUrl: `https://graph.facebook.com/${participant.id}/picture?type=normal`
-                  } as InboxItem);                  
-                }
-            });
-            setInboxItems(newInbox.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+        });
+        fbConvos.forEach((convo: any) => {
+            const lastMsg = convo.messages?.data?.[0];
+            if (lastMsg && lastMsg.from.id !== target.id) {
+                 const participant = convo.participants.data.find((p: any) => p.id !== target.id);
+                 newInbox.push({
+                    id: lastMsg.id, type: 'message', from: participant, text: lastMsg.message,
+                    timestamp: lastMsg.created_time, status: 'new' as 'new' | 'replied' | 'done', conversationId: convo.id,
+                    authorName: participant.name, authorPictureUrl: `https://graph.facebook.com/${participant.id}/picture?type=normal`
+                } as InboxItem);
+            }
+        });
+        setInboxItems(newInbox.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
 
-            // Save to Firestore using the local variables
-            await saveDataToFirestore({
-                scheduledPosts: finalScheduled.map(p => ({...p, scheduledAt: p.scheduledAt.toISOString()})),
-                publishedPosts: finalPublished.map(p => ({...p, publishedAt: p.publishedAt.toISOString()})),
-                inboxItems: newInbox, lastSync: new Date().toISOString()
-            });
-            showNotification('success', 'تمت المزامنة بنجاح!');
-        } catch (error: any) {
-            showNotification('error', `فشل المزامنة: ${error.message}`);
-            console.error("Facebook Sync Error details:", error); // Log detailed error
-        } finally {
-            setSyncingTargetId(null);
-            setIsInboxLoading(false);
-            setPublishedPostsLoading(false);
-        }
-    }, [fetchWithPagination, saveDataToFirestore, showNotification]); // Removed scheduledPosts, publishedPosts from dependency array since they are derived within the function
+        await saveDataToFirestore({
+            scheduledPosts: finalScheduled.map(p => ({...p, scheduledAt: p.scheduledAt.toISOString()})),
+            publishedPosts: finalPublished.map(p => ({...p, publishedAt: p.publishedAt.toISOString()})),
+            inboxItems: newInbox, lastSync: new Date().toISOString()
+        });
+        showNotification('success', 'تمت المزامنة بنجاح!');
+    } catch (error: any) {
+        showNotification('error', `فشل المزامنة: ${error.message}`);
+        console.error("Facebook Sync Error details:", error);
+    } finally {
+        setSyncingTargetId(null);
+        setIsInboxLoading(false);
+        setPublishedPostsLoading(false);
+    }
+}, [fetchWithPagination, saveDataToFirestore, showNotification]);
+
 
     useEffect(() => {
         const loadDataAndSync = async () => {
