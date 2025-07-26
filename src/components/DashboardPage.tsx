@@ -275,7 +275,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         showNotification('partial', `(1/4) جلب المنشورات المجدولة...`);
         let finalScheduled: ScheduledPost[] = [];
         try {
-            const scheduledPostFields = "id,message,scheduled_publish_time,attachments{type,media,subattachments{type,media}}";
+            const scheduledPostFields = "id,message,scheduled_publish_time,attachments{type,media{image{src}},subattachments{media{image{src}}}}";
             const scheduledUrl = `/${target.id}/scheduled_posts?fields=${scheduledPostFields}&limit=25`;
             const scheduledData = await makeRequestWithRetry(scheduledUrl, target.access_token);
             
@@ -304,7 +304,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         showNotification('partial', `(2/4) جلب المنشورات المنشورة...`);
         let fbPublishedContent: any[] = [];
         try {
-            const postContentFields = "id,message,created_time,link,attachments{type,media,subattachments{type,media}}";
+            const postContentFields = "id,message,created_time,link,attachments{type,media{image{src}},subattachments{media{image{src}}}}";
             const publishedUrl = `/${target.id}/published_posts?fields=${postContentFields}&limit=25`;
             const publishedData = await makeRequestWithRetry(publishedUrl, target.access_token);
             fbPublishedContent = publishedData.data || [];
