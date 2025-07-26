@@ -223,7 +223,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             return undefined;
         };
 
-        // STEP 1: Fetch Scheduled Posts (This part is working well)
+        // STEP 1: Fetch Scheduled Posts
         const scheduledPostFields = "id,message,scheduled_publish_time,attachments{media_type,media,subattachments{media_type,media}}";
         const fbScheduled = await fetchWithPagination(`/${target.id}/scheduled_posts?fields=${scheduledPostFields}`, target.access_token);
         const finalScheduled = fbScheduled.map((post: any) => ({
@@ -236,13 +236,13 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
 
         await delay(500);
 
-        // STEP 2: Fetch Published Post Content (This part is working well)
+        // STEP 2: Fetch Published Post Content
         const postContentFields = "id,message,created_time,attachments{media_type,media,subattachments{media_type,media}}";
         const fbPublishedContent = await fetchWithPagination(`/${target.id}/published_posts?fields=${postContentFields}`, target.access_token);
 
         await delay(500);
 
-        // STEP 3: Fetch Engagement Data in Batches (This part is working well)
+        // STEP 3: Fetch Engagement Data in Batches
         const engagementMap = new Map<string, any>();
         const batchSize = 10;
         for (let i = 0; i < fbPublishedContent.length; i += batchSize) {
@@ -284,29 +284,32 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
 
         // STEP 4: Fetch Inbox Items
         const newInbox: InboxItem[] = [];
-
-        // STEP 4A - THE FIX: Fetch comments using a batch request
+        
+        // STEP 4A - FINAL FIX: Fetch comments using a clean batch request
         showNotification('partial', `جاري جلب التعليقات...`);
         try {
-            const feedPostIds = await fetchWithPagination(`/${target.id}/feed?fields=id`, target.access_token);
-            const commentFields = "message,link,from,comments.limit(10){from,message,created_time,id}";
-            const commentBatchRequest = feedPostIds.map(post => ({ method: 'GET', relative_url: `${post.id}?fields=${commentFields}` }));
-            
-            if (commentBatchRequest.length > 0) {
-                const commentData = await new Promise<any[]>((resolve, reject) => {
-                    window.FB.api('/', 'POST', { batch: JSON.stringify(commentBatchRequest), access_token: target.access_token }, (res: any) => res && !res.error ? resolve(res) : reject(new Error(res?.error?.message || 'Unknown comment fetch error')));
+            const feedPosts = await fetchWithPagination(`/${target.id}/feed?fields=id,message,link`, target.access_token);
+            if (feedPosts.length > 0) {
+                const commentsBatchRequest = feedPosts.map(post => ({
+                    method: 'GET',
+                    relative_url: `${post.id}/comments?limit=10&fields=from,message,created_time,id`
+                }));
+
+                const commentsData = await new Promise<any[]>((resolve, reject) => {
+                    window.FB.api('/', 'POST', { batch: JSON.stringify(commentsBatchRequest), access_token: target.access_token }, (res: any) => res && !res.error ? resolve(res) : reject(new Error(res?.error?.message || 'Unknown comment fetch error')));
                 });
                 
-                commentData.forEach(res => {
+                commentsData.forEach((res, index) => {
                     if (res && res.code === 200) {
-                        const post = JSON.parse(res.body);
-                        if (post.comments) {
-                            post.comments.data.forEach((comment: any) => {
+                        const body = JSON.parse(res.body);
+                        const originalPost = feedPosts[index];
+                        if (body.data) {
+                            body.data.forEach((comment: any) => {
                                 if (comment.from.id !== target.id) {
                                     newInbox.push({
                                         id: comment.id, type: 'comment', from: comment.from, text: comment.message,
-                                        timestamp: comment.created_time, status: 'new', link: post.link,
-                                        post: { message: post.message, picture: undefined },
+                                        timestamp: comment.created_time, status: 'new', link: originalPost.link,
+                                        post: { message: originalPost.message, picture: undefined },
                                         authorName: comment.from.name, authorPictureUrl: `https://graph.facebook.com/${comment.from.id}/picture?type=normal`
                                     } as InboxItem);
                                 }
@@ -322,7 +325,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         
         await delay(500);
 
-        // STEP 4B: Fetch Conversations (This part is working well)
+        // STEP 4B: Fetch Conversations
         showNotification('partial', `جاري جلب المحادثات...`);
         try {
             const convoFields = "participants,messages.limit(1){from,to,message,created_time}";
@@ -368,6 +371,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         setPublishedPostsLoading(false);
     }
 }, [fetchWithPagination, saveDataToFirestore, showNotification]);
+
 
 
 
@@ -771,34 +775,35 @@ const onFetchPostInsights = async (postId: string): Promise<any> => {
 
      // This function needs to match the expected signature by ContentPlannerPage
      const onScheduleStrategy = async () => {
-      if (!contentPlan || contentPlan.length === 0) {
-          showNotification('error', 'لا توجد خطة لتحويلها.');
-          return;
-      }
-      setIsSchedulingStrategy(true);
-      showNotification('partial', 'جاري تحويل الخطة إلى جدولة مجمعة...');
-      try {
-          const newBulkItems: BulkPostItem[] = contentPlan.map((item, index) => ({
-              id: `bulk_strategy_${Date.now()}_${index}`,
-              text: `${item.hook}\n${item.headline}\n${item.body}`,
-              imageFile: undefined, // Image idea will need manual generation/selection
-              imagePreview: undefined,
-              hasImage: false,
-              scheduleDate: '', // Will be set by rescheduleBulkPosts
-              targetIds: [managedTarget.id],
-          }));
+        if (!contentPlan || contentPlan.length === 0) {
+            showNotification('error', 'لا توجد خطة لتحويلها.');
+            return;
+        }
+        setIsSchedulingStrategy(true);
+        showNotification('partial', 'جاري تحويل الخطة إلى جدولة مجمعة...');
+        try {
+            const newBulkItems: BulkPostItem[] = contentPlan.map((item, index) => ({
+                id: `bulk_strategy_${Date.now()}_${index}`,
+                text: `${item.hook}\n${item.headline}\n${item.body}`,
+                imageFile: undefined,
+                imagePreview: undefined,
+                hasImage: false,
+                scheduleDate: '', // Will be set by rescheduleBulkPosts
+                targetIds: [managedTarget.id],
+            }));
           
-          const scheduledBulkItems = rescheduleBulkPosts(newBulkItems, schedulingStrategy, weeklyScheduleSettings);
+            const scheduledBulkItems = rescheduleBulkPosts(newBulkItems, schedulingStrategy, weeklyScheduleSettings);
           
-          setBulkPosts(scheduledBulkItems);
-          showNotification('success', `تم تحويل ${scheduledBulkItems.length} منشورًا إلى الجدولة المجمعة بنجاح!`);
-          setView('bulk'); // Navigate to bulk scheduler
-      } catch (error: any) {
-          showNotification('error', `فشل تحويل الخطة: ${error.message}`);
-      } finally {
-          setIsSchedulingStrategy(false);
-      }
-  };
+            setBulkPosts(scheduledBulkItems);
+            showNotification('success', `تم تحويل ${scheduledBulkItems.length} منشورًا إلى الجدولة المجمعة بنجاح!`);
+            setView('bulk'); // Navigate to bulk scheduler
+        } catch (error: any) {
+            showNotification('error', `فشل تحويل الخطة: ${error.message}`);
+        } finally {
+            setIsSchedulingStrategy(false);
+        }
+    };
+    
   
 
      // This function needs to match the expected signature by ContentPlannerPage
