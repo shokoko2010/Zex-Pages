@@ -217,6 +217,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     setSyncingTargetId(target.id);
     setPublishedPosts([]);
     setScheduledPosts([]);
+    setInboxItems([]); // Clear inbox at the start of sync
     showNotification('partial', `جاري مزامنة بيانات ${target.name}...`);
 
     const makeRequestWithRetry = async (url: string, accessToken: string): Promise<any> => {
@@ -237,6 +238,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             return post.attachments?.data?.[0]?.media?.image?.src;
         };
 
+        // STEP 1: Fetch Scheduled Posts
         showNotification('partial', `(1/4) جلب المنشورات المجدولة...`);
         let finalScheduled: ScheduledPost[] = [];
         try {
@@ -257,6 +259,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             console.warn('Failed to fetch scheduled posts:', error);
         }
 
+        // STEP 2: Fetch Published Posts
         showNotification('partial', `(2/4) جلب المنشورات المنشورة...`);
         let fbPublishedContent: any[] = [];
         try {
@@ -268,6 +271,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             console.warn('Failed to fetch published posts:', error);
         }
 
+        // STEP 3: Fetch Engagement Data
         showNotification('partial', `(3/4) جلب التفاعلات...`);
         const engagementMap = new Map<string, any>();
         if (fbPublishedContent.length > 0) {
@@ -281,13 +285,11 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                 }
             }
         }
-        
         const finalPublished = fbPublishedContent.map((post: any) => {
             const engagement = engagementMap.get(post.id) || {};
-            const imageUrl = getImageUrlFromPost(post);
             return {
                 id: post.id, text: post.message || '', publishedAt: new Date(post.created_time),
-                imagePreview: imageUrl,
+                imagePreview: getImageUrlFromPost(post),
                 analytics: {
                     likes: engagement.likes?.summary?.total_count || 0,
                     comments: engagement.comments?.summary?.total_count || 0,
@@ -299,6 +301,40 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         });
         setPublishedPosts(finalPublished);
         
+        // STEP 4: Fetch Inbox Items (This is the restored part)
+        showNotification('partial', `(4/4) جلب صندوق الوارد...`);
+        const newInbox: InboxItem[] = [];
+        try {
+            const convoFields = "participants,messages.limit(1){from,to,message,created_time}";
+            const conversationsData = await makeRequestWithRetry(`/${target.id}/conversations?fields=${convoFields}&limit=25`, target.access_token);
+            if (conversationsData.data) {
+                conversationsData.data.forEach((convo: any) => {
+                    const lastMsg = convo.messages?.data?.[0];
+                    if (lastMsg && lastMsg.from.id !== target.id) {
+                        const participant = convo.participants.data.find((p: any) => p.id !== target.id);
+                        if (participant) {
+                            newInbox.push({
+                                id: lastMsg.id, type: 'message', from: participant, text: lastMsg.message,
+                                timestamp: lastMsg.created_time, status: 'new', conversationId: convo.id,
+                                authorName: participant.name, authorPictureUrl: `https://graph.facebook.com/${participant.id}/picture?type=normal`
+                            } as InboxItem);
+                        }
+                    }
+                });
+            }
+        } catch (error) {
+            if (error instanceof FacebookTokenError) throw error;
+            console.warn('Failed to fetch conversations:', error);
+        }
+        setInboxItems(newInbox.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+
+        // STEP 5: Save all data to Firestore
+        await saveDataToFirestore({
+            scheduledPosts: finalScheduled.map((p: ScheduledPost) => ({ ...p, scheduledAt: p.scheduledAt.toISOString() })),
+            publishedPosts: finalPublished.map((p: PublishedPost) => ({ ...p, publishedAt: p.publishedAt.toISOString() })),
+            inboxItems: newInbox, // Make sure to save the new inbox data
+            lastSync: new Date().toISOString()
+        });
         showNotification('success', 'تمت المزامنة بنجاح!');
         
     } catch (error: unknown) {
