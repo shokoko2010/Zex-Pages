@@ -962,9 +962,41 @@ const onFetchPostInsights = async (postId: string): Promise<any> => {
                     <InboxPage
                         items={inboxItems}
                         isLoading={isInboxLoading}
-                        onReply={async (item: InboxItem, message: string) => {
-                            // ... (keep existing onReply logic)
+                        onReply={async (item: InboxItem, message: string): Promise<boolean> => { // Change return type
+                            if (!managedTarget.access_token) {
+                                showNotification('error', 'رمز الوصول للصفحة مفقود للرد.');
+                                return false; // Return false on failure
+                            }
+                            try {
+                                const endpointId = item.type === 'comment' ? item.id : item.conversationId;
+                                const endpointPath = item.type === 'comment' ? 'comments' : 'messages';
+                        
+                                const response = await fetch(`https://graph.facebook.com/v19.0/${endpointId}/${endpointPath}`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        message: message,
+                                        access_token: managedTarget.access_token,
+                                    }),
+                                });
+                        
+                                const responseData = await response.json();
+                                if (!response.ok || responseData.error) {
+                                    throw new Error(responseData.error?.message || 'فشل إرسال الرد.');
+                                }
+                        
+                                // تحديث الحالة محليًا
+                                const updatedInboxItems = inboxItems.map(i => i.id === item.id ? { ...i, status: 'replied' as 'replied', isReplied: true } : i);
+                                setInboxItems(updatedInboxItems);
+                                await saveDataToFirestore({ inboxItems: updatedInboxItems });
+                                showNotification('success', `تم الرد على ${item.authorName}.`);
+                                return true; // Return true on success
+                            } catch (error: any) {
+                                showNotification('error', `فشل الرد: ${error.message}`);
+                                return false; // Return false on failure
+                            }
                         }}
+                        
                         onMarkAsDone={async (itemId: string) => {
                             // ... (keep existing onMarkAsDone logic)
                         }}

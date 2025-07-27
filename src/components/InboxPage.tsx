@@ -1,29 +1,35 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { InboxItem, AutoResponderSettings, Plan, Role, Target } from '../types';
 import Button from './ui/Button';
-import SmartReplies from './SmartReplies';
-import AutoResponderSettingsModal from './AutoResponderSettingsModal';
-import AiIcon from './icons/AiIcon';
+import SmartReplies from './SmartReplies'; // Assuming this path is correct
+import AutoResponderSettingsModal from './AutoResponderSettingsModal'; // Assuming this path is correct
+import AiIcon from './icons/AiIcon'; // Assuming this path is correct
 import UserCircleIcon from './icons/UserCircleIcon';
 import PaperAirplaneIcon from './icons/PaperAirplaneIcon';
-import ThumbUpIcon from './icons/ThumbUpIcon';
+import ThumbUpIcon from './icons/ThumbUpIcon'; // Assuming this path is correct
 import CheckCircleIcon from './icons/CheckCircleIcon';
 import ArchiveBoxIcon from './icons/ArchiveBoxIcon';
 import EyeIcon from './icons/EyeIcon';
-import QuestionMarkCircleIcon from './icons/QuestionMarkCircleIcon';
-import Tooltip from './ui/Tooltip';
-import ArrowPathIcon from './icons/ArrowPathIcon';
+import QuestionMarkCircleIcon from './icons/QuestionMarkCircleIcon'; // Assuming this path is correct
+import Tooltip from './ui/Tooltip'; // Assuming this path is correct
+import ArrowPathIcon from './icons/ArrowPathIcon'; // Assuming this path is correct
 import { GoogleGenAI } from '@google/genai';
-// Ensure AutoResponderSettingsModalProps is correctly imported or defined if used for casting
-// If AutoResponderSettingsModal.tsx exports it:
-// import { AutoResponderSettingsModalProps } from './AutoResponderSettingsModal';
-// If you need to define it locally for casting (less ideal):
-// interface AutoResponderSettingsModalPropsForCasting { /* ... */ }
+
+// Temporary interface for casting AutoResponderSettingsModal props if it doesn't export its own
+// **Ideally, you should fix AutoResponderSettingsModal.tsx to export its props interface.**
+interface AutoResponderSettingsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  initialSettings: AutoResponderSettings; // <--- Expected 'initialSettings'
+  onSave: (settings: AutoResponderSettings) => void;
+  aiClient: GoogleGenAI | null;
+}
+
 
 interface InboxPageProps {
     items: InboxItem[];
     isLoading: boolean;
-    onReply: (item: InboxItem, message: string) => Promise<boolean>;
+    onReply: (item: InboxItem, message: string) => Promise<boolean>; // Expects boolean return
     onMarkAsDone: (itemId: string) => Promise<void>;
     onLike: (itemId: string) => Promise<void>;
     onFetchMessageHistory: (conversationId: string) => Promise<void>;
@@ -33,16 +39,16 @@ interface InboxPageProps {
     isSyncing: boolean;
     aiClient: GoogleGenAI | null;
     role: Role;
-    repliedUsersPerPost?: { [postId: string]: string[] }; // Optional
+    repliedUsersPerPost?: { [postId: string]: string[] };
     currentUserRole: Role;
     selectedTarget: Target;
-    userPlan: Plan | null; // userPlan prop added
+    userPlan: Plan | null;
 }
 
 const InboxPage: React.FC<InboxPageProps> = ({
     items, isLoading, onReply, onMarkAsDone, onLike, onFetchMessageHistory,
     autoResponderSettings, onAutoResponderSettingsChange, onSync, isSyncing,
-    aiClient, role, repliedUsersPerPost, currentUserRole, userPlan // Receive userPlan prop
+    aiClient, role, repliedUsersPerPost, currentUserRole, userPlan
 }) => {
     const [activeItem, setActiveItem] = useState<InboxItem | null>(null);
     const [replyText, setReplyText] = useState('');
@@ -78,8 +84,8 @@ const InboxPage: React.FC<InboxPageProps> = ({
     const handleSendReply = async () => {
         if (!activeItem || !replyText.trim()) return;
         setIsSendingReply(true);
-        const success = await onReply(activeItem, replyText);
-        if (success) {
+        const success = await onReply(activeItem, replyText); // Call onReply, which now returns boolean
+        if (success) { // Check the boolean result
             setReplyText('');
             setSmartReplies([]); // Clear smart replies after sending
             // The onReply in DashboardPage updates inboxItems, which triggers the useEffect above
@@ -91,13 +97,9 @@ const InboxPage: React.FC<InboxPageProps> = ({
     const handleGenerateSmartReplies = useCallback(async () => {
         if (!aiClient || !activeItem?.text.trim()) return;
         setIsGeneratingSmartReplies(true);
-        // Assuming onGenerateSmartReplies is passed down and works
-        // Use the correct function from the AI client based on your implementation
-        // For now, using a placeholder or a potentially existing function like generateHashtags as previously seen
         try {
              const generatedReplies: string[] = await (aiClient as any).generateHashtags(`Generate three concise replies for this comment: "${activeItem.text}"`); // Adjust method as per your AI client
              setSmartReplies(generatedReplies.filter((reply: string) => reply.trim() !== ''));
-             // showNotification is not available here, maybe pass it down or handle notification in DashboardPage
              console.log('Smart replies generated:', generatedReplies); // Log for debugging
         } catch (error) {
              console.error('Failed to generate smart replies:', error); // Log error for debugging
@@ -130,15 +132,17 @@ const InboxPage: React.FC<InboxPageProps> = ({
                             </Button>
                         </Tooltip>
 
-                        {/* Auto Responder Settings Modal */}
-             {userPlan?.limits?.autoResponder && (role === 'owner' || role === 'admin') && (
-                 <AutoResponderSettingsModal
-                     isOpen={showAutoResponderSettings}
-                     onClose={() => setShowAutoResponderSettings(false)}
-                     settings={autoResponderSettings} // Pass directly
-                     onSave={onAutoResponderSettingsChange} // Pass directly
-                 />
-             )}
+                        {/* Auto Responder Settings (Optional, based on user plan/role) */}
+{userPlan?.limits?.autoResponder && (role === 'owner' || role === 'admin') && (
+     <AutoResponderSettingsModal
+         isOpen={showAutoResponderSettings}
+         onClose={() => setShowAutoResponderSettings(false)}
+         initialSettings={autoResponderSettings} // Changed from 'settings' to 'initialSettings' previously
+         onSave={onAutoResponderSettingsChange}
+         aiClient={aiClient} // Add this line to pass the aiClient prop
+     />
+ )}
+
                     </div>
                 </div>
                 <div className="flex-grow overflow-y-auto">
@@ -156,7 +160,6 @@ const InboxPage: React.FC<InboxPageProps> = ({
                                  <img src={item.authorPictureUrl || 'https://via.placeholder.com/40?text=User'} alt="Avatar" className="w-10 h-10 rounded-full" />
                                 <div className="flex-grow">
                                     <p className="font-semibold text-sm">{item.authorName}</p>
-                                     {/* Display preview of the item text */}
                                      <p className="text-xs text-gray-600 dark:text-gray-400 truncate">{item.text}</p>
                                 </div>
                                 {item.status === 'new' && <span className="w-3 h-3 bg-blue-500 rounded-full flex-shrink-0"></span>}
@@ -284,14 +287,16 @@ const InboxPage: React.FC<InboxPageProps> = ({
             </div>
 
             {/* Auto Responder Settings Modal */}
-             {userPlan?.limits?.autoResponder && (role === 'owner' || role === 'admin') && (
+            {userPlan?.limits?.autoResponder && (role === 'owner' || role === 'admin') && (
                  <AutoResponderSettingsModal
                      isOpen={showAutoResponderSettings}
                      onClose={() => setShowAutoResponderSettings(false)}
-                     settings={autoResponderSettings} // Removed casting
-                     onSave={onAutoResponderSettingsChange} // Removed casting
+                     initialSettings={autoResponderSettings} // Ensure this is also 'initialSettings'
+                     onSave={onAutoResponderSettingsChange}
+                     aiClient={aiClient} // Make sure aiClient is also passed here
                  />
              )}
+
         </div>
     );
 };
