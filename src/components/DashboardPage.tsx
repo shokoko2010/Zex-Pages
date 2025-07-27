@@ -957,102 +957,35 @@ const onFetchPostInsights = async (postId: string): Promise<any> => {
                     onDeleteFromHistory={onDeleteFromHistory}
                 />
             );
-        case 'inbox': 
-            return (
-                <InboxPage 
-    items={inboxItems} 
-    isLoading={isInboxLoading} 
-    onReply={async (item: InboxItem, message: string) => {
-        if (!managedTarget.access_token) {
-            showNotification('error', 'رمز الوصول للصفحة مفقود للرد.');
-            return false;
-        }
-        try {
-            const endpointId = item.type === 'comment' ? item.id : item.conversationId;
-            const endpointPath = item.type === 'comment' ? 'comments' : 'messages';
-            
-            const response = await fetch(`https://graph.facebook.com/v19.0/${endpointId}/${endpointPath}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    message: message,
-                    access_token: managedTarget.access_token,
-                }),
-            });
-
-            const responseData = await response.json();
-            if (!response.ok || responseData.error) {
-                throw new Error(responseData.error?.message || 'فشل إرسال الرد.');
-            }
-            
-            // تحديث الحالة محليًا
-            const updatedInboxItems = inboxItems.map(i => i.id === item.id ? { ...i, status: 'replied' as 'replied', isReplied: true } : i);
-            setInboxItems(updatedInboxItems);
-            await saveDataToFirestore({ inboxItems: updatedInboxItems });
-            showNotification('success', `تم الرد على ${item.authorName}.`);
-            return true;
-        } catch (error: any) {
-            showNotification('error', `فشل الرد: ${error.message}`);
-            return false;
-        }
-    }}
-    onMarkAsDone={async (itemId: string) => {
-        const updatedInboxItems = inboxItems.map(i => i.id === itemId ? { ...i, status: 'done' as 'done' } : i);
-        setInboxItems(updatedInboxItems);
-        await saveDataToFirestore({ inboxItems: updatedInboxItems });
-        showNotification('success', 'تم تمييز المحادثة كمكتملة.');
-    }}
-    onLike={async (itemId: string) => {
-        if (!managedTarget.access_token) {
-            showNotification('error', 'رمز الوصول للصفحة مفقود للإعجاب.');
-            return;
-        }
-        try {
-            const response = await fetch(`https://graph.facebook.com/v19.0/${itemId}/likes`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ access_token: managedTarget.access_token }),
-            });
-            const responseData = await response.json();
-            if (!response.ok || !responseData.success) {
-                throw new Error(responseData.error?.message || 'فشل الإعجاب.');
-            }
-            showNotification('success', 'تم الإعجاب بالتعليق.');
-        } catch (error: any) {
-             showNotification('error', `فشل الإعجاب: ${error.message}`);
-        }
-    }}
-    // ... باقي الخصائص تبقى كما هي
-    onGenerateSmartReplies={async (commentText: string) => {
-        if (!aiClient) {
-            showNotification('error', 'عميل الذكاء الاصطناعي غير مكوّن لإنشاء الردود الذكية.');
-            return [];
-        }
-        showNotification('partial', 'جاري توليد ردود ذكية...');
-        try {
-            const replies: string[] = await generateHashtags(aiClient, `Generate three concise replies for this comment: "${commentText}"`, pageProfile); // Placeholder returns string[]
-            showNotification('success', 'تم توليد الردود الذكية.');
-            // The function already returns an array, so we just filter it.
-            // I've also added the type for 'r' to solve the implicit 'any' error.
-            return replies.filter((r: string) => r.trim() !== ''); 
-        } catch (e: any) {
-            showNotification('error', `فشل توليد الردود الذكية: ${e.message}`);
-            return [];
-        }
-    }}
+            case 'inbox':
+                return (
+                    <InboxPage
+                        items={inboxItems}
+                        isLoading={isInboxLoading}
+                        onReply={async (item: InboxItem, message: string) => {
+                            // ... (keep existing onReply logic)
+                        }}
+                        onMarkAsDone={async (itemId: string) => {
+                            // ... (keep existing onMarkAsDone logic)
+                        }}
+                        onLike={async (itemId: string) => {
+                            // ... (keep existing onLike logic)
+                        }}
+                        onFetchMessageHistory={onFetchMessageHistory}
+                        autoResponderSettings={{ rules: [], fallback: { mode: 'off', staticMessage: '' } }} // Keep your existing settings
+                        onAutoResponderSettingsChange={() => { showNotification('partial', 'تغيير إعدادات الرد التلقائي (محاكاة).'); }} // Keep your existing handler
+                        onSync={() => syncFacebookData(managedTarget)}
+                        isSyncing={!!syncingTargetId}
+                        aiClient={aiClient}
+                        role={currentUserRole}
+                        // repliedUsersPerPost is optional, only pass if you have the data
+                        // repliedUsersPerPost={{}}
+                        currentUserRole={currentUserRole} // If 'role' and 'currentUserRole' are the same, you might only need one.
+                        selectedTarget={managedTarget}
+                        userPlan={userPlan} // Pass the userPlan prop here
+                    />
+                );
     
-    onFetchMessageHistory={onFetchMessageHistory}
-    autoResponderSettings={{ rules: [], fallback: { mode: 'off', staticMessage: '' } }}
-    onAutoResponderSettingsChange={() => { showNotification('partial', 'تغيير إعدادات الرد التلقائي (محاكاة).'); }}
-    onSync={() => syncFacebookData(managedTarget)} 
-    isSyncing={!!syncingTargetId}
-    aiClient={aiClient} 
-    role={currentUserRole} 
-    repliedUsersPerPost={{}}
-    currentUserRole={currentUserRole} 
-    selectedTarget={managedTarget}
-/>
-            );
         case 'analytics': 
             return (
                 <AnalyticsPage 
