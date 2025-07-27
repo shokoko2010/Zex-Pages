@@ -377,124 +377,131 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         setInboxItems(newInbox.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
 
 
-        // STEP 5: Fetch Page Insights Data for Analytics (NEW)
-        showNotification('partial', `(5/6) جلب تحليلات الصفحة...`); // Updated step count
-        try {
-            const insightsMetrics = [
-                'page_impressions_unique', // Valid metric for reach
-                'page_engaged_users', // Valid metric for engaged users
-                'page_post_engagements', // Valid metric for post engagements
-                'page_actions_post_reactions_total', // Valid metric for reactions
-                'page_fans_online_per_day', // Valid metric for fan activity (can help with heatmap)
-                // Note: 'page_fans' itself is valid, but often requires a different period or breakdown for growth.
-                // We'll keep 'page_fans' for now to try and get the latest count, but might need adjustment.
-                'page_fans'
-                // 'page_actions_by_page_tab' might not be a valid metric or require a different breakdown/period. Removed for now.
-            ];
-            const period = analyticsPeriod === '7d' ? 'week' : 'days_28'; // Match period to API
-            const insightsData = await makeRequestWithRetry(`/${target.id}/insights?metric=${insightsMetrics.join(',')}&period=${period}`, target.access_token);
+        // STEP 5: Fetch Page Insights Data for Analytics (NEW - Modified)
+showNotification('partial', `(5/6) جلب تحليلات الصفحة...`); // Updated step count
+try {
+    const processedAudienceGrowth: AudienceGrowthData[] = [];
+    let processedPerformanceSummary: PerformanceSummaryData = {
+         totalPosts: finalPublished.length,
+         averageEngagement: 0,
+         growthRate: 0,
+         totalReach: 0,
+         totalEngagement: 0,
+         engagementRate: 0,
+         topPosts: finalPublished.sort((a, b) => (b.analytics.likes || 0) + (b.analytics.comments || 0) + (b.analytics.shares || 0) - ((a.analytics.likes || 0) + (a.analytics.comments || 0) + (a.analytics.shares || 0))).slice(0, 3),
+         postCount: finalPublished.length,
+    };
+    let totalEngagement = 0;
+    let totalReach = 0;
+    let fanCountEnd = 0;
 
-            // Process insightsData to populate state variables
-            if (insightsData.data) {
-                const processedAudienceGrowth: AudienceGrowthData[] = [];
-                const processedPerformanceSummary: PerformanceSummaryData = {
-                     totalPosts: finalPublished.length, // Use fetched published posts count
-                     averageEngagement: 0, // Will calculate later
-                     growthRate: 0, // Will calculate later
-                     totalReach: 0, // Will get from insights
-                     totalEngagement: 0, // Will get from insights
-                     engagementRate: 0, // Will calculate later
-                     topPosts: finalPublished.sort((a, b) => (b.analytics.likes || 0) + (b.analytics.comments || 0) + (b.analytics.shares || 0) - ((a.analytics.likes || 0) + (a.analytics.comments || 0) + (a.analytics.shares || 0))).slice(0, 3),
-                     postCount: finalPublished.length,
-                };
-                let totalEngagement = 0;
-                let totalReach = 0;
-                let fanCountStart = 0;
-                let fanCountEnd = 0;
+    const period = analyticsPeriod === '7d' ? 'week' : 'days_28';
 
-
-                insightsData.data.forEach((metric: any) => {
-                    if (metric.name === 'page_fans' && metric.values.length > 0) {
-                         // For audience growth over time, you might need to fetch a longer period
-                         // This is just getting the latest value
-                         fanCountEnd = metric.values[metric.values.length - 1].value;
-                         // To calculate growth, you'd need a value from the start of the period.
-                         // For a simple view, we'll just use the end count.
-                         processedAudienceGrowth.push({ date: new Date().toISOString(), fanCount: fanCountEnd }); // Use 'fanCount' as defined in types.ts
-                    } else if (metric.name === 'page_engaged_users' && metric.values.length > 0) {
-                        totalEngagement = metric.values[metric.values.length - 1].value;
-                    } else if (metric.name === 'page_impressions' && metric.values.length > 0) {
-                         totalReach = metric.values[metric.values.length - 1].value; // Using impressions as a proxy for reach
-                    }
-                     // You would add more logic here to process other metrics and populate
-                     // heatmapData, contentTypeData, etc., based on the structure of insightsData.data
-                     // This often requires iterating through metric.values and transforming the data.
-                });
-
-                // Calculate some summary data based on fetched insights
-                processedPerformanceSummary.totalEngagement = totalEngagement;
-                processedPerformanceSummary.totalReach = totalReach;
-                // Engagement Rate calculation needs reach or impressions from insights
-                if (totalReach > 0) {
-                    processedPerformanceSummary.engagementRate = (totalEngagement / totalReach) * 100;
-                }
-
-                // Growth Rate calculation needs historical data, which we are not fetching comprehensively here.
-                // You would need to fetch page_fans over a period and compare start vs end.
-
-                setPerformanceSummaryData(processedPerformanceSummary);
-                setAudienceGrowthData(processedAudienceGrowth); // This will likely be incomplete without time series data
-
-                // Placeholder for heatmap and content type data processing
-                // You would need to fetch metrics like 'page_posts_by_activity_day', 'page_posts_by_activity_hour'
-                // and process them into the required formats for heatmapData and contentTypeData.
-                setHeatmapData([]); // Placeholder
-                setContentTypePerformanceData([]); // Placeholder
-            }
-
-        } catch (error) {
-            if (error instanceof FacebookTokenError) throw error;
-            console.warn('Failed to fetch page insights:', error);
-            // Clear analytics data if fetching fails
-            setPerformanceSummaryData(null);
-            setPerformanceSummaryText('');
-            setAudienceGrowthData([]);
-            setHeatmapData([]);
-            setContentTypePerformanceData([]);
+    // Fetch Audience Growth (page_fans) - Often works with 'day', 'week', or 'days_28'
+    try {
+        const audienceGrowthDataResponse = await makeRequestWithRetry(`/${target.id}/insights?metric=page_fans&period=${period}`, target.access_token);
+        if (audienceGrowthDataResponse.data && audienceGrowthDataResponse.data.length > 0) {
+             // Process audience growth data - likely time series
+             const fanMetric = audienceGrowthDataResponse.data[0];
+             if (fanMetric.values && fanMetric.values.length > 0) {
+                  // Assuming values is an array of data points over time
+                  const processedData = fanMetric.values.map((value: any) => ({
+                       date: value.end_time, // Use end_time for date
+                       fanCount: value.value // Use value for fan count
+                  }));
+                  setAudienceGrowthData(processedData);
+                  // Get the latest fan count
+                  fanCountEnd = fanMetric.values[fanMetric.values.length - 1].value;
+             }
         }
-
-
-        // STEP 6: Save all data to Firestore (updated to include analytics data)
-        showNotification('partial', `(6/6) حفظ البيانات...`); // Updated step count
-        await saveDataToFirestore({
-            scheduledPosts: finalScheduled.map(p => ({ ...p, scheduledAt: p.scheduledAt.toISOString() })),
-            publishedPosts: finalPublished.map(p => ({ ...p, publishedAt: p.publishedAt.toISOString() })),
-            inboxItems: newInbox,
-            performanceSummaryData: performanceSummaryData, // Save fetched summary data
-            // performanceSummaryText will be generated by AI later in AnalyticsPage
-            audienceGrowthData: audienceGrowthData, // Save fetched audience growth data
-            heatmapData: heatmapData, // Save fetched heatmap data (placeholder)
-            contentTypeData: contentTypeData, // Save fetched content type data (placeholder)
-            lastSync: new Date().toISOString()
-        });
-        showNotification('success', 'تمت المزامنة بنجاح!');
-
-    } catch (error: unknown) {
-        console.error("Facebook Sync Error details:", error);
-        if (error instanceof FacebookTokenError) {
-            onTokenError();
-        } else {
-            const errorMessage = error instanceof Error ? error.message : 'حدث خطأ غير معروف';
-            showNotification('error', `فشل المزامنة: ${errorMessage}`);
-        }
-    } finally {
-        setSyncingTargetId(null);
-        setIsInboxLoading(false);
-        setPublishedPostsLoading(false);
-        // isGeneratingSummary and isGeneratingDeepAnalytics are handled in AnalyticsPage
+    } catch (error) {
+        if (error instanceof FacebookTokenError) throw error;
+        console.warn('Failed to fetch page_fans insight:', error);
     }
-}, [managedTarget, saveDataToFirestore, showNotification, syncingTargetId, onTokenError, makeRequestWithRetry, analyticsPeriod]); // Added analyticsPeriod to dependencies
 
+    // Fetch Engagement and Reach Metrics
+    try {
+        const engagementReachMetrics = [
+            'page_engaged_users',
+            'page_impressions_unique',
+            'page_post_engagements',
+            'page_actions_post_reactions_total'
+        ];
+         const engagementReachDataResponse = await makeRequestWithRetry(`/${target.id}/insights?metric=${engagementReachMetrics.join(',')}&period=${period}`, target.access_token);
+         if (engagementReachDataResponse.data) {
+             engagementReachDataResponse.data.forEach((metric: any) => {
+                 if (metric.name === 'page_engaged_users' && metric.values.length > 0) {
+                     totalEngagement = metric.values[metric.values.length - 1].value;
+                 } else if (metric.name === 'page_impressions_unique' && metric.values.length > 0) {
+                      totalReach = metric.values[metric.values.length - 1].value;
+                 }
+                 // You would process other engagement/reach metrics here
+             });
+         }
+
+    } catch (error) {
+        if (error instanceof FacebookTokenError) throw error;
+         console.warn('Failed to fetch engagement/reach insights:', error);
+    }
+
+
+     // Update performance summary with fetched data
+     processedPerformanceSummary.totalEngagement = totalEngagement;
+     processedPerformanceSummary.totalReach = totalReach;
+     if (totalReach > 0) {
+         processedPerformanceSummary.engagementRate = (totalEngagement / totalReach) * 100;
+     }
+    // Growth rate calculation still needs historical data fetch and comparison
+
+    setPerformanceSummaryData(processedPerformanceSummary);
+
+    // Placeholder for heatmap and content type data fetching and processing
+    // These often require different metrics and periods/breakdowns
+    setHeatmapData([]); // Placeholder
+    setContentTypePerformanceData([]); // Placeholder
+
+
+} catch (error) {
+    if (error instanceof FacebookTokenError) throw error;
+    console.error('Facebook Insights Fetch Error:', error); // Log the main error
+    showNotification('error', `فشل جلب تحليلات الصفحة: ${error instanceof Error ? error.message : 'خطأ غير معروف'}`);
+    // Clear analytics data if fetching fails
+    setPerformanceSummaryData(null);
+    setPerformanceSummaryText('');
+    setAudienceGrowthData([]);
+    setHeatmapData([]);
+    setContentTypePerformanceData([]);
+}
+
+
+// STEP 6: Save all data to Firestore (updated to include analytics data)
+showNotification('partial', `(6/6) حفظ البيانات...`);
+await saveDataToFirestore({
+    scheduledPosts: finalScheduled.map(p => ({ ...p, scheduledAt: p.scheduledAt.toISOString() })),
+    publishedPosts: finalPublished.map(p => ({ ...p, publishedAt: p.publishedAt.toISOString() })),
+    inboxItems: newInbox,
+    performanceSummaryData: performanceSummaryData,
+    audienceGrowthData: audienceGrowthData,
+    heatmapData: heatmapData,
+    contentTypeData: contentTypeData,
+    lastSync: new Date().toISOString()
+});
+showNotification('success', 'تمت المزامنة بنجاح!');
+
+} catch (error: unknown) {
+console.error("Facebook Sync Error details:", error);
+if (error instanceof FacebookTokenError) {
+    onTokenError();
+} else {
+    const errorMessage = error instanceof Error ? error.message : 'حدث خطأ غير معروف';
+    showNotification('error', `فشل المزامنة: ${errorMessage}`);
+}
+} finally {
+setSyncingTargetId(null);
+setIsInboxLoading(false);
+setPublishedPostsLoading(false);
+}
+}, [managedTarget, saveDataToFirestore, showNotification, syncingTargetId, onTokenError, makeRequestWithRetry, analyticsPeriod]);
 
     useEffect(() => {
         const loadDataAndSync = async () => {
