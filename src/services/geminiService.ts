@@ -266,6 +266,7 @@ export const generateImageFromPrompt = async (ai: GoogleGenAI, prompt: string, s
 };
 
 
+
 export const translateText = async (ai: GoogleGenAI, text: string, targetLang: string = 'en'): Promise<string> => {
     const prompt = `Translate the following text to ${targetLang}:\n\n"${text}"\n\nReturn only the translated text, with no extra formatting or explanations.`;
     try {

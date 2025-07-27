@@ -161,7 +161,7 @@ export const imageToImageWithStabilityAI = async (
     apiKey: string,
     imageFile: File,
     prompt: string,
-    model: string = 'stable-diffusion-v1-6',
+    model: string = 'stable-diffusion-xl-1024-v1-0',
     strength: number = 0.6,
 ): Promise<string> => {
     validateInputs(apiKey, prompt);
@@ -202,7 +202,7 @@ export const inpaintingWithStabilityAI = async (
     imageFile: File,
     maskFile: File, // A black and white image where white indicates the area to change
     prompt: string,
-    model: string = 'stable-diffusion-v1-6',
+    model: string = 'stable-inpainting-v1-0',
 ): Promise<string> => {
     validateInputs(apiKey, prompt);
 
