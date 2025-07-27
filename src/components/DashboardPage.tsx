@@ -265,7 +265,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         let finalScheduled: ScheduledPost[] = [];
         try {
             const scheduledPostFields = "id,message,scheduled_publish_time,attachments{media}";
-            const scheduledData = await makeRequestWithRetry(`/${target.id}/scheduled_posts?fields=${scheduledPostFields}&limit=25`, target.access_token);
+            // Increased limit for scheduled posts
+            const scheduledData = await makeRequestWithRetry(`/${target.id}/scheduled_posts?fields=${scheduledPostFields}&limit=50`, target.access_token);
             finalScheduled = (scheduledData.data || []).map((post: any) => ({
                 id: post.id, text: post.message || '', scheduledAt: new Date(post.scheduled_publish_time * 1000),
                 imageUrl: getImageUrlFromPost(post), hasImage: !!getImageUrlFromPost(post), targetId: target.id,
@@ -283,7 +284,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         let fbPublishedContent: any[] = [];
         try {
             const postContentFields = "id,message,created_time,permalink_url,attachments{media}";
-            const publishedData = await makeRequestWithRetry(`/${target.id}/published_posts?fields=${postContentFields}&limit=25`, target.access_token);
+            // Increased limit for published posts
+            const publishedData = await makeRequestWithRetry(`/${target.id}/published_posts?fields=${postContentFields}&limit=50`, target.access_token);
             fbPublishedContent = publishedData.data || [];
         } catch (error) {
             if (error instanceof FacebookTokenError) throw error;
@@ -293,8 +295,9 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         // STEP 3: Fetch Engagement Data
         showNotification('partial', `(3/5) جلب التفاعلات...`);
         const engagementMap = new Map<string, any>();
+        // Fetch engagement for all fetched published posts (up to the limit)
         if (fbPublishedContent.length > 0) {
-            for (const post of fbPublishedContent.slice(0, 25)) {
+            for (const post of fbPublishedContent) {
                 try {
                     const engagement = await makeRequestWithRetry(`/${post.id}?fields=likes.summary(true),comments.summary(true),shares.summary(true)`, target.access_token);
                     engagementMap.set(post.id, engagement);
@@ -317,7 +320,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             } as PublishedPost;
         });
         setPublishedPosts(finalPublished);
-        
+
         // STEP 4: Fetch Inbox Items (Messages and Comments)
         showNotification('partial', `(4/5) جلب صندوق الوارد...`);
         const newInbox: InboxItem[] = [];
@@ -325,7 +328,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         // Fetch Conversations (Private Messages)
         try {
             const convoFields = "participants,messages.limit(1){from,to,message,created_time}";
-            const conversationsData = await makeRequestWithRetry(`/${target.id}/conversations?fields=${convoFields}&limit=25`, target.access_token);
+            // Increased limit for conversations
+            const conversationsData = await makeRequestWithRetry(`/${target.id}/conversations?fields=${convoFields}&limit=50`, target.access_token);
             if (conversationsData.data) {
                 conversationsData.data.forEach((convo: any) => {
                     const lastMsg = convo.messages?.data?.[0];
@@ -345,12 +349,13 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             if (error instanceof FacebookTokenError) throw error;
             console.warn('Failed to fetch conversations:', error);
         }
-        
-        // Fetch Comments from recent published posts
+
+        // Fetch Comments from recent published posts (check all fetched published posts now)
         if (fbPublishedContent.length > 0) {
-            for (const post of fbPublishedContent.slice(0, 10)) { // Check last 10 posts for comments
+            for (const post of fbPublishedContent) { // Iterate through all fetched published posts
                 try {
-                    const commentsData = await makeRequestWithRetry(`/${post.id}/comments?limit=10&fields=from{name,picture},message,created_time,id`, target.access_token);
+                    // Increased limit for comments per post
+                    const commentsData = await makeRequestWithRetry(`/${post.id}/comments?limit=50&fields=from{name,picture},message,created_time,id`, target.access_token);
                     if (commentsData.data) {
                         commentsData.data.forEach((comment: any) => {
                             if (comment.from.id !== target.id) {
@@ -381,7 +386,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             lastSync: new Date().toISOString()
         });
         showNotification('success', 'تمت المزامنة بنجاح!');
-        
+
     } catch (error: unknown) {
         console.error("Facebook Sync Error details:", error);
         if (error instanceof FacebookTokenError) {
@@ -395,7 +400,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         setIsInboxLoading(false);
         setPublishedPostsLoading(false);
     }
-}, [managedTarget, saveDataToFirestore, showNotification, syncingTargetId, onTokenError]);
+}, [managedTarget, saveDataToFirestore, showNotification, syncingTargetId, onTokenError, makeRequestWithRetry]); // Added makeRequestWithRetry to dependencies
 
     useEffect(() => {
         const loadDataAndSync = async () => {

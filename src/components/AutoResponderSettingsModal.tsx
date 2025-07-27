@@ -8,13 +8,14 @@ import { GoogleGenAI } from '@google/genai';
 import { generateReplyVariations } from '../services/geminiService';
 import GrabHandleIcon from './icons/GrabHandleIcon';
 
-interface AutoResponderSettingsModalProps {
-    isOpen: boolean;
-    onClose: () => void;
-    initialSettings: AutoResponderSettings;
-    onSave: (settings: AutoResponderSettings) => void;
-    aiClient: GoogleGenAI | null;
+export interface AutoResponderSettingsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  initialSettings: AutoResponderSettings;
+  onSave: (settings: AutoResponderSettings) => void;
+  aiClient: GoogleGenAI | null;
 }
+
 
 const TagInput: React.FC<{
   tags: string[];

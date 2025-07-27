@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { InboxItem, AutoResponderSettings, Plan, Role, Target } from '../types';
 import Button from './ui/Button';
 import SmartReplies from './SmartReplies'; // Assuming this path is correct
-import AutoResponderSettingsModal from './AutoResponderSettingsModal'; // Assuming this path is correct
 import AiIcon from './icons/AiIcon'; // Assuming this path is correct
 import UserCircleIcon from './icons/UserCircleIcon';
 import PaperAirplaneIcon from './icons/PaperAirplaneIcon';
@@ -14,16 +13,7 @@ import QuestionMarkCircleIcon from './icons/QuestionMarkCircleIcon'; // Assuming
 import Tooltip from './ui/Tooltip'; // Assuming this path is correct
 import ArrowPathIcon from './icons/ArrowPathIcon'; // Assuming this path is correct
 import { GoogleGenAI } from '@google/genai';
-
-// Temporary interface for casting AutoResponderSettingsModal props if it doesn't export its own
-// **Ideally, you should fix AutoResponderSettingsModal.tsx to export its props interface.**
-interface AutoResponderSettingsModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  initialSettings: AutoResponderSettings; // <--- Expected 'initialSettings'
-  onSave: (settings: AutoResponderSettings) => void;
-  aiClient: GoogleGenAI | null;
-}
+import AutoResponderSettingsModal, { AutoResponderSettingsModalProps } from './AutoResponderSettingsModal';
 
 
 interface InboxPageProps {
@@ -132,16 +122,17 @@ const InboxPage: React.FC<InboxPageProps> = ({
                             </Button>
                         </Tooltip>
 
-                        {/* Auto Responder Settings (Optional, based on user plan/role) */}
+                       {/* Auto Responder Settings (Optional, based on user plan/role) */}
 {userPlan?.limits?.autoResponder && (role === 'owner' || role === 'admin') && (
      <AutoResponderSettingsModal
          isOpen={showAutoResponderSettings}
          onClose={() => setShowAutoResponderSettings(false)}
-         initialSettings={autoResponderSettings} // Changed from 'settings' to 'initialSettings' previously
+         initialSettings={autoResponderSettings}
          onSave={onAutoResponderSettingsChange}
-         aiClient={aiClient} // Add this line to pass the aiClient prop
+         aiClient={aiClient} // Add this line
      />
  )}
+
 
                     </div>
                 </div>
