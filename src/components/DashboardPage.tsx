@@ -264,22 +264,28 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         showNotification('partial', `(1/4) جلب المنشورات المجدولة...`);
         let finalScheduled: ScheduledPost[] = [];
         try {
-            const scheduledPostFields = "id,message,scheduled_publish_time,attachments{media,subattachments}";
+            const scheduledPostFields = "id,message,scheduled_publish_time,object_id";
             const scheduledUrl = `/${target.id}/scheduled_posts?fields=${scheduledPostFields}&limit=25`;
             const scheduledData = await makeRequestWithRetry(scheduledUrl, target.access_token);
             
-            finalScheduled = (scheduledData.data || []).map((post: any) => ({
-                id: post.id, 
-                text: post.message || '', 
-                scheduledAt: new Date(post.scheduled_publish_time * 1000),
-                imageUrl: getPhotoId(post), 
-                hasImage: !!getPhotoId(post), 
-                targetId: target.id,
-                targetInfo: { name: target.name, avatarUrl: target.picture.data.url, type: target.type },
-                status: 'scheduled', 
-                isReminder: false, 
-                type: 'post'
-            } as ScheduledPost));
+            finalScheduled = (scheduledData.data || []).map((post: any) => {
+                const photoId = getPhotoId(post);
+                return {
+                    id: post.id, 
+                    text: post.message || '', 
+                    scheduledAt: new Date(post.scheduled_publish_time * 1000),
+                    photoId: photoId, // Store the permanent ID
+                    // Construct the permanent URL for scheduled posts as well
+                    imageUrl: photoId ? `https://graph.facebook.com/${photoId}/picture?access_token=${target.access_token}` : undefined,
+                    hasImage: !!photoId, 
+                    targetId: target.id,
+                    targetInfo: { name: target.name, avatarUrl: target.picture.data.url, type: target.type },
+                    status: 'scheduled', 
+                    isReminder: false, 
+                    type: 'post'
+                } as ScheduledPost;
+            });
+            
             setScheduledPosts(finalScheduled);
         } catch (error) {
             console.warn('Failed to fetch scheduled posts:', error);
@@ -293,7 +299,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         showNotification('partial', `(2/4) جلب المنشورات المنشورة...`);
         let fbPublishedContent: any[] = [];
         try {
-            const postContentFields = "id,message,created_time,object_id,permalink_url,attachments{media_type,type,target{id},subattachments{target{id}}}";
+            const postContentFields = "id,message,created_time,object_id,permalink_url";
             const publishedUrl = `/${target.id}/published_posts?fields=${postContentFields}&limit=25`;
             const publishedData = await makeRequestWithRetry(publishedUrl, target.access_token);
             fbPublishedContent = publishedData.data || [];
@@ -335,7 +341,6 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                 }
             }
         }
-        
         const finalPublished = fbPublishedContent.map((post: any) => {
             const engagement = engagementMap.get(post.id) || {};
             const photoId = getPhotoId(post);
@@ -343,7 +348,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                 id: post.id,
                 text: post.message || '',
                 publishedAt: new Date(post.created_time),
-                photoId: photoId,
+                photoId: photoId, // Store the permanent ID
+                // Construct the permanent, non-expiring URL on the fly
                 imagePreview: photoId ? `https://graph.facebook.com/${photoId}/picture?access_token=${target.access_token}` : undefined,
                 analytics: {
                     likes: engagement.likes?.summary?.total_count || 0,
@@ -356,6 +362,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                 pageAvatarUrl: target.picture.data.url,
             } as PublishedPost;
         });
+        
         
         setPublishedPosts(finalPublished);
         
