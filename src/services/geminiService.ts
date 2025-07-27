@@ -238,17 +238,17 @@ export const generateHashtags = async (ai: GoogleGenAI, postText: string, pagePr
   }
 };
 
-export const generateImageFromPrompt = async (ai: GoogleGenAI, prompt: string, style: string, aspectRatio: string): Promise<string> => {
+export const generateImageFromPrompt = async (ai: GoogleGenAI, prompt: string, style: string, aspectRatio: string, model: string = 'imagen-3.0-generate-002'): Promise<string> => {
   if (!prompt.trim()) {
     throw new Error("يرجى إدخال وصف لإنشاء الصورة.");
   }
   try {
     const enhancedPrompt = `A high-quality, ${style.toLowerCase()} image of: ${prompt}`;
     const response = await ai.models.generateImages({
-      model: 'imagen-3.0-generate-002',
+      model: model,
       prompt: enhancedPrompt,
-      config: { 
-        numberOfImages: 1, 
+      config: {
+        numberOfImages: 1,
         outputMimeType: 'image/jpeg',
         aspectRatio: aspectRatio,
       },
@@ -264,6 +264,7 @@ export const generateImageFromPrompt = async (ai: GoogleGenAI, prompt: string, s
     throw handleGeminiError(error, "إنشاء صورة");
   }
 };
+
 
 export const translateText = async (ai: GoogleGenAI, text: string, targetLang: string = 'en'): Promise<string> => {
     const prompt = `Translate the following text to ${targetLang}:\n\n"${text}"\n\nReturn only the translated text, with no extra formatting or explanations.`;

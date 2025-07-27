@@ -48,6 +48,58 @@ interface PostComposerProps {
   userPlan: Plan | null;
 }
 
+const stabilitySubModels = {
+  "Generate": [
+    "Video thumbnail",
+    "Stable Image Ultra",
+    "Stable Image Core",
+    "Stable Diffusion 3.5 Large",
+    "Stable Diffusion 3.5 Large Turbo",
+    "Stable Diffusion 3.5 Medium",
+    "SDXL 1.0"
+  ],
+  "Upscale": [
+    "Video thumbnail",
+    "Creative",
+    "Fast",
+    "Conservative"
+  ],
+  "Edit": [
+    "Video thumbnail",
+    "Erase Object",
+    "Inpaint",
+    "Outpaint",
+    "Remove Background",
+    "Search and Recolor",
+    "Search and Replace",
+    "Replace Background & Relight"
+  ],
+  "Control": [
+    "Video thumbnail",
+    "Sketch",
+    "Structure",
+    "Style Guide",
+    "Style Transfer",
+    "New!"
+  ]
+};
+
+const geminiModels = [
+    'imagen-3.0-generate-002',
+    'imagen-3.0-generate-005',
+    'imagen-3.0-generate-001'
+];
+
+const imageStyles = [
+    'Photographic',
+    'Cinematic',
+    'Digital Art',
+    'Anime',
+    'Fantasy',
+    'Neon Punk'
+];
+
+
 const base64ToFile = (base64: string, filename: string): File => {
   const byteCharacters = atob(base64);
   const byteNumbers = new Array(byteCharacters.length);
@@ -74,6 +126,9 @@ const PostComposer: React.FC<PostComposerProps> = ({
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [aiImageError, setAiImageError] = useState('');
   const [imageGenerationService, setImageGenerationService] = useState<ImageGenerationService>('gemini');
+  const [selectedSubModel, setSelectedSubModel] = useState('');
+  const [selectedStyle, setSelectedStyle] = useState('Photographic');
+
 
   const [isGeneratingHashtags, setIsGeneratingHashtags] = useState(false);
   const [isSuggestingTime, setIsSuggestingTime] = useState(false);
@@ -106,9 +161,9 @@ const PostComposer: React.FC<PostComposerProps> = ({
     try {
       let base64Bytes: string;
       if (imageGenerationService === 'stability' && stabilityApiKey) {
-        base64Bytes = await generateImageWithStabilityAI(stabilityApiKey, aiImagePrompt, 'Photographic', '1:1', 'stable-diffusion-v1-6', aiClient);
+        base64Bytes = await generateImageWithStabilityAI(stabilityApiKey, aiImagePrompt, selectedStyle, '1:1', selectedSubModel || 'stable-diffusion-v1-6', aiClient);
       } else if (aiClient) {
-        base64Bytes = await generateImageFromPrompt(aiClient, aiImagePrompt, 'Photographic', '1:1');
+        base64Bytes = await generateImageFromPrompt(aiClient, aiImagePrompt, selectedStyle, '1:1', selectedSubModel || 'imagen-3.0-generate-002');
       } else {
         throw new Error("AI service not configured.");
       }
@@ -227,8 +282,8 @@ ${description}`: description);
           <div className="flex justify-between items-center">
              <label className="block text-sm font-medium">مولّد الصور بالذكاء الاصطناعي 🤖</label>
              <div className="flex bg-gray-200 dark:bg-gray-700 rounded-lg p-1 text-xs">
-                <button onClick={() => setImageGenerationService('gemini')} className={`px-2 py-1 rounded-md ${imageGenerationService === 'gemini' ? 'bg-white dark:bg-gray-900 shadow' : ''}`} disabled={!aiClient}>Gemini</button>
-                <button onClick={() => setImageGenerationService('stability')} className={`px-2 py-1 rounded-md ${imageGenerationService === 'stability' ? 'bg-white dark:bg-gray-900 shadow' : ''}`} disabled={!stabilityApiKey}>Stability</button>
+                <button onClick={() => {setImageGenerationService('gemini'); setSelectedSubModel('');}} className={`px-2 py-1 rounded-md ${imageGenerationService === 'gemini' ? 'bg-white dark:bg-gray-900 shadow' : ''}`} disabled={!aiClient}>Gemini</button>
+                <button onClick={() => {setImageGenerationService('stability'); setSelectedSubModel('');}} className={`px-2 py-1 rounded-md ${imageGenerationService === 'stability' ? 'bg-white dark:bg-gray-900 shadow' : ''}`} disabled={!stabilityApiKey}>Stability</button>
              </div>
           </div>
           <div className="flex gap-2">
@@ -236,6 +291,56 @@ ${description}`: description);
             <Button onClick={handleGenerateImageWithAI} isLoading={isGeneratingImage} disabled={isViewer || (imageGenerationService === 'gemini' && !aiClient) || (imageGenerationService === 'stability' && !stabilityApiKey)}>
                 <PhotoIcon className="w-5 h-5 ml-1"/> إنشاء صورة
             </Button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div>
+                <label htmlFor="image-style" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">النمط</label>
+                <select
+                    id="image-style"
+                    value={selectedStyle}
+                    onChange={(e) => setSelectedStyle(e.target.value)}
+                    className="w-full p-2 border rounded-md bg-white dark:bg-gray-800"
+                    disabled={isGeneratingImage || isViewer}
+                >
+                    {imageStyles.map(style => (
+                        <option key={style} value={style}>{style}</option>
+                    ))}
+                </select>
+            </div>
+            <div>
+              <label htmlFor="image-model" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">الموديل</label>
+              {imageGenerationService === 'gemini' ? (
+                  <select
+                      id="image-model"
+                      value={selectedSubModel}
+                      onChange={(e) => setSelectedSubModel(e.target.value)}
+                      className="w-full p-2 border rounded-md bg-white dark:bg-gray-800"
+                      disabled={isGeneratingImage || isViewer}
+                  >
+                      <option value="">اختر الموديل</option>
+                      {geminiModels.map(model => (
+                          <option key={model} value={model}>{model}</option>
+                      ))}
+                  </select>
+              ) : (
+                  <select
+                      id="image-model"
+                      value={selectedSubModel}
+                      onChange={(e) => setSelectedSubModel(e.target.value)}
+                      className="w-full p-2 border rounded-md bg-white dark:bg-gray-800"
+                      disabled={isGeneratingImage || isViewer}
+                  >
+                      <option value="">اختر الموديل</option>
+                      {Object.entries(stabilitySubModels).map(([category, models]) => (
+                          <optgroup label={category} key={category}>
+                              {models.map(model => (
+                                  <option key={model} value={model}>{model}</option>
+                              ))}
+                          </optgroup>
+                      ))}
+                  </select>
+              )}
+            </div>
           </div>
           {aiImageError && <p className="text-red-500 text-sm mt-2">{aiImageError}</p>}
       </div>
