@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import Button from './ui/Button';
 import PhotoIcon from './icons/PhotoIcon';
@@ -13,14 +12,16 @@ import XCircleIcon from './icons/XCircleIcon';
 import Squares2x2Icon from './icons/Squares2x2Icon';
 import StarIcon from './icons/StarIcon';
 import ClockIcon from './icons/ClockIcon';
+import LightBulbIcon from './icons/LightBulbIcon';
 
 // Assume these service functions exist and are imported correctly
 import { generatePostSuggestion, generateImageFromPrompt, getBestPostingTime, generateHashtags, generateDescriptionForImage } from '../services/geminiService';
 import { generateImageWithStabilityAI } from '../services/stabilityai';
 
+type ImageGenerationService = 'gemini' | 'stability';
 
 interface PostComposerProps {
-  onPublish: (postType: PostType) => Promise<void>;
+  onPublish: (postType: PostType, postOptions: { [key: string]: any }) => Promise<void>;
   onSaveDraft: () => void;
   isPublishing: boolean;
   postText: string;
@@ -72,7 +73,12 @@ const PostComposer: React.FC<PostComposerProps> = ({
   const [aiImagePrompt, setAiImagePrompt] = useState('');
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [aiImageError, setAiImageError] = useState('');
-  
+  const [imageGenerationService, setImageGenerationService] = useState<ImageGenerationService>('gemini');
+
+  const [isGeneratingHashtags, setIsGeneratingHashtags] = useState(false);
+  const [isSuggestingTime, setIsSuggestingTime] = useState(false);
+  const [isGeneratingImageDescription, setIsGeneratingImageDescription] = useState(false);
+
   const [postType, setPostType] = useState<PostType>('post');
   const isViewer = role === 'viewer';
 
@@ -99,7 +105,7 @@ const PostComposer: React.FC<PostComposerProps> = ({
     setAiImageError('');
     try {
       let base64Bytes: string;
-      if (stabilityApiKey) {
+      if (imageGenerationService === 'stability' && stabilityApiKey) {
         base64Bytes = await generateImageWithStabilityAI(stabilityApiKey, aiImagePrompt, 'Photographic', '1:1', 'stable-diffusion-v1-6', aiClient);
       } else if (aiClient) {
         base64Bytes = await generateImageFromPrompt(aiClient, aiImagePrompt, 'Photographic', '1:1');
@@ -115,6 +121,51 @@ const PostComposer: React.FC<PostComposerProps> = ({
     }
   };
   
+  const handleGenerateHashtags = async () => {
+    if (!aiClient || !postText.trim() || isViewer) return;
+    setIsGeneratingHashtags(true);
+    try {
+      const hashtags = await generateHashtags(aiClient, postText);
+      onPostTextChange(`${postText}
+
+${hashtags}`);
+    } catch (e) {
+      console.error("Error generating hashtags:", e);
+    } finally {
+      setIsGeneratingHashtags(false);
+    }
+  };
+
+  const handleSuggestTime = async () => {
+    if (!aiClient || isViewer) return;
+    setIsSuggestingTime(true);
+    try {
+      const bestTime = await getBestPostingTime(aiClient, managedTarget.id, pageProfile);
+      onIsScheduledChange(true);
+      onScheduleDateChange(new Date(bestTime).toISOString().slice(0, 16));
+    } catch (e) {
+      console.error("Error suggesting best time:", e);
+    } finally {
+      setIsSuggestingTime(false);
+    }
+  };
+  
+  const handleGenerateImageDescription = async () => {
+      if (!aiClient || !selectedImage || isViewer) return;
+      setIsGeneratingImageDescription(true);
+      try {
+          const description = await generateDescriptionForImage(aiClient, selectedImage);
+          onPostTextChange(postText ? `${postText}
+
+${description}`: description);
+      } catch (e) {
+          console.error("Error generating image description:", e);
+      } finally {
+          setIsGeneratingImageDescription(false);
+      }
+  };
+
+
   const getPublishButtonText = () => {
     if (isPublishing) return 'جاري العمل...';
     if (isScheduled) return editingScheduledPostId ? 'تحديث الجدولة' : 'جدولة الآن';
@@ -142,6 +193,18 @@ const PostComposer: React.FC<PostComposerProps> = ({
 
       <textarea value={postText} onChange={(e) => onPostTextChange(e.target.value)} placeholder="بماذا تفكر؟ اكتب منشورك هنا..." className="w-full h-48 p-3 border rounded-md dark:bg-gray-700 dark:text-white" disabled={isViewer} />
       
+        <div className="flex gap-2 flex-wrap">
+            <Button variant="secondary" onClick={handleGenerateHashtags} isLoading={isGeneratingHashtags} disabled={!aiClient || !postText.trim() || isViewer}>
+                <HashtagIcon className="w-5 h-5 ml-1"/> توليد هاشتاجات
+            </Button>
+            {selectedImage && (
+                <Button variant="secondary" onClick={handleGenerateImageDescription} isLoading={isGeneratingImageDescription} disabled={!aiClient || isViewer}>
+                    <WandSparklesIcon className="w-5 h-5 ml-1"/> توليد وصف للصورة
+                </Button>
+            )}
+        </div>
+
+
         <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">نوع المحتوى</label>
             <div className="flex bg-gray-200 dark:bg-gray-700 rounded-lg p-1 space-x-1">
@@ -161,10 +224,16 @@ const PostComposer: React.FC<PostComposerProps> = ({
       )}
 
       <div className="p-4 border rounded-lg bg-gray-50 dark:bg-gray-700/50 space-y-3">
-          <label className="block text-sm font-medium">مولّد الصور بالذكاء الاصطناعي 🤖</label>
+          <div className="flex justify-between items-center">
+             <label className="block text-sm font-medium">مولّد الصور بالذكاء الاصطناعي 🤖</label>
+             <div className="flex bg-gray-200 dark:bg-gray-700 rounded-lg p-1 text-xs">
+                <button onClick={() => setImageGenerationService('gemini')} className={`px-2 py-1 rounded-md ${imageGenerationService === 'gemini' ? 'bg-white dark:bg-gray-900 shadow' : ''}`} disabled={!aiClient}>Gemini</button>
+                <button onClick={() => setImageGenerationService('stability')} className={`px-2 py-1 rounded-md ${imageGenerationService === 'stability' ? 'bg-white dark:bg-gray-900 shadow' : ''}`} disabled={!stabilityApiKey}>Stability</button>
+             </div>
+          </div>
           <div className="flex gap-2">
             <input id="ai-image-prompt" type="text" value={aiImagePrompt} onChange={(e) => setAiImagePrompt(e.target.value)} placeholder="وصف الصورة، مثلاً: رائد فضاء على المريخ" className="flex-grow p-2 border rounded-md bg-white dark:bg-gray-800" disabled={isGeneratingImage || isViewer} />
-            <Button onClick={handleGenerateImageWithAI} isLoading={isGeneratingImage} disabled={isViewer || (!aiClient && !stabilityApiKey)}>
+            <Button onClick={handleGenerateImageWithAI} isLoading={isGeneratingImage} disabled={isViewer || (imageGenerationService === 'gemini' && !aiClient) || (imageGenerationService === 'stability' && !stabilityApiKey)}>
                 <PhotoIcon className="w-5 h-5 ml-1"/> إنشاء صورة
             </Button>
           </div>
@@ -172,9 +241,14 @@ const PostComposer: React.FC<PostComposerProps> = ({
       </div>
 
       <div className="p-4 border rounded-lg dark:border-gray-700">
-        <div className="flex items-center">
+        <div className="flex items-center justify-between">
+            <div className='flex items-center'>
             <input id="schedule-checkbox" type="checkbox" checked={isScheduled} onChange={e => onIsScheduledChange(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-blue-600" disabled={isViewer}/>
             <label htmlFor="schedule-checkbox" className="mr-2 text-sm font-medium">جدولة المنشور</label>
+            </div>
+            <Button variant="secondary" onClick={handleSuggestTime} isLoading={isSuggestingTime} disabled={!aiClient || isViewer}>
+                <LightBulbIcon className="w-5 h-5 ml-1"/> اقتراح أفضل وقت
+            </Button>
         </div>
         {isScheduled && (
             <div className="mt-3">
@@ -190,7 +264,7 @@ const PostComposer: React.FC<PostComposerProps> = ({
         </div>
         <div className="flex items-center gap-2">
          <Button variant="secondary" onClick={onSaveDraft} disabled={isPublishing || isViewer}>حفظ كمسودة</Button>
-        <Button onClick={() => onPublish(postType)} isLoading={isPublishing} disabled={isViewer}>{getPublishButtonText()}</Button>
+        <Button onClick={() => onPublish(postType, {})} isLoading={isPublishing} disabled={isViewer}>{getPublishButtonText()}</Button>
         </div>
       </div>
     </div>

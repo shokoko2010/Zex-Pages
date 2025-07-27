@@ -504,20 +504,68 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     }, [managedTarget.id, user.uid, isAdmin]);
 
 
-    const handlePublish = async (postType: PostType) => {
+    const handlePublish = async (postType: PostType, postOptions: { [key: string]: any }) => {
         setComposerError('');
         if (!managedTarget.access_token) {
             setComposerError('رمز الوصول للصفحة غير صالح. حاول إعادة المزامنة أو المصادقة.');
             showNotification('error', 'رمز الوصول للصفحة غير صالح.');
             return;
         }
+    
+        // ملاحظة: أنواع المنشورات "story" و "reel" تتطلب منطقًا أكثر تعقيدًا
+        // وخاصةً لـ Instagram. هذا المثال يركز على "post" لفيسبوك.
+        if (postType === 'story' || postType === 'reel') {
+            showNotification('error', 'نشر القصص والريلز غير مدعوم حاليًا في هذا المثال.');
+            return;
+        }
+        
         setIsPublishing(true);
+    
         try {
-            console.log(`Attempting to publish type ${postType}:`, { text: postText, image: selectedImage, scheduled: isScheduled, date: scheduleDate });
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            const targetId = managedTarget.id;
+            const accessToken = managedTarget.access_token;
+            const baseUrl = `https://graph.facebook.com/v19.0/${targetId}`;
+            let endpoint = '/feed';
+            const formData = new FormData();
+    
+            formData.append('access_token', accessToken);
+            if (postText) {
+                formData.append('message', postText);
+            }
+    
+            if (isScheduled && scheduleDate) {
+                const scheduledTime = new Date(scheduleDate);
+                // فيسبوك يتوقع الوقت بتنسيق UNIX timestamp
+                formData.append('scheduled_publish_time', String(Math.floor(scheduledTime.getTime() / 1000)));
+                formData.append('published', 'false');
+            } else {
+                formData.append('published', 'true');
+            }
+    
+            if (selectedImage) {
+                endpoint = '/photos';
+                formData.append('source', selectedImage);
+            } else if (!postText) {
+                 setComposerError('لا يمكن إنشاء منشور فارغ. أضف نصًا أو صورة.');
+                 setIsPublishing(false);
+                 return;
+            }
+    
+            const response = await fetch(`${baseUrl}${endpoint}`, {
+                method: 'POST',
+                body: formData,
+            });
+    
+            const responseData = await response.json();
+            if (!response.ok || responseData.error) {
+                throw new Error(responseData.error?.message || 'فشل نشر المنشور.');
+            }
+    
             showNotification('success', `تم ${isScheduled ? 'جدولة' : 'نشر'} المنشور بنجاح!`);
             clearComposer();
-            await syncFacebookData(managedTarget);
+            // انتظر قليلاً قبل المزامنة للسماح لفيسبوك بمعالجة المنشور
+            setTimeout(() => syncFacebookData(managedTarget), 3000); 
+    
         } catch (error: any) {
             setComposerError(`فشل النشر: ${error.message}`);
             showNotification('error', `فشل النشر: ${error.message}`);
@@ -525,6 +573,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             setIsPublishing(false);
         }
     };
+    
 
     const handleSaveDraft = async () => {
         if (!postText.trim() && !selectedImage) {
@@ -566,14 +615,34 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     };
 
     const handleDeleteScheduledPost = async (postId: string) => {
-        // Here you would add the actual API call to Facebook to delete the post
-        await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API call
-        const updatedScheduled = scheduledPosts.filter(p => p.id !== postId);
-        setScheduledPosts(updatedScheduled);
-        await saveDataToFirestore({ scheduledPosts: updatedScheduled.map(p => ({...p, scheduledAt: p.scheduledAt.toISOString()})) });
-        showNotification('success', 'تم حذف المنشور المجدول.');
-        await syncFacebookData(managedTarget); // Re-sync after deletion
+        if (!managedTarget.access_token) {
+            showNotification('error', 'رمز الوصول للصفحة مفقود للحذف.');
+            return;
+        }
+        try {
+            const response = await fetch(`https://graph.facebook.com/v19.0/${postId}`, {
+                method: 'DELETE',
+                body: JSON.stringify({ access_token: managedTarget.access_token }),
+                headers: { 'Content-Type': 'application/json' },
+            });
+            const responseData = await response.json();
+    
+            if (!response.ok || !responseData.success) {
+                throw new Error('فشل حذف المنشور المجدول من فيسبوك.');
+            }
+    
+            const updatedScheduled = scheduledPosts.filter(p => p.id !== postId);
+            setScheduledPosts(updatedScheduled);
+            await saveDataToFirestore({ scheduledPosts: updatedScheduled.map(p => ({...p, scheduledAt: p.scheduledAt.toISOString()})) });
+            showNotification('success', 'تم حذف المنشور المجدول.');
+            
+        } catch(error: any) {
+            showNotification('error', `فشل الحذف: ${error.message}`);
+            // أعد المزامنة لتصحيح أي اختلافات
+            await syncFacebookData(managedTarget);
+        }
     };
+    
 
     const handleApprovePost = (postId: string) => {
         showNotification('partial', `الموافقة على المنشور ${postId} (محاكاة)...`);
@@ -966,75 +1035,118 @@ const onFetchPostInsights = async (postId: string): Promise<any> => {
         case 'inbox': 
             return (
                 <InboxPage 
-                    items={inboxItems} isLoading={isInboxLoading} 
-                    onReply={async (item: InboxItem, message: string) => {
-                      if (!managedTarget.access_token) {
-                          showNotification('error', 'رمز الوصول للصفحة مفقود للرد.');
-                          return false;
-                      }
-                      try {
-                          console.log(`Replying to ${item.authorName} (${item.type}): ${message}`);
-                          await new Promise(resolve => setTimeout(resolve, 1000));
-                          const updatedInboxItems = inboxItems.map(i => i.id === item.id ? { ...i, status: 'replied' as 'replied', isReplied: true } : i);
-                          setInboxItems(updatedInboxItems);
-                          await saveDataToFirestore({ inboxItems: updatedInboxItems });
-                          showNotification('success', `تم الرد على ${item.authorName}.`);
-                          return true;
-                      } catch (error: any) {
-                          showNotification('error', `فشل الرد: ${error.message}`);
-                          return false;
-                      }
-                  }}
-                  onMarkAsDone={async (itemId: string) => {
-                    const updatedInboxItems = inboxItems.map(i => i.id === itemId ? { ...i, status: 'done' as 'done' } : i);
-                    setInboxItems(updatedInboxItems);
-                    await saveDataToFirestore({ inboxItems: updatedInboxItems });
-                    showNotification('success', 'تم تمييز المحادثة كمكتملة.');
-                }}
-                onLike={async (itemId: string) => {
-                  console.log(`Liking item: ${itemId}`);
-                  await new Promise(resolve => setTimeout(resolve, 500));
-                  showNotification('success', 'تم الإعجاب بالتعليق/الرسالة.');
-              }}
-              onGenerateSmartReplies={async (commentText: string) => {
-                if (!aiClient) {
-                    showNotification('error', 'عميل الذكاء الاصطناعي غير مكوّن لإنشاء الردود الذكية.');
-                    return [];
-                }
-                showNotification('partial', 'جاري توليد ردود ذكية...');
-                try {
-                    const smartReplies = await generateHashtags(aiClient, commentText, pageProfile); // Placeholder
-                    showNotification('success', 'تم توليد الردود الذكية.');
-                    return smartReplies;
-                } catch (e: any) {
-                    showNotification('error', `فشل توليد الردود الذكية: ${e.message}`);
-                    return [];
-                }
-            }}
-            onFetchMessageHistory={async (conversationId: string) => {
-              if (!managedTarget.access_token) {
-                  showNotification('error', 'رمز الوصول للصفحة مفقود لجلب سجل الرسائل.');
-                  return;
-              }
-              showNotification('partial', `جاري جلب سجل الرسائل للمحادثة ${conversationId}...`);
-              try {
-                  const messages = await fetchWithPagination(`/${conversationId}/messages?fields=from,to,message,created_time`, managedTarget.access_token);
-                  setInboxItems(prevItems => prevItems.map(item => 
-                      item.conversationId === conversationId ? { ...item, messages: messages.map((msg: any) => ({
-                          id: msg.id, text: msg.message, from: (msg.from.id === managedTarget.id ? 'page' : 'user'), timestamp: msg.created_time
-                      })) } : item
-                  ));
-                  showNotification('success', 'تم جلب سجل الرسائل.');
-              } catch (error: any) {
-                  showNotification('error', `فشل جلب سجل الرسائل: ${error.message}`);
-              }
-          }}
-          autoResponderSettings={{ rules: [], fallback: { mode: 'off', staticMessage: '' } }}
-          onAutoResponderSettingsChange={() => { showNotification('partial', 'تغيير إعدادات الرد التلقائي (محاكاة).'); }}
-          onSync={() => syncFacebookData(managedTarget)} isSyncing={!!syncingTargetId}
-          aiClient={aiClient} role={currentUserRole} repliedUsersPerPost={{}}
-          currentUserRole={currentUserRole} selectedTarget={managedTarget}
-                />
+    items={inboxItems} 
+    isLoading={isInboxLoading} 
+    onReply={async (item: InboxItem, message: string) => {
+        if (!managedTarget.access_token) {
+            showNotification('error', 'رمز الوصول للصفحة مفقود للرد.');
+            return false;
+        }
+        try {
+            const endpointId = item.type === 'comment' ? item.id : item.conversationId;
+            const endpointPath = item.type === 'comment' ? 'comments' : 'messages';
+            
+            const response = await fetch(`https://graph.facebook.com/v19.0/${endpointId}/${endpointPath}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message: message,
+                    access_token: managedTarget.access_token,
+                }),
+            });
+
+            const responseData = await response.json();
+            if (!response.ok || responseData.error) {
+                throw new Error(responseData.error?.message || 'فشل إرسال الرد.');
+            }
+            
+            // تحديث الحالة محليًا
+            const updatedInboxItems = inboxItems.map(i => i.id === item.id ? { ...i, status: 'replied' as 'replied', isReplied: true } : i);
+            setInboxItems(updatedInboxItems);
+            await saveDataToFirestore({ inboxItems: updatedInboxItems });
+            showNotification('success', `تم الرد على ${item.authorName}.`);
+            return true;
+        } catch (error: any) {
+            showNotification('error', `فشل الرد: ${error.message}`);
+            return false;
+        }
+    }}
+    onMarkAsDone={async (itemId: string) => {
+        const updatedInboxItems = inboxItems.map(i => i.id === itemId ? { ...i, status: 'done' as 'done' } : i);
+        setInboxItems(updatedInboxItems);
+        await saveDataToFirestore({ inboxItems: updatedInboxItems });
+        showNotification('success', 'تم تمييز المحادثة كمكتملة.');
+    }}
+    onLike={async (itemId: string) => {
+        if (!managedTarget.access_token) {
+            showNotification('error', 'رمز الوصول للصفحة مفقود للإعجاب.');
+            return;
+        }
+        try {
+            const response = await fetch(`https://graph.facebook.com/v19.0/${itemId}/likes`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ access_token: managedTarget.access_token }),
+            });
+            const responseData = await response.json();
+            if (!response.ok || !responseData.success) {
+                throw new Error(responseData.error?.message || 'فشل الإعجاب.');
+            }
+            showNotification('success', 'تم الإعجاب بالتعليق.');
+        } catch (error: any) {
+             showNotification('error', `فشل الإعجاب: ${error.message}`);
+        }
+    }}
+    // ... باقي الخصائص تبقى كما هي
+    onGenerateSmartReplies={async (commentText: string) => {
+        if (!aiClient) {
+            showNotification('error', 'عميل الذكاء الاصطناعي غير مكوّن لإنشاء الردود الذكية.');
+            return [];
+        }
+        showNotification('partial', 'جاري توليد ردود ذكية...');
+        try {
+            const replies: string[] = await generateHashtags(aiClient, `Generate three concise replies for this comment: "${commentText}"`, pageProfile); // Placeholder returns string[]
+            showNotification('success', 'تم توليد الردود الذكية.');
+            // The function already returns an array, so we just filter it.
+            // I've also added the type for 'r' to solve the implicit 'any' error.
+            return replies.filter((r: string) => r.trim() !== ''); 
+        } catch (e: any) {
+            showNotification('error', `فشل توليد الردود الذكية: ${e.message}`);
+            return [];
+        }
+    }}
+    
+  onFetchMessageHistory={async (conversationId: string) => {
+    if (!managedTarget.access_token) {
+        showNotification('error', 'رمز الوصول للصفحة مفقود لجلب سجل الرسائل.');
+        return;
+    }
+    showNotification('partial', `جاري جلب سجل الرسائل...`);
+    try {
+        const response = await fetch(`https://graph.facebook.com/v19.0/${conversationId}/messages?fields=from,to,message,created_time&access_token=${managedTarget.access_token}`);
+        const data = await response.json();
+        if (data.error) throw new Error(data.error.message);
+
+        setInboxItems(prevItems => prevItems.map(item => 
+            item.conversationId === conversationId ? { ...item, messages: (data.data || []).map((msg: any) => ({
+                id: msg.id, text: msg.message, from: (msg.from.id === managedTarget.id ? 'page' : 'user'), timestamp: msg.created_time
+            })).reverse() } : item // عكس الترتيب لعرض الأقدم أولاً
+        ));
+        showNotification('success', 'تم جلب سجل الرسائل.');
+    } catch (error: any) {
+        showNotification('error', `فشل جلب سجل الرسائل: ${error.message}`);
+    }
+}}
+    autoResponderSettings={{ rules: [], fallback: { mode: 'off', staticMessage: '' } }}
+    onAutoResponderSettingsChange={() => { showNotification('partial', 'تغيير إعدادات الرد التلقائي (محاكاة).'); }}
+    onSync={() => syncFacebookData(managedTarget)} 
+    isSyncing={!!syncingTargetId}
+    aiClient={aiClient} 
+    role={currentUserRole} 
+    repliedUsersPerPost={{}}
+    currentUserRole={currentUserRole} 
+    selectedTarget={managedTarget}
+/>
             );
         case 'analytics': 
             return (
