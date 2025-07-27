@@ -15,6 +15,13 @@ import firebase from 'firebase/compat/app';
 
 const isSimulation = window.location.protocol === 'http:';
 
+class FacebookTokenError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'FacebookTokenError';
+  }
+}
+
 const MOCK_TARGETS: Target[] = [
     { id: '1', name: 'صفحة تجريبية 1', type: 'facebook', access_token: 'DUMMY_TOKEN_1', picture: { data: { url: 'https://via.placeholder.com/150/4B79A1/FFFFFF?text=Page1' } } },
     { id: 'ig1', name: 'Zex Pages IG (@zex_pages_ig)', type: 'instagram', parentPageId: '1', access_token: 'DUMMY_TOKEN_1', picture: { data: { url: 'https://via.placeholder.com/150/E4405F/FFFFFF?text=IG' } } }
@@ -82,14 +89,74 @@ const App: React.FC = () => {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
   
+  const handleFacebookTokenError = useCallback(async () => {
+    alert("انتهت صلاحية جلسة فيسبوك أو أصبحت غير صالحة. يرجى إعادة ربط الحساب.");
+    if (user) {
+        await db.collection('users').doc(user.uid).set({ fbAccessToken: null, targets: [] }, { merge: true });
+        setAppUser(prev => prev ? { ...prev, fbAccessToken: undefined, targets: [] } : null);
+        setTargets([]);
+    }
+  }, [user]);
+
+  const fetchWithPagination = useCallback(async (initialPath: string, accessToken?: string): Promise<any[]> => {
+      let allData: any[] = [];
+      let path: string | null = initialPath;
+      const tokenToUse = accessToken || appUser?.fbAccessToken;
+      if (!tokenToUse) throw new Error("Facebook Access Token is missing.");
+
+      path = path.includes('?') ? `${path}&access_token=${tokenToUse}` : `${path}?access_token=${tokenToUse}`;
+
+      let counter = 0;
+      while (path && counter < 50) {
+          const response: any = await new Promise(resolve => window.FB.api(path, (res: any) => resolve(res)));
+          if (response?.data) {
+              if (response.data.length > 0) allData = allData.concat(response.data);
+              path = response.paging?.next ? response.paging.next.replace('https://graph.facebook.com', '') : null;
+          } else {
+              if (response?.error) {
+                if (response.error.code === 190) { 
+                  throw new FacebookTokenError(response.error.message);
+                }
+                throw new Error(`خطأ في واجهة فيسبوك: ${response.error.message}`);
+              }
+              path = null;
+          }
+          counter++;
+      }
+      return allData;
+  }, [appUser?.fbAccessToken]);
+
+  const fetchInstagramAccounts = useCallback(async (pages: Target[]): Promise<Target[]> => {
+    if (pages.length === 0 || !appUser?.fbAccessToken) return [];
+    const batchRequest = pages.map(page => ({ method: 'GET', relative_url: `${page.id}?fields=instagram_business_account{id,name,username,profile_picture_url}` }));
+    
+    return new Promise(resolve => {
+        window.FB.api('/', 'POST', { batch: JSON.stringify(batchRequest), access_token: appUser.fbAccessToken }, (response: any) => {
+            const igAccounts: Target[] = [];
+            if (response && !response.error) {
+                response.forEach((res: any, index: number) => {
+                    if (res.code === 200) {
+                        const body = JSON.parse(res.body);
+                        if (body?.instagram_business_account) {
+                            const igAccount = body.instagram_business_account;
+                            igAccounts.push({
+                                id: igAccount.id, name: igAccount.name ? `${igAccount.name} (@${igAccount.username})` : `@${igAccount.username}`,
+                                type: 'instagram', parentPageId: pages[index].id, access_token: pages[index].access_token,
+                                picture: { data: { url: igAccount.profile_picture_url || 'https://via.placeholder.com/150/833AB4/FFFFFF?text=IG' } }
+                            });
+                        }
+                    }
+                });
+            }
+            resolve(igAccounts);
+        });
+    });
+  }, [appUser?.fbAccessToken]);
+
   const fetchFacebookData = useCallback(async () => {
     if (!user || isSimulation || !appUser?.fbAccessToken) {
-      if (isSimulation) {
-        setTargets(MOCK_TARGETS); setBusinesses(MOCK_BUSINESSES); setTargetsLoading(false);
-      } else {
         setTargetsLoading(false);
-      }
-      return;
+        return;
     }
     
     setTargetsLoading(true);
@@ -107,55 +174,42 @@ const App: React.FC = () => {
         
         await db.collection('users').doc(user.uid).set({ targets: finalTargets }, { merge: true });
     } catch (error: any) {
-        setTargetsError(`فشل تحميل بياناتك من فيسبوك. الخطأ: ${error.message}`);
+        if (error instanceof FacebookTokenError) {
+            handleFacebookTokenError();
+        } else {
+            setTargetsError(`فشل تحميل بياناتك من فيسبوك. الخطأ: ${error.message}`);
+        }
     } finally {
         setTargetsLoading(false);
     }
-  }, [user, appUser?.fbAccessToken, isSimulation]);
+  }, [user, appUser?.fbAccessToken, isSimulation, fetchWithPagination, fetchInstagramAccounts, handleFacebookTokenError]);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
         setLoadingUser(true);
         if (currentUser) {
             setUser(currentUser);
-            try {
-                const plansSnapshot = await db.collection('plans').get();
-                setPlans(plansSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Plan)));
-            } catch (error) { console.error("Failed to fetch plans:", error); }
-
             const userDocRef = db.collection('users').doc(currentUser.uid);
             const userDoc = await userDocRef.get();
             
             if (userDoc.exists) {
-                const userData = userDoc.data() as AppUser;
-                setAppUser(userData);
-                setApiKey(userData.geminiApiKey || null);
-                setStabilityApiKey(userData.stabilityApiKey || null);
-                setFavoriteTargetIds(new Set(userData.favoriteTargetIds || []));
-                if (!userData.onboardingCompleted) setIsTourOpen(true);
-
-                if (userData.isAdmin) {
-                    try {
-                        const usersSnapshot = await db.collection('users').get();
-                        setAllUsers(usersSnapshot.docs.map(doc => doc.data() as AppUser));
-                    } catch (error) { console.error("Failed to fetch all users:", error); }
-                }
+                setAppUser(userDoc.data() as AppUser);
             } else {
                const newUser: AppUser = {
-                   email: currentUser.email!,
-                   uid: currentUser.uid,
-                   isAdmin: false,
-                   planId: 'free',
-                   createdAt: Date.now(),
-                   lastLoginIp: await getIpAddress(),
-                   currentPlan: 'free',
-                   displayName: '',
-                   photoURL: ''
+                   email: currentUser.email!, uid: currentUser.uid, isAdmin: false,
+                   planId: 'free', createdAt: Date.now(), lastLoginIp: await getIpAddress(),
+                   currentPlan: 'free', displayName: '', photoURL: ''
                };
                await userDocRef.set(newUser, { merge: true });
                setAppUser(newUser);
                setIsTourOpen(true);
             }
+
+            try {
+                const plansSnapshot = await db.collection('plans').get();
+                setPlans(plansSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Plan)));
+            } catch (error) { console.error("Failed to fetch plans:", error); }
+
         } else {
             setUser(null); setAppUser(null); setApiKey(null);
             setStabilityApiKey(null); setTargets([]); setBusinesses([]);
@@ -169,16 +223,25 @@ const App: React.FC = () => {
   }, []);
   
   useEffect(() => {
-      if (appUser?.fbAccessToken) {
-          fetchFacebookData();
-      } else {
-          // If there's no token, but there might be stale data in Firestore,
-          // load it so the user sees something while they connect.
-          if (appUser?.targets && appUser.targets.length > 0) {
-              setTargets(appUser.targets);
-          }
-          setTargetsLoading(false);
-      }
+    if (appUser) {
+        setApiKey(appUser.geminiApiKey || null);
+        setStabilityApiKey(appUser.stabilityApiKey || null);
+        setFavoriteTargetIds(new Set(appUser.favoriteTargetIds || []));
+        if (!appUser.onboardingCompleted) setIsTourOpen(true);
+        
+        if (appUser.isAdmin) {
+            db.collection('users').get()
+                .then(snapshot => setAllUsers(snapshot.docs.map(doc => doc.data() as AppUser)))
+                .catch(err => console.error("Failed to fetch all users:", err));
+        }
+        
+        if (appUser.fbAccessToken) {
+            fetchFacebookData();
+        } else {
+            setTargets(appUser.targets || []);
+            setTargetsLoading(false);
+        }
+    }
   }, [appUser, fetchFacebookData]);
 
 
@@ -244,62 +307,6 @@ const App: React.FC = () => {
     }, { merge: true });
   }, [user]);
   
-  const fetchWithPagination = useCallback(async (initialPath: string, accessToken?: string): Promise<any[]> => {
-      let allData: any[] = [];
-      let path: string | null = initialPath;
-      const tokenToUse = accessToken || appUser?.fbAccessToken;
-      if (!tokenToUse) throw new Error("Facebook Access Token is missing.");
-
-      path = path.includes('?') ? `${path}&access_token=${tokenToUse}` : `${path}?access_token=${tokenToUse}`;
-
-      let counter = 0;
-      while (path && counter < 50) {
-          const response: any = await new Promise(resolve => window.FB.api(path, (res: any) => resolve(res)));
-          if (response?.data) {
-              if (response.data.length > 0) allData = allData.concat(response.data);
-              path = response.paging?.next ? response.paging.next.replace('https://graph.facebook.com', '') : null;
-          } else {
-              if (response?.error) {
-                if (response.error.code === 190) { 
-                  alert("انتهت صلاحية جلسة فيسبوك. يرجى إعادة ربط الحساب.");
-                  if (user) await db.collection('users').doc(user.uid).set({ fbAccessToken: null }, { merge: true });
-                }
-                throw new Error(`خطأ في واجهة فيسبوك: ${response.error.message}`);
-              }
-              path = null;
-          }
-          counter++;
-      }
-      return allData;
-  }, [appUser?.fbAccessToken, user]);
-
-  const fetchInstagramAccounts = useCallback(async (pages: Target[]): Promise<Target[]> => {
-    if (pages.length === 0 || !appUser?.fbAccessToken) return [];
-    const batchRequest = pages.map(page => ({ method: 'GET', relative_url: `${page.id}?fields=instagram_business_account{id,name,username,profile_picture_url}` }));
-    
-    return new Promise(resolve => {
-        window.FB.api('/', 'POST', { batch: JSON.stringify(batchRequest), access_token: appUser.fbAccessToken }, (response: any) => {
-            const igAccounts: Target[] = [];
-            if (response && !response.error) {
-                response.forEach((res: any, index: number) => {
-                    if (res.code === 200) {
-                        const body = JSON.parse(res.body);
-                        if (body?.instagram_business_account) {
-                            const igAccount = body.instagram_business_account;
-                            igAccounts.push({
-                                id: igAccount.id, name: igAccount.name ? `${igAccount.name} (@${igAccount.username})` : `@${igAccount.username}`,
-                                type: 'instagram', parentPageId: pages[index].id, access_token: pages[index].access_token,
-                                picture: { data: { url: igAccount.profile_picture_url || 'https://via.placeholder.com/150/833AB4/FFFFFF?text=IG' } }
-                            });
-                        }
-                    }
-                });
-            }
-            resolve(igAccounts);
-        });
-    });
-  }, [appUser?.fbAccessToken]);
-  
   const handleLoadPagesFromBusiness = useCallback(async (businessId: string) => {
     setLoadingBusinessId(businessId);
     try {
@@ -316,11 +323,15 @@ const App: React.FC = () => {
       });
       setLoadedBusinessIds(prev => new Set(prev).add(businessId));
     } catch(error: any) {
-      alert(`فشل تحميل الصفحات: ${error.message}`);
+        if (error instanceof FacebookTokenError) {
+            handleFacebookTokenError();
+        } else {
+            alert(`فشل تحميل الصفحات: ${error.message}`);
+        }
     } finally {
       setLoadingBusinessId(null);
     }
-  }, [fetchWithPagination, fetchInstagramAccounts]);
+  }, [fetchWithPagination, fetchInstagramAccounts, handleFacebookTokenError]);
 
   const handleEmailSignUp = useCallback(async (email: string, password: string) => {
     setAuthError(null);
@@ -352,7 +363,9 @@ const App: React.FC = () => {
         if (credential?.accessToken) {
           await exchangeAndStoreLongLivedToken(user.uid, credential.accessToken);
           alert("تم ربط حساب فيسبوك بنجاح! جاري جلب صفحاتك...");
-          // The auth state change listener will pick up the new token and trigger a fetch.
+          // The auth state change listener will see the updated user doc and trigger a fetch.
+          const userDoc = await db.collection('users').doc(user.uid).get();
+          setAppUser(userDoc.data() as AppUser);
         }
     } catch (error: any) {
         if (error.code === 'auth/credential-already-in-use') alert("هذا الحساب الفيسبوك مرتبط بالفعل بحساب آخر.");
@@ -372,32 +385,16 @@ const App: React.FC = () => {
 
       if (appUser.isAdmin) {
           userPlan = {
-            id: 'admin',
-            name: 'Admin Plan',
-            priceMonthly: 0,
-            priceAnnual: 0,
-            description: "Admin",
-            features: ['All features for admin'],
+            id: 'admin', name: 'Admin Plan', priceMonthly: 0, priceAnnual: 0,
+            description: "Admin", features: ['All features for admin'],
             limits: {
-              maxPages: -1, 
-              maxTeamMembers: -1,
-              aiFeatures: true,
-              maxScheduledPostsPerMonth: -1,
-              imageGenerationQuota: -1,
-              pages: -1, 
-              aiText: true,
-              aiImage: true,
-              scheduledPosts: -1, 
-              drafts: -1, 
-              bulkScheduling: true,
-              contentPlanner: true,
-              deepAnalytics: true,
-              autoResponder: true,
-              contentApprovalWorkflow: false, 
+              maxPages: -1, maxTeamMembers: -1, aiFeatures: true,
+              maxScheduledPostsPerMonth: -1, imageGenerationQuota: -1, pages: -1, 
+              aiText: true, aiImage: true, scheduledPosts: -1, drafts: -1, 
+              bulkScheduling: true, contentPlanner: true, deepAnalytics: true,
+              autoResponder: true, contentApprovalWorkflow: false, 
             },
-            adminOnly: true,
-            price: 0,
-            pricePeriod: 'monthly',
+            adminOnly: true, price: 0, pricePeriod: 'monthly',
           } as Plan; 
       }
 
