@@ -252,7 +252,14 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     setSyncingTargetId(target.id);
     setPublishedPosts([]);
     setScheduledPosts([]);
-    setInboxItems([]); // Clear inbox at the start of sync
+    setInboxItems([]);
+    // Clear previous analytics data when syncing
+    setPerformanceSummaryData(null);
+    setPerformanceSummaryText('');
+    setAudienceGrowthData([]);
+    setHeatmapData([]);
+    setContentTypePerformanceData([]);
+
     showNotification('partial', `جاري مزامنة بيانات ${target.name}...`);
 
     try {
@@ -260,12 +267,11 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             return post.attachments?.data?.[0]?.media?.image?.src;
         };
 
-        // STEP 1: Fetch Scheduled Posts
-        showNotification('partial', `(1/5) جلب المنشورات المجدولة...`);
+        // STEP 1: Fetch Scheduled Posts (keep as is)
+        showNotification('partial', `(1/6) جلب المنشورات المجدولة...`); // Updated step count
         let finalScheduled: ScheduledPost[] = [];
         try {
             const scheduledPostFields = "id,message,scheduled_publish_time,attachments{media}";
-            // Increased limit for scheduled posts
             const scheduledData = await makeRequestWithRetry(`/${target.id}/scheduled_posts?fields=${scheduledPostFields}&limit=50`, target.access_token);
             finalScheduled = (scheduledData.data || []).map((post: any) => ({
                 id: post.id, text: post.message || '', scheduledAt: new Date(post.scheduled_publish_time * 1000),
@@ -279,12 +285,11 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             console.warn('Failed to fetch scheduled posts:', error);
         }
 
-        // STEP 2: Fetch Published Posts
-        showNotification('partial', `(2/5) جلب المنشورات المنشورة...`);
+        // STEP 2: Fetch Published Posts (keep as is)
+        showNotification('partial', `(2/6) جلب المنشورات المنشورة...`); // Updated step count
         let fbPublishedContent: any[] = [];
         try {
             const postContentFields = "id,message,created_time,permalink_url,attachments{media}";
-            // Increased limit for published posts
             const publishedData = await makeRequestWithRetry(`/${target.id}/published_posts?fields=${postContentFields}&limit=50`, target.access_token);
             fbPublishedContent = publishedData.data || [];
         } catch (error) {
@@ -292,10 +297,9 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             console.warn('Failed to fetch published posts:', error);
         }
 
-        // STEP 3: Fetch Engagement Data
-        showNotification('partial', `(3/5) جلب التفاعلات...`);
+        // STEP 3: Fetch Engagement Data for Published Posts (keep as is)
+        showNotification('partial', `(3/6) جلب التفاعلات للمنشورات...`); // Updated step count
         const engagementMap = new Map<string, any>();
-        // Fetch engagement for all fetched published posts (up to the limit)
         if (fbPublishedContent.length > 0) {
             for (const post of fbPublishedContent) {
                 try {
@@ -321,14 +325,12 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         });
         setPublishedPosts(finalPublished);
 
-        // STEP 4: Fetch Inbox Items (Messages and Comments)
-        showNotification('partial', `(4/5) جلب صندوق الوارد...`);
+        // STEP 4: Fetch Inbox Items (Messages and Comments) (keep as is, with increased limits)
+        showNotification('partial', `(4/6) جلب صندوق الوارد...`); // Updated step count
         const newInbox: InboxItem[] = [];
-
         // Fetch Conversations (Private Messages)
         try {
             const convoFields = "participants,messages.limit(1){from,to,message,created_time}";
-            // Increased limit for conversations
             const conversationsData = await makeRequestWithRetry(`/${target.id}/conversations?fields=${convoFields}&limit=50`, target.access_token);
             if (conversationsData.data) {
                 conversationsData.data.forEach((convo: any) => {
@@ -349,12 +351,10 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             if (error instanceof FacebookTokenError) throw error;
             console.warn('Failed to fetch conversations:', error);
         }
-
-        // Fetch Comments from recent published posts (check all fetched published posts now)
+        // Fetch Comments from recent published posts
         if (fbPublishedContent.length > 0) {
-            for (const post of fbPublishedContent) { // Iterate through all fetched published posts
+            for (const post of fbPublishedContent) {
                 try {
-                    // Increased limit for comments per post
                     const commentsData = await makeRequestWithRetry(`/${post.id}/comments?limit=50&fields=from{name,picture},message,created_time,id`, target.access_token);
                     if (commentsData.data) {
                         commentsData.data.forEach((comment: any) => {
@@ -374,15 +374,105 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                 }
             }
         }
-
         setInboxItems(newInbox.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
 
-        // STEP 5: Save all data to Firestore
-        showNotification('partial', `(5/5) حفظ البيانات...`);
+
+        // STEP 5: Fetch Page Insights Data for Analytics (NEW)
+        showNotification('partial', `(5/6) جلب تحليلات الصفحة...`); // Updated step count
+        try {
+            const insightsMetrics = [
+                'page_fans', // Audience growth (total fans)
+                'page_engaged_users', // Engaged users
+                'page_impressions', // Impressions
+                'page_post_engagements', // Post engagements
+                'page_actions_by_page_tab', // Actions on tabs (can indicate interest)
+                // Add more metrics as needed for your analytics dashboard sections
+                // e.g., page_views, page_consumptions, page_reactions_total
+            ];
+            const period = analyticsPeriod === '7d' ? 'week' : 'days_28'; // Match period to API
+            const insightsData = await makeRequestWithRetry(`/${target.id}/insights?metric=${insightsMetrics.join(',')}&period=${period}`, target.access_token);
+
+            // Process insightsData to populate state variables
+            if (insightsData.data) {
+                const processedAudienceGrowth: AudienceGrowthData[] = [];
+                const processedPerformanceSummary: PerformanceSummaryData = {
+                     totalPosts: finalPublished.length, // Use fetched published posts count
+                     averageEngagement: 0, // Will calculate later
+                     growthRate: 0, // Will calculate later
+                     totalReach: 0, // Will get from insights
+                     totalEngagement: 0, // Will get from insights
+                     engagementRate: 0, // Will calculate later
+                     topPosts: finalPublished.sort((a, b) => (b.analytics.likes || 0) + (b.analytics.comments || 0) + (b.analytics.shares || 0) - ((a.analytics.likes || 0) + (a.analytics.comments || 0) + (a.analytics.shares || 0))).slice(0, 3),
+                     postCount: finalPublished.length,
+                };
+                let totalEngagement = 0;
+                let totalReach = 0;
+                let fanCountStart = 0;
+                let fanCountEnd = 0;
+
+
+                insightsData.data.forEach((metric: any) => {
+                    if (metric.name === 'page_fans' && metric.values.length > 0) {
+                         // For audience growth over time, you might need to fetch a longer period
+                         // This is just getting the latest value
+                         fanCountEnd = metric.values[metric.values.length - 1].value;
+                         // To calculate growth, you'd need a value from the start of the period.
+                         // For a simple view, we'll just use the end count.
+                         processedAudienceGrowth.push({ date: new Date().toISOString(), fanCount: fanCountEnd }); // Use 'fanCount' as defined in types.ts
+                    } else if (metric.name === 'page_engaged_users' && metric.values.length > 0) {
+                        totalEngagement = metric.values[metric.values.length - 1].value;
+                    } else if (metric.name === 'page_impressions' && metric.values.length > 0) {
+                         totalReach = metric.values[metric.values.length - 1].value; // Using impressions as a proxy for reach
+                    }
+                     // You would add more logic here to process other metrics and populate
+                     // heatmapData, contentTypeData, etc., based on the structure of insightsData.data
+                     // This often requires iterating through metric.values and transforming the data.
+                });
+
+                // Calculate some summary data based on fetched insights
+                processedPerformanceSummary.totalEngagement = totalEngagement;
+                processedPerformanceSummary.totalReach = totalReach;
+                // Engagement Rate calculation needs reach or impressions from insights
+                if (totalReach > 0) {
+                    processedPerformanceSummary.engagementRate = (totalEngagement / totalReach) * 100;
+                }
+
+                // Growth Rate calculation needs historical data, which we are not fetching comprehensively here.
+                // You would need to fetch page_fans over a period and compare start vs end.
+
+                setPerformanceSummaryData(processedPerformanceSummary);
+                setAudienceGrowthData(processedAudienceGrowth); // This will likely be incomplete without time series data
+
+                // Placeholder for heatmap and content type data processing
+                // You would need to fetch metrics like 'page_posts_by_activity_day', 'page_posts_by_activity_hour'
+                // and process them into the required formats for heatmapData and contentTypeData.
+                setHeatmapData([]); // Placeholder
+                setContentTypePerformanceData([]); // Placeholder
+            }
+
+        } catch (error) {
+            if (error instanceof FacebookTokenError) throw error;
+            console.warn('Failed to fetch page insights:', error);
+            // Clear analytics data if fetching fails
+            setPerformanceSummaryData(null);
+            setPerformanceSummaryText('');
+            setAudienceGrowthData([]);
+            setHeatmapData([]);
+            setContentTypePerformanceData([]);
+        }
+
+
+        // STEP 6: Save all data to Firestore (updated to include analytics data)
+        showNotification('partial', `(6/6) حفظ البيانات...`); // Updated step count
         await saveDataToFirestore({
             scheduledPosts: finalScheduled.map(p => ({ ...p, scheduledAt: p.scheduledAt.toISOString() })),
             publishedPosts: finalPublished.map(p => ({ ...p, publishedAt: p.publishedAt.toISOString() })),
             inboxItems: newInbox,
+            performanceSummaryData: performanceSummaryData, // Save fetched summary data
+            // performanceSummaryText will be generated by AI later in AnalyticsPage
+            audienceGrowthData: audienceGrowthData, // Save fetched audience growth data
+            heatmapData: heatmapData, // Save fetched heatmap data (placeholder)
+            contentTypeData: contentTypeData, // Save fetched content type data (placeholder)
             lastSync: new Date().toISOString()
         });
         showNotification('success', 'تمت المزامنة بنجاح!');
@@ -399,8 +489,10 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         setSyncingTargetId(null);
         setIsInboxLoading(false);
         setPublishedPostsLoading(false);
+        // isGeneratingSummary and isGeneratingDeepAnalytics are handled in AnalyticsPage
     }
-}, [managedTarget, saveDataToFirestore, showNotification, syncingTargetId, onTokenError, makeRequestWithRetry]); // Added makeRequestWithRetry to dependencies
+}, [managedTarget, saveDataToFirestore, showNotification, syncingTargetId, onTokenError, makeRequestWithRetry, analyticsPeriod]); // Added analyticsPeriod to dependencies
+
 
     useEffect(() => {
         const loadDataAndSync = async () => {
