@@ -26,7 +26,7 @@ const validateInputs = (apiKey: string, prompt: string) => {
 
 const translatePromptIfNeeded = async (prompt: string, aiClient?: GoogleGenAI | null): Promise<string> => {
     // Check if the prompt contains Arabic characters
-    if (/[\u0600-\u06FF]/.test(prompt)) { 
+    if (/[\u0600-\u06FF]/.test(prompt)) {
         if (!aiClient) {
             throw new Error("Automatic translation requires a Gemini API key. Please add it in the settings to proceed.");
         }
@@ -43,10 +43,10 @@ const translatePromptIfNeeded = async (prompt: string, aiClient?: GoogleGenAI | 
 // --- Core API Functions ---
 
 export const generateImageWithStabilityAI = async (
-    apiKey: string, 
-    prompt: string, 
-    style: string, 
-    aspectRatio: string, 
+    apiKey: string,
+    prompt: string,
+    style: string,
+    aspectRatio: string,
     model: string = 'core',
     aiClient?: GoogleGenAI | null
 ): Promise<string> => {
@@ -62,7 +62,7 @@ export const generateImageWithStabilityAI = async (
         // V1 API (e.g., stable-diffusion-v1-6) expects JSON payload
         const apiHost = `https://api.stability.ai/v1/generation/${model}/text-to-image`;
         const [widthRatio, heightRatio] = aspectRatio.split(':').map(Number);
-        const baseSize = 512; 
+        const baseSize = 512;
         const width = widthRatio >= heightRatio ? baseSize : Math.round(baseSize * (widthRatio / heightRatio));
         const height = heightRatio > widthRatio ? baseSize : Math.round(baseSize * (heightRatio / widthRatio));
 
@@ -251,9 +251,8 @@ export const getStabilityAIModels = async (apiKey: string) => {
             return [];
         }
         const data = await response.json();
-        console.log("Stability AI Models API Response:", data); // Log the full response
         // Filter for relevant image generation models
-        return data.filter((engine: any) => engine.type === 'PICTURE');
+        return data.filter((engine: any) => engine.type === 'PICTURE' || engine.type === '3D');
     } catch (error) {
         console.error("Error fetching Stability AI models:", error);
         return [];

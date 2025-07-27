@@ -13,12 +13,15 @@ import Squares2x2Icon from './icons/Squares2x2Icon';
 import StarIcon from './icons/StarIcon';
 import ClockIcon from './icons/ClockIcon';
 import LightBulbIcon from './icons/LightBulbIcon';
+import PencilSquareIcon from './icons/PencilSquareIcon';
 
 // Assume these service functions exist and are imported correctly
 import { generatePostSuggestion, generateImageFromPrompt, getBestPostingTime, generateHashtags, generateDescriptionForImage } from '../services/geminiService';
-import { generateImageWithStabilityAI } from '../services/stabilityai';
+import { generateImageWithStabilityAI, upscaleImageWithStabilityAI, imageToImageWithStabilityAI } from '../services/stabilityai';
 
 type ImageGenerationService = 'gemini' | 'stability';
+type EditMode = 'upscale' | 'image-to-image' | 'inpainting' | null;
+
 
 interface PostComposerProps {
   onPublish: (postType: PostType, postOptions: { [key: string]: any }) => Promise<void>;
@@ -128,6 +131,10 @@ const PostComposer: React.FC<PostComposerProps> = ({
   const [imageGenerationService, setImageGenerationService] = useState<ImageGenerationService>('gemini');
   const [selectedSubModel, setSelectedSubModel] = useState('');
   const [selectedStyle, setSelectedStyle] = useState('Photographic');
+  
+  const [isEditingImage, setIsEditingImage] = useState(false);
+  const [editPrompt, setEditPrompt] = useState('');
+  const [editMode, setEditMode] = useState<EditMode>(null);
 
 
   const [isGeneratingHashtags, setIsGeneratingHashtags] = useState(false);
@@ -176,6 +183,33 @@ const PostComposer: React.FC<PostComposerProps> = ({
     }
   };
   
+  const handleEditImageWithAI = async () => {
+    if (!selectedImage || !stabilityApiKey || !editMode || !editPrompt.trim()) {
+        setAiImageError('Please select an image, an edit mode, and provide a prompt.');
+        return;
+    }
+    setIsEditingImage(true);
+    setAiImageError('');
+    try {
+        let base64Bytes: string;
+        if (editMode === 'upscale') {
+            base64Bytes = await upscaleImageWithStabilityAI(stabilityApiKey, selectedImage, editPrompt);
+        } else if (editMode === 'image-to-image') {
+            base64Bytes = await imageToImageWithStabilityAI(stabilityApiKey, selectedImage, editPrompt);
+        } else {
+            // Placeholder for other edit modes like inpainting
+            throw new Error('This edit mode is not yet implemented.');
+        }
+        const imageFile = base64ToFile(base64Bytes, "edited_image.jpeg");
+        onImageGenerated(imageFile);
+    } catch (e: any) {
+        setAiImageError(e.message || 'An error occurred during image editing.');
+    } finally {
+        setIsEditingImage(false);
+    }
+  };
+
+
   const handleGenerateHashtags = async () => {
     if (!aiClient || !postText.trim() || isViewer) return;
     setIsGeneratingHashtags(true);
@@ -275,7 +309,39 @@ ${description}`: description);
         <div className="relative w-40">
           <img src={imagePreview} alt="Preview" className="rounded-lg w-full h-auto" />
           {!isViewer && <button onClick={onImageRemove} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 w-6 h-6 flex items-center justify-center">&times;</button>}
+          {stabilityApiKey && (
+            <Button variant="secondary" onClick={() => setEditMode(editMode ? null : 'image-to-image')} className="absolute bottom-2 left-2">
+              <PencilSquareIcon className="w-5 h-5" />
+            </Button>
+          )}
         </div>
+      )}
+
+      {editMode && selectedImage && (
+          <div className="p-4 border rounded-lg bg-gray-100 dark:bg-gray-700/50 space-y-3">
+              <h3 className="text-lg font-semibold">تعديل الصورة</h3>
+              <div className="flex gap-2">
+                  <select
+                      value={editMode}
+                      onChange={(e) => setEditMode(e.target.value as EditMode)}
+                      className="p-2 border rounded-md bg-white dark:bg-gray-800"
+                  >
+                      <option value="image-to-image">Image to Image</option>
+                      <option value="upscale">Upscale</option>
+                      {/* Add other edit modes here */}
+                  </select>
+                  <input
+                      type="text"
+                      value={editPrompt}
+                      onChange={(e) => setEditPrompt(e.target.value)}
+                      placeholder="وصف التعديل..."
+                      className="flex-grow p-2 border rounded-md bg-white dark:bg-gray-800"
+                  />
+                  <Button onClick={handleEditImageWithAI} isLoading={isEditingImage}>
+                      تعديل
+                  </Button>
+              </div>
+          </div>
       )}
 
       <div className="p-4 border rounded-lg bg-gray-50 dark:bg-gray-700/50 space-y-3">
