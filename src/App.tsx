@@ -22,6 +22,7 @@ class FacebookTokenError extends Error {
   }
 }
 
+
 const MOCK_TARGETS: Target[] = [
     { id: '1', name: 'صفحة تجريبية 1', type: 'facebook', access_token: 'DUMMY_TOKEN_1', picture: { data: { url: 'https://via.placeholder.com/150/4B79A1/FFFFFF?text=Page1' } } },
     { id: 'ig1', name: 'Zex Pages IG (@zex_pages_ig)', type: 'instagram', parentPageId: '1', access_token: 'DUMMY_TOKEN_1', picture: { data: { url: 'https://via.placeholder.com/150/E4405F/FFFFFF?text=IG' } } }
@@ -420,6 +421,7 @@ const App: React.FC = () => {
             strategyHistory={strategyHistory}
             onSavePlan={handleSaveContentPlan}
             onDeleteStrategy={handleDeleteStrategy}
+            onTokenError={handleFacebookTokenError}
           />
         );
       }

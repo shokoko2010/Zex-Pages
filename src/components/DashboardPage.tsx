@@ -31,7 +31,13 @@ import ArrowPathIcon from './icons/ArrowPathIcon';
 import BriefcaseIcon from './icons/BriefcaseIcon'; 
 
 type DashboardView = 'composer' | 'calendar' | 'drafts' | 'analytics' | 'bulk' | 'planner' | 'inbox' | 'profile' | 'ads';
-
+class FacebookTokenError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = 'FacebookTokenError';
+    }
+  }
+  
 interface DashboardPageProps {
   user: User;
   isAdmin: boolean;
@@ -51,7 +57,8 @@ interface DashboardPageProps {
   fbAccessToken: string | null;
   strategyHistory: StrategyHistoryItem[];
   onSavePlan: (pageId: string, plan: ContentPlanItem[], request: StrategyRequest) => Promise<void>;
-  onDeleteStrategy: (pageId: string, strategyId: string) => Promise<void>; 
+  onDeleteStrategy: (pageId: string, strategyId: string) => Promise<void>;
+  onTokenError: () => void; // Add this line
 }
 
 
@@ -73,7 +80,7 @@ const NavItem: React.FC<{
 const initialPageProfile: PageProfile = { description: '', services: '', contactInfo: '', website: '', links: [], currentOffers: '', address: '', country: '', language: 'ar', contentGenerationLanguages: ['ar'], ownerUid: '', team: [], members: [] };
 
 
-const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, managedTarget, allTargets, onChangePage, onLogout, aiClient, stabilityApiKey, onSettingsClick, fetchWithPagination, theme, onToggleTheme, strategyHistory, onDeleteStrategy, onSavePlan }) => {
+const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, managedTarget, allTargets, onChangePage, onLogout, aiClient, stabilityApiKey, onSettingsClick, fetchWithPagination, theme, onToggleTheme, strategyHistory, onDeleteStrategy, onSavePlan, onTokenError }) => {
     const [view, setView] = useState<DashboardView>('composer');
     const [postText, setPostText] = useState('');
     const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -204,20 +211,18 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         return;
     }
     
-    // Prevent multiple sync operations
     if (syncingTargetId) {
         showNotification('error', 'مزامنة أخرى قيد التنفيذ، يرجى الانتظار.');
         return;
     }
     
     setSyncingTargetId(target.id);
-    setPublishedPosts([]); // Clear old posts immediately
-    setScheduledPosts([]); // Clear old scheduled posts
+    setPublishedPosts([]);
+    setScheduledPosts([]);
     showNotification('partial', `جاري مزامنة بيانات ${target.name}...`);
 
     const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
     
-    // Rate limiting and retry logic
     const MAX_RETRIES = 2;
     const RETRY_DELAY = 2000;
     
@@ -225,23 +230,25 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         try {
             const response = await fetch(`https://graph.facebook.com/v19.0${url}&access_token=${accessToken}`);
             
-            if (!response.ok) {
-                if (response.status === 429 || response.status >= 500) {
+            const data = await response.json();
+            if (!response.ok || data.error) {
+                const errorInfo = data.error || {};
+                if (errorInfo.code === 190) {
+                    throw new FacebookTokenError(errorInfo.message || 'Invalid or expired token.');
+                }
+                 if (response.status === 429 || response.status >= 500) {
                     if (retryCount < MAX_RETRIES) {
                         await delay(RETRY_DELAY * (retryCount + 1));
                         return makeRequestWithRetry(url, accessToken, retryCount + 1);
                     }
                 }
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                throw new Error(errorInfo.message || `HTTP ${response.status}: ${response.statusText}`);
             }
-            
-            const data = await response.json();
-            if (data.error) {
-                throw new Error(`Facebook API Error: ${data.error.message}`);
-            }
-            
             return data;
         } catch (error) {
+            if (error instanceof FacebookTokenError) {
+                throw error;
+            }
             if (retryCount < MAX_RETRIES && (error instanceof Error && (error.message.includes('network') || error.message.includes('timeout')))) {
                 await delay(RETRY_DELAY * (retryCount + 1));
                 return makeRequestWithRetry(url, accessToken, retryCount + 1);
@@ -251,41 +258,25 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     };
 
     try {
-        const getPhotoIdFromPost = (post: any): string | undefined => {
-            // The object_id is the most reliable identifier for a photo attached to a post.
-            return post.object_id;
-        };
+        const getPhotoIdFromPost = (post: any): string | undefined => post.object_id;
         
-        
-        
-        // STEP 1: Fetch Scheduled Posts with safer field structure
         showNotification('partial', `(1/4) جلب المنشورات المجدولة...`);
         let finalScheduled: ScheduledPost[] = [];
         try {
-            const scheduledPostFields = "id,message,scheduled_publish_time,object_id";
-            const scheduledUrl = `/${target.id}/scheduled_posts?fields=${scheduledPostFields}&limit=25`;
-            const scheduledData = await makeRequestWithRetry(scheduledUrl, target.access_token);
-            
+            const scheduledData = await makeRequestWithRetry(`/${target.id}/scheduled_posts?fields=id,message,scheduled_publish_time,object_id&limit=25`, target.access_token);
             finalScheduled = (scheduledData.data || []).map((post: any) => {
                 const photoId = getPhotoIdFromPost(post);
                 return {
-                    id: post.id, 
-                    text: post.message || '', 
-                    scheduledAt: new Date(post.scheduled_publish_time * 1000),
-                    photoId: photoId, // Store the permanent ID
-                    // Construct the permanent URL for scheduled posts as well
-                    imageUrl: photoId ? `https://graph.facebook.com/${photoId}/picture?access_token=${target.access_token}` : undefined,
-                    hasImage: !!photoId, 
-                    targetId: target.id,
+                    id: post.id, text: post.message || '', scheduledAt: new Date(post.scheduled_publish_time * 1000),
+                    photoId: photoId, imageUrl: photoId ? `https://graph.facebook.com/${photoId}/picture?access_token=${target.access_token}` : undefined,
+                    hasImage: !!photoId, targetId: target.id,
                     targetInfo: { name: target.name, avatarUrl: target.picture.data.url, type: target.type },
-                    status: 'scheduled', 
-                    isReminder: false, 
-                    type: 'post'
+                    status: 'scheduled', isReminder: false, type: 'post'
                 } as ScheduledPost;
             });
-            
             setScheduledPosts(finalScheduled);
         } catch (error) {
+            if (error instanceof FacebookTokenError) throw error;
             console.warn('Failed to fetch scheduled posts:', error);
             setScheduledPosts([]);
             finalScheduled = [];
@@ -293,134 +284,57 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
 
         await delay(1000);
 
-        // STEP 2: Fetch Published Post Content with batching
         showNotification('partial', `(2/4) جلب المنشورات المنشورة...`);
         let fbPublishedContent: any[] = [];
         try {
-            const postContentFields = "id,message,created_time,permalink_url,object_id";
-            const publishedUrl = `/${target.id}/published_posts?fields=${postContentFields}&limit=25`;
-            const publishedData = await makeRequestWithRetry(publishedUrl, target.access_token);
+            const publishedData = await makeRequestWithRetry(`/${target.id}/published_posts?fields=id,message,created_time,permalink_url,object_id&limit=25`, target.access_token);
             fbPublishedContent = publishedData.data || [];
         } catch (error) {
+            if (error instanceof FacebookTokenError) throw error;
             console.warn('Failed to fetch published posts:', error);
             fbPublishedContent = [];
         }
 
         await delay(1000);
 
-        // STEP 3: Fetch Engagement Data with safer batching
         showNotification('partial', `(3/4) جلب التفاعلات...`);
         const engagementMap = new Map<string, any>();
-        
         if (fbPublishedContent.length > 0) {
-            const batchSize = 10; // Reduced batch size to prevent resource exhaustion
-            for (let i = 0; i < fbPublishedContent.length; i += batchSize) {
-                const batch = fbPublishedContent.slice(i, i + batchSize);
-                
+            for (const post of fbPublishedContent.slice(0, 25)) { // Limit engagement fetching
                 try {
-                    // Sequential requests instead of batch to prevent overwhelming
-                    for (const post of batch) {
-                        try {
-                            const engagementUrl = `/${post.id}?fields=likes.summary(true),comments.summary(true),shares.summary(true)`;
-                            const engagement = await makeRequestWithRetry(engagementUrl, target.access_token);
-                            engagementMap.set(post.id, engagement);
-                            await delay(200); // Small delay between requests
-                        } catch (error) {
-                            console.warn(`Failed to fetch engagement for post ${post.id}:`, error);
-                            // Continue with other posts
-                        }
-                    }
-                } catch (error) { 
-                    console.warn(`Failed to fetch engagement for batch ${i}-${i + batchSize}:`, error); 
-                }
-                
-                if (i + batchSize < fbPublishedContent.length) {
-                    await delay(1500); // Longer delay between batches
+                    const engagement = await makeRequestWithRetry(`/${post.id}?fields=likes.summary(true),comments.summary(true),shares.summary(true)`, target.access_token);
+                    engagementMap.set(post.id, engagement);
+                    await delay(200);
+                } catch (error) {
+                    if (error instanceof FacebookTokenError) throw error;
+                    console.warn(`Failed to fetch engagement for post ${post.id}:`, error);
                 }
             }
         }
+        
         const finalPublished = fbPublishedContent.map((post: any) => {
             const engagement = engagementMap.get(post.id) || {};
             const photoId = getPhotoIdFromPost(post);
             return {
-                id: post.id,
-                text: post.message || '',
-                publishedAt: new Date(post.created_time),
-                photoId: photoId, // Save the permanent ID
-                // Always construct the URL on the fly
-                imagePreview: photoId ? `https://graph.facebook.com/${photoId}/picture?access_token=${target.access_token}` : undefined,
+                id: post.id, text: post.message || '', publishedAt: new Date(post.created_time),
+                photoId: photoId, imagePreview: photoId ? `https://graph.facebook.com/${photoId}/picture?access_token=${target.access_token}` : undefined,
                 analytics: {
                     likes: engagement.likes?.summary?.total_count || 0,
                     comments: engagement.comments?.summary?.total_count || 0,
                     shares: engagement.shares?.summary?.total_count || 0,
                     lastUpdated: new Date().toISOString()
                 },
-                pageId: target.id,
-                pageName: target.name,
-                pageAvatarUrl: target.picture.data.url,
+                pageId: target.id, pageName: target.name, pageAvatarUrl: target.picture.data.url,
             } as PublishedPost;
         });
-        
-        
-        
         setPublishedPosts(finalPublished);
         
         await delay(1000);
 
-        // STEP 4: Fetch Inbox Items with controlled requests
-        const newInbox: InboxItem[] = [];
         showNotification('partial', `(4/4) جلب صندوق الوارد...`);
-
-        // Fetch comments from published posts with limits
+        const newInbox: InboxItem[] = [];
         try {
-            if (fbPublishedContent.length > 0) {
-                // Limit to first 10 posts to prevent resource exhaustion
-                const limitedPosts = fbPublishedContent.slice(0, 10);
-                
-                for (const post of limitedPosts) {
-                    try {
-                        const commentsUrl = `/${post.id}/comments?limit=5&fields=from{name,picture},message,created_time,id`;
-                        const commentsData = await makeRequestWithRetry(commentsUrl, target.access_token);
-                        
-                        if (commentsData.data) {
-                            commentsData.data.forEach((comment: any) => {
-                                if (comment.from.id !== target.id) {
-                                    newInbox.push({
-                                        id: comment.id, 
-                                        type: 'comment', 
-                                        from: comment.from, 
-                                        text: comment.message,
-                                        timestamp: comment.created_time, 
-                                        status: 'new', 
-                                        link: post.link,
-                                        post: { 
-                                            message: post.message, 
-                                            picture: getPhotoIdFromPost(post) 
-                                        },
-                                        authorName: comment.from.name, 
-                                        authorPictureUrl: comment.from.picture?.data?.url
-                                    } as InboxItem);
-                                }
-                            });
-                        }
-                        await delay(300); // Delay between comment requests
-                    } catch (error) {
-                        console.warn(`Failed to fetch comments for post ${post.id}:`, error);
-                    }
-                }
-            }
-        } catch (error) { 
-            console.warn('Failed to fetch comments:', error); 
-        }
-
-        await delay(1000);
-
-        // Fetch Conversations with limits
-        try {
-            const convoFields = "participants,messages.limit(1){from,to,message,created_time}";
-            const conversationsUrl = `/${target.id}/conversations?fields=${convoFields}&limit=10`;
-            const conversationsData = await makeRequestWithRetry(conversationsUrl, target.access_token);
-            
+            const conversationsData = await makeRequestWithRetry(`/${target.id}/conversations?fields=participants,messages.limit(1){from,to,message,created_time}&limit=10`, target.access_token);
             if (conversationsData.data) {
                 conversationsData.data.forEach((convo: any) => {
                     const lastMsg = convo.messages?.data?.[0];
@@ -428,27 +342,20 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                         const participant = convo.participants.data.find((p: any) => p.id !== target.id);
                         if (participant) {
                             newInbox.push({
-                                id: lastMsg.id, 
-                                type: 'message', 
-                                from: participant, 
-                                text: lastMsg.message,
-                                timestamp: lastMsg.created_time, 
-                                status: 'new', 
-                                conversationId: convo.id,
-                                authorName: participant.name, 
-                                authorPictureUrl: `https://graph.facebook.com/${participant.id}/picture?type=normal`
+                                id: lastMsg.id, type: 'message', from: participant, text: lastMsg.message,
+                                timestamp: lastMsg.created_time, status: 'new', conversationId: convo.id,
+                                authorName: participant.name, authorPictureUrl: `https://graph.facebook.com/${participant.id}/picture?type=normal`
                             } as InboxItem);
                         }
                     }
                 });
             }
-        } catch (error) { 
-            console.warn('Failed to fetch conversations:', error); 
+        } catch (error) {
+            if (error instanceof FacebookTokenError) throw error;
+            console.warn('Failed to fetch conversations:', error);
         }
-        
         setInboxItems(newInbox.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
 
-        // STEP 5: Save all data
         await saveDataToFirestore({
             scheduledPosts: finalScheduled.map((p: ScheduledPost) => ({ ...p, scheduledAt: p.scheduledAt.toISOString() })),
             publishedPosts: finalPublished.map((p: PublishedPost) => ({ ...p, publishedAt: p.publishedAt.toISOString() })),
@@ -459,14 +366,18 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         
     } catch (error: unknown) {
         console.error("Facebook Sync Error details:", error);
-        const errorMessage = error instanceof Error ? error.message : 'حدث خطأ غير معروف';
-        showNotification('error', `فشل المزامنة: ${errorMessage}`);
+        if (error instanceof FacebookTokenError) {
+            onTokenError(); // This handles the error
+        } else {
+            const errorMessage = error instanceof Error ? error.message : 'حدث خطأ غير معروف';
+            showNotification('error', `فشل المزامنة: ${errorMessage}`);
+        }
     } finally {
         setSyncingTargetId(null);
         setIsInboxLoading(false);
         setPublishedPostsLoading(false);
     }
-}, [fetchWithPagination, saveDataToFirestore, showNotification, syncingTargetId]);
+}, [managedTarget, saveDataToFirestore, showNotification, syncingTargetId, onTokenError]);
 
     useEffect(() => {
         const loadDataAndSync = async () => {
