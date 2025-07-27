@@ -124,6 +124,7 @@ const InboxPage: React.FC<InboxPageProps> = ({
 
                        {/* Auto Responder Settings (Optional, based on user plan/role) */}
 {userPlan?.limits?.autoResponder && (role === 'owner' || role === 'admin') && (
+     
      <AutoResponderSettingsModal
          isOpen={showAutoResponderSettings}
          onClose={() => setShowAutoResponderSettings(false)}
@@ -307,16 +308,29 @@ const InboxPage: React.FC<InboxPageProps> = ({
                 )}
             </div>
 
-            {/* Auto Responder Settings Modal */}
-            {userPlan?.limits?.autoResponder && (role === 'owner' || role === 'admin') && (
-                 <AutoResponderSettingsModal
-                     isOpen={showAutoResponderSettings}
-                     onClose={() => setShowAutoResponderSettings(false)}
-                     initialSettings={autoResponderSettings} // Ensure this is also 'initialSettings'
-                     onSave={onAutoResponderSettingsChange}
-                     aiClient={aiClient} // Make sure aiClient is also passed here
-                 />
-             )}
+            {/* Auto Responder Settings Trigger */}
+            {userPlan?.limits?.autoResponder && (currentUserRole === 'owner' || currentUserRole === 'admin') && (
+                            <Tooltip content="إعدادات الرد التلقائي">
+                                <Button onClick={() => setShowAutoResponderSettings(true)} variant="secondary" size="sm">
+                                    <AiIcon className="w-4 h-4" />
+                                </Button>
+                            </Tooltip>
+                        )}
+                {/* Auto Responder Settings Modal (Rendered outside the header) */}
+                {showAutoResponderSettings && userPlan?.limits?.autoResponder && (currentUserRole === 'owner' || currentUserRole === 'admin') && (
+                     <AutoResponderSettingsModal
+                         isOpen={showAutoResponderSettings}
+                         onClose={() => setShowAutoResponderSettings(false)}
+                         initialSettings={autoResponderSettings}
+                         onSave={onAutoResponderSettingsChange}
+                         aiClient={aiClient}
+                     />
+                 )}
+
+                <div className="flex-grow overflow-y-auto">
+                    {/* ... rest of the inbox items list rendering ... */}
+                </div>
+
 
         </div>
     );
