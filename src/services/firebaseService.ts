@@ -24,6 +24,28 @@ const storage = firebase.storage();
 
 type User = firebase.User;
 
+const exchangeAndStoreLongLivedToken = async (userId: string, shortLivedToken: string) => {
+    if (!userId || !shortLivedToken) return;
+  
+    const clientId = import.meta.env.VITE_FACEBOOK_APP_ID;
+    const clientSecret = import.meta.env.VITE_FACEBOOK_APP_SECRET;
+    const url = `https://graph.facebook.com/v19.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${clientId}&client_secret=${clientSecret}&fb_exchange_token=${shortLivedToken}`;
+  
+    try {
+      const response = await fetch(url);
+      const data = await response.json();
+      const longLivedToken = data.access_token;
+  
+      if (longLivedToken) {
+        await db.collection('users').doc(userId).update({
+          facebook_long_lived_token: longLivedToken,
+        });
+      }
+    } catch (error) {
+      console.error('Error exchanging token:', error);
+    }
+  };
+
 // New functions for content strategy
 const saveContentPlan = async (userId: string, pageId: string, plan: ContentPlanItem[], request: StrategyRequest) => {
   if (!userId || !pageId) return;
@@ -61,5 +83,5 @@ const deleteStrategy = async (userId: string, pageId: string, strategyId: string
 };
 
 
-export { auth, db, storage, firebaseConfig, saveContentPlan, getStrategyHistory, deleteStrategy };
+export { auth, db, storage, firebaseConfig, saveContentPlan, getStrategyHistory, deleteStrategy, exchangeAndStoreLongLivedToken };
 export type { User };

@@ -10,7 +10,7 @@ import AdminPage from './components/AdminPage';
 import { GoogleGenAI } from '@google/genai';
 import { initializeGoogleGenAI } from './services/geminiService';
 import { Target, Business, PublishedPost, InboxItem, Plan, AppUser, StrategyHistoryItem, ContentPlanItem, StrategyRequest } from './types';
-import { auth, db, User, saveContentPlan, getStrategyHistory, deleteStrategy } from './services/firebaseService';
+import { auth, db, User, saveContentPlan, getStrategyHistory, deleteStrategy, exchangeAndStoreLongLivedToken } from './services/firebaseService';
 import firebase from 'firebase/compat/app';
 
 const isSimulation = window.location.protocol === 'http:';
@@ -343,16 +343,17 @@ const App: React.FC = () => {
         const result = await auth.currentUser?.linkWithPopup(facebookProvider);
         const credential = result?.credential as firebase.auth.OAuthCredential;
         if (credential?.accessToken) {
-          const userDocRef = db.collection('users').doc(user.uid);
-          await userDocRef.set({ fbAccessToken: credential.accessToken, targets: [] }, { merge: true });
+          await exchangeAndStoreLongLivedToken(user.uid, credential.accessToken);
+          // The onAuthStateChanged listener will handle fetching the updated user document
+          // which will now contain the long-lived token, triggering data fetching.
           alert("تم ربط حساب فيسبوك بنجاح! جاري جلب صفحاتك...");
-          // Auth state listener will pick up the change and trigger fetchFacebookData
+          await fetchFacebookData(); // Manually trigger data fetch
         }
     } catch (error: any) {
         if (error.code === 'auth/credential-already-in-use') alert("هذا الحساب الفيسبوك مرتبط بالفعل بحساب آخر.");
         else alert(`فشل الاتصال بفيسبوك. السبب: ${error.message}`);
     }
-  }, [user]);
+  }, [user, fetchFacebookData]);
 
   const handleLogout = useCallback(async () => { await auth.signOut(); }, []);
 
