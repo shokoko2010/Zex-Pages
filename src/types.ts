@@ -7,12 +7,13 @@ export interface ScheduledPost {
   id: string;
   postId?: string;
   text: string;
-  imageUrl?: string;
   imageFile?: File;
   hasImage?: boolean;
-  scheduledAt: Date;
+  scheduledAt: Date; 
   isReminder: boolean;
   targetId: string;
+  imageUrl?: string;
+  photoId?: string;
   targetInfo: {
     name: string;
     avatarUrl: string;
@@ -62,6 +63,7 @@ export interface PublishedPost {
   pageId: string;
   pageName: string;
   pageAvatarUrl: string;
+  photoId?: string; // Add this line
 }
 
 export interface Draft {

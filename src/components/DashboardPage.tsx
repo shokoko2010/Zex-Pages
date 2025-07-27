@@ -249,24 +249,15 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     };
 
     try {
-        const getImageUrl = (post: any): string | undefined => {
-            if (!post.attachments?.data?.[0]) return undefined;
-            const attachment = post.attachments.data[0];
-        
-            // Check for a direct image source in the main attachment
-            if (attachment.media?.image?.src) {
-                return attachment.media.image.src;
+        const getPhotoId = (post: any): string | undefined => {
+            if (post.attachments?.data?.[0]?.media_type === 'photo' || post.attachments?.data?.[0]?.type === 'photo') {
+                return post.attachments.data[0].target?.id || post.object_id;
             }
-        
-            // Check for an image source in sub-attachments (for albums/carousels)
-            if (attachment.subattachments?.data?.[0]?.media?.image?.src) {
-                return attachment.subattachments.data[0].media.image.src;
+            if (post.attachments?.data?.[0]?.subattachments?.data?.[0]?.target?.id) {
+                 return post.attachments.data[0].subattachments.data[0].target.id;
             }
-        
             return undefined;
         };
-        
-        
         
         
         // STEP 1: Fetch Scheduled Posts with safer field structure
@@ -281,8 +272,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                 id: post.id, 
                 text: post.message || '', 
                 scheduledAt: new Date(post.scheduled_publish_time * 1000),
-                imageUrl: getImageUrl(post), 
-                hasImage: !!getImageUrl(post), 
+                imageUrl: getPhotoId(post), 
+                hasImage: !!getPhotoId(post), 
                 targetId: target.id,
                 targetInfo: { name: target.name, avatarUrl: target.picture.data.url, type: target.type },
                 status: 'scheduled', 
@@ -302,7 +293,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         showNotification('partial', `(2/4) جلب المنشورات المنشورة...`);
         let fbPublishedContent: any[] = [];
         try {
-            const postContentFields = "id,message,created_time,link,attachments{media,subattachments}";
+            const postContentFields = "id,message,created_time,object_id,permalink_url,attachments{media_type,type,target{id},subattachments{target{id}}}";
             const publishedUrl = `/${target.id}/published_posts?fields=${postContentFields}&limit=25`;
             const publishedData = await makeRequestWithRetry(publishedUrl, target.access_token);
             fbPublishedContent = publishedData.data || [];
@@ -347,22 +338,25 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         
         const finalPublished = fbPublishedContent.map((post: any) => {
             const engagement = engagementMap.get(post.id) || {};
+            const photoId = getPhotoId(post);
             return {
-                id: post.id, 
-                text: post.message || '', 
+                id: post.id,
+                text: post.message || '',
                 publishedAt: new Date(post.created_time),
-                imagePreview: getImageUrl(post),
+                photoId: photoId,
+                imagePreview: photoId ? `https://graph.facebook.com/${photoId}/picture?access_token=${target.access_token}` : undefined,
                 analytics: {
                     likes: engagement.likes?.summary?.total_count || 0,
                     comments: engagement.comments?.summary?.total_count || 0,
                     shares: engagement.shares?.summary?.total_count || 0,
                     lastUpdated: new Date().toISOString()
                 },
-                pageId: target.id, 
-                pageName: target.name, 
+                pageId: target.id,
+                pageName: target.name,
                 pageAvatarUrl: target.picture.data.url,
             } as PublishedPost;
         });
+        
         setPublishedPosts(finalPublished);
         
         await delay(1000);
@@ -395,7 +389,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                                         link: post.link,
                                         post: { 
                                             message: post.message, 
-                                            picture: getImageUrl(post) 
+                                            picture: getPhotoId(post) 
                                         },
                                         authorName: comment.from.name, 
                                         authorPictureUrl: comment.from.picture?.data?.url
