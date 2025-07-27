@@ -250,28 +250,9 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
 
     try {
         const getImageUrl = (post: any): string | undefined => {
-            if (!post.attachments?.data?.[0]) return undefined;
-            const attachment = post.attachments.data[0];
-            
-            // For newer API versions, check these fields
-            if (attachment.media_type === 'photo' && attachment.media?.source) {
-                return attachment.media.source;
-            }
-            if (attachment.media_type === 'photo' && attachment.media?.image?.src) {
-                return attachment.media.image.src;
-            }
-            if (attachment.subattachments?.data?.[0]?.media?.source) {
-                return attachment.subattachments.data[0].media.source;
-            }
-            if (attachment.subattachments?.data?.[0]?.media?.image?.src) {
-                return attachment.subattachments.data[0].media.image.src;
-            }
-            
-            // Fallback for older structure
-            if (attachment.media?.image?.src) return attachment.media.image.src;
-            
-            return undefined;
+            return post.picture || undefined;
         };
+        
         
         
         // STEP 1: Fetch Scheduled Posts with safer field structure
@@ -307,7 +288,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         showNotification('partial', `(2/4) جلب المنشورات المنشورة...`);
         let fbPublishedContent: any[] = [];
         try {
-            const postContentFields = "id,message,created_time,link,full_picture";
+            const postContentFields = "id,message,created_time,link,picture";
             const publishedUrl = `/${target.id}/published_posts?fields=${postContentFields}&limit=25`;
             const publishedData = await makeRequestWithRetry(publishedUrl, target.access_token);
             fbPublishedContent = publishedData.data || [];
@@ -384,7 +365,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                 
                 for (const post of limitedPosts) {
                     try {
-                        const commentsUrl = `/${post.id}/comments?limit=5&fields=from,message,created_time,id`;
+                        const commentsUrl = `/${post.id}/comments?limit=5&fields=from{name,picture},message,created_time,id`;
                         const commentsData = await makeRequestWithRetry(commentsUrl, target.access_token);
                         
                         if (commentsData.data) {
@@ -403,7 +384,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                                             picture: getImageUrl(post) 
                                         },
                                         authorName: comment.from.name, 
-                                        authorPictureUrl: `https://graph.facebook.com/${comment.from.id}/picture?type=normal`
+                                        authorPictureUrl: comment.from.picture?.data?.url
                                     } as InboxItem);
                                 }
                             });

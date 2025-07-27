@@ -161,7 +161,7 @@ export const imageToImageWithStabilityAI = async (
     apiKey: string,
     imageFile: File,
     prompt: string,
-    model: string = 'stable-diffusion-xl-1024-v1-0',
+    model: string = 'stable-diffusion-v1-6',
     strength: number = 0.6,
 ): Promise<string> => {
     validateInputs(apiKey, prompt);
