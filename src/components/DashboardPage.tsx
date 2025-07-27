@@ -381,13 +381,15 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         showNotification('partial', `(5/6) جلب تحليلات الصفحة...`); // Updated step count
         try {
             const insightsMetrics = [
-                'page_fans', // Audience growth (total fans)
-                'page_engaged_users', // Engaged users
-                'page_impressions', // Impressions
-                'page_post_engagements', // Post engagements
-                'page_actions_by_page_tab', // Actions on tabs (can indicate interest)
-                // Add more metrics as needed for your analytics dashboard sections
-                // e.g., page_views, page_consumptions, page_reactions_total
+                'page_impressions_unique', // Valid metric for reach
+                'page_engaged_users', // Valid metric for engaged users
+                'page_post_engagements', // Valid metric for post engagements
+                'page_actions_post_reactions_total', // Valid metric for reactions
+                'page_fans_online_per_day', // Valid metric for fan activity (can help with heatmap)
+                // Note: 'page_fans' itself is valid, but often requires a different period or breakdown for growth.
+                // We'll keep 'page_fans' for now to try and get the latest count, but might need adjustment.
+                'page_fans'
+                // 'page_actions_by_page_tab' might not be a valid metric or require a different breakdown/period. Removed for now.
             ];
             const period = analyticsPeriod === '7d' ? 'week' : 'days_28'; // Match period to API
             const insightsData = await makeRequestWithRetry(`/${target.id}/insights?metric=${insightsMetrics.join(',')}&period=${period}`, target.access_token);
