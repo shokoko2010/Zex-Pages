@@ -210,66 +210,43 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         showNotification('error', 'رمز الوصول للصفحة مفقود.');
         return;
     }
-    
     if (syncingTargetId) {
         showNotification('error', 'مزامنة أخرى قيد التنفيذ، يرجى الانتظار.');
         return;
     }
-    
     setSyncingTargetId(target.id);
     setPublishedPosts([]);
     setScheduledPosts([]);
     showNotification('partial', `جاري مزامنة بيانات ${target.name}...`);
 
-    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-    
-    const MAX_RETRIES = 2;
-    const RETRY_DELAY = 2000;
-    
-    const makeRequestWithRetry = async (url: string, accessToken: string, retryCount = 0): Promise<any> => {
-        try {
-            const response = await fetch(`https://graph.facebook.com/v19.0${url}&access_token=${accessToken}`);
-            
-            const data = await response.json();
-            if (!response.ok || data.error) {
-                const errorInfo = data.error || {};
-                if (errorInfo.code === 190) {
-                    throw new FacebookTokenError(errorInfo.message || 'Invalid or expired token.');
-                }
-                 if (response.status === 429 || response.status >= 500) {
-                    if (retryCount < MAX_RETRIES) {
-                        await delay(RETRY_DELAY * (retryCount + 1));
-                        return makeRequestWithRetry(url, accessToken, retryCount + 1);
-                    }
-                }
-                throw new Error(errorInfo.message || `HTTP ${response.status}: ${response.statusText}`);
+    const makeRequestWithRetry = async (url: string, accessToken: string): Promise<any> => {
+        const response = await fetch(`https://graph.facebook.com/v19.0${url}&access_token=${accessToken}`);
+        const data = await response.json();
+        if (!response.ok || data.error) {
+            const errorInfo = data.error || {};
+            if (errorInfo.code === 190) {
+                throw new FacebookTokenError(errorInfo.message || 'Invalid or expired token.');
             }
-            return data;
-        } catch (error) {
-            if (error instanceof FacebookTokenError) {
-                throw error;
-            }
-            if (retryCount < MAX_RETRIES && (error instanceof Error && (error.message.includes('network') || error.message.includes('timeout')))) {
-                await delay(RETRY_DELAY * (retryCount + 1));
-                return makeRequestWithRetry(url, accessToken, retryCount + 1);
-            }
-            throw error;
+            throw new Error(errorInfo.message || `HTTP ${response.status}: ${response.statusText}`);
         }
+        return data;
     };
 
     try {
-        const getPhotoIdFromPost = (post: any): string | undefined => post.object_id;
-        
+        const getImageUrlFromPost = (post: any): string | undefined => {
+            return post.attachments?.data?.[0]?.media?.image?.src;
+        };
+
         showNotification('partial', `(1/4) جلب المنشورات المجدولة...`);
         let finalScheduled: ScheduledPost[] = [];
         try {
-            const scheduledData = await makeRequestWithRetry(`/${target.id}/scheduled_posts?fields=id,message,scheduled_publish_time,object_id&limit=25`, target.access_token);
+            const scheduledPostFields = "id,message,scheduled_publish_time,attachments{media}";
+            const scheduledData = await makeRequestWithRetry(`/${target.id}/scheduled_posts?fields=${scheduledPostFields}&limit=25`, target.access_token);
             finalScheduled = (scheduledData.data || []).map((post: any) => {
-                const photoId = getPhotoIdFromPost(post);
+                const imageUrl = getImageUrlFromPost(post);
                 return {
                     id: post.id, text: post.message || '', scheduledAt: new Date(post.scheduled_publish_time * 1000),
-                    photoId: photoId, imageUrl: photoId ? `https://graph.facebook.com/${photoId}/picture?access_token=${target.access_token}` : undefined,
-                    hasImage: !!photoId, targetId: target.id,
+                    imageUrl: imageUrl, hasImage: !!imageUrl, targetId: target.id,
                     targetInfo: { name: target.name, avatarUrl: target.picture.data.url, type: target.type },
                     status: 'scheduled', isReminder: false, type: 'post'
                 } as ScheduledPost;
@@ -278,33 +255,26 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         } catch (error) {
             if (error instanceof FacebookTokenError) throw error;
             console.warn('Failed to fetch scheduled posts:', error);
-            setScheduledPosts([]);
-            finalScheduled = [];
         }
-
-        await delay(1000);
 
         showNotification('partial', `(2/4) جلب المنشورات المنشورة...`);
         let fbPublishedContent: any[] = [];
         try {
-            const publishedData = await makeRequestWithRetry(`/${target.id}/published_posts?fields=id,message,created_time,permalink_url,object_id&limit=25`, target.access_token);
+            const postContentFields = "id,message,created_time,permalink_url,attachments{media}";
+            const publishedData = await makeRequestWithRetry(`/${target.id}/published_posts?fields=${postContentFields}&limit=25`, target.access_token);
             fbPublishedContent = publishedData.data || [];
         } catch (error) {
             if (error instanceof FacebookTokenError) throw error;
             console.warn('Failed to fetch published posts:', error);
-            fbPublishedContent = [];
         }
-
-        await delay(1000);
 
         showNotification('partial', `(3/4) جلب التفاعلات...`);
         const engagementMap = new Map<string, any>();
         if (fbPublishedContent.length > 0) {
-            for (const post of fbPublishedContent.slice(0, 25)) { // Limit engagement fetching
+            for (const post of fbPublishedContent.slice(0, 25)) {
                 try {
                     const engagement = await makeRequestWithRetry(`/${post.id}?fields=likes.summary(true),comments.summary(true),shares.summary(true)`, target.access_token);
                     engagementMap.set(post.id, engagement);
-                    await delay(200);
                 } catch (error) {
                     if (error instanceof FacebookTokenError) throw error;
                     console.warn(`Failed to fetch engagement for post ${post.id}:`, error);
@@ -314,10 +284,10 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         
         const finalPublished = fbPublishedContent.map((post: any) => {
             const engagement = engagementMap.get(post.id) || {};
-            const photoId = getPhotoIdFromPost(post);
+            const imageUrl = getImageUrlFromPost(post);
             return {
                 id: post.id, text: post.message || '', publishedAt: new Date(post.created_time),
-                photoId: photoId, imagePreview: photoId ? `https://graph.facebook.com/${photoId}/picture?access_token=${target.access_token}` : undefined,
+                imagePreview: imageUrl,
                 analytics: {
                     likes: engagement.likes?.summary?.total_count || 0,
                     comments: engagement.comments?.summary?.total_count || 0,
@@ -329,45 +299,12 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         });
         setPublishedPosts(finalPublished);
         
-        await delay(1000);
-
-        showNotification('partial', `(4/4) جلب صندوق الوارد...`);
-        const newInbox: InboxItem[] = [];
-        try {
-            const conversationsData = await makeRequestWithRetry(`/${target.id}/conversations?fields=participants,messages.limit(1){from,to,message,created_time}&limit=10`, target.access_token);
-            if (conversationsData.data) {
-                conversationsData.data.forEach((convo: any) => {
-                    const lastMsg = convo.messages?.data?.[0];
-                    if (lastMsg && lastMsg.from.id !== target.id) {
-                        const participant = convo.participants.data.find((p: any) => p.id !== target.id);
-                        if (participant) {
-                            newInbox.push({
-                                id: lastMsg.id, type: 'message', from: participant, text: lastMsg.message,
-                                timestamp: lastMsg.created_time, status: 'new', conversationId: convo.id,
-                                authorName: participant.name, authorPictureUrl: `https://graph.facebook.com/${participant.id}/picture?type=normal`
-                            } as InboxItem);
-                        }
-                    }
-                });
-            }
-        } catch (error) {
-            if (error instanceof FacebookTokenError) throw error;
-            console.warn('Failed to fetch conversations:', error);
-        }
-        setInboxItems(newInbox.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
-
-        await saveDataToFirestore({
-            scheduledPosts: finalScheduled.map((p: ScheduledPost) => ({ ...p, scheduledAt: p.scheduledAt.toISOString() })),
-            publishedPosts: finalPublished.map((p: PublishedPost) => ({ ...p, publishedAt: p.publishedAt.toISOString() })),
-            inboxItems: newInbox,
-            lastSync: new Date().toISOString()
-        });
         showNotification('success', 'تمت المزامنة بنجاح!');
         
     } catch (error: unknown) {
         console.error("Facebook Sync Error details:", error);
         if (error instanceof FacebookTokenError) {
-            onTokenError(); // This handles the error
+            onTokenError();
         } else {
             const errorMessage = error instanceof Error ? error.message : 'حدث خطأ غير معروف';
             showNotification('error', `فشل المزامنة: ${errorMessage}`);
