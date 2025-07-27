@@ -9,13 +9,11 @@ import AdminPage from './components/AdminPage';
 
 import { GoogleGenAI } from '@google/genai';
 import { initializeGoogleGenAI } from './services/geminiService';
-import { Target, Business, PublishedPost, InboxItem, Plan, AppUser, StrategyHistoryItem, ContentPlanItem, StrategyRequest } from './types';
+import { Target, Business, Plan, AppUser, StrategyHistoryItem, ContentPlanItem, StrategyRequest } from './types';
 import { auth, db, User, saveContentPlan, getStrategyHistory, deleteStrategy, exchangeAndStoreLongLivedToken } from './services/firebaseService';
 import firebase from 'firebase/compat/app';
 
 const isSimulation = window.location.protocol === 'http:';
-const MAX_PUBLISHED_POSTS_TO_STORE_SYNC = 100;
-const MAX_INBOX_ITEMS_TO_STORE_SYNC = 200;
 
 const MOCK_TARGETS: Target[] = [
     { id: '1', name: 'صفحة تجريبية 1', type: 'facebook', access_token: 'DUMMY_TOKEN_1', picture: { data: { url: 'https://via.placeholder.com/150/4B79A1/FFFFFF?text=Page1' } } },
@@ -84,6 +82,37 @@ const App: React.FC = () => {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
   
+  const fetchFacebookData = useCallback(async () => {
+    if (!user || isSimulation || !appUser?.fbAccessToken) {
+      if (isSimulation) {
+        setTargets(MOCK_TARGETS); setBusinesses(MOCK_BUSINESSES); setTargetsLoading(false);
+      } else {
+        setTargetsLoading(false);
+      }
+      return;
+    }
+    
+    setTargetsLoading(true);
+    setTargetsError(null);
+    try {
+        const allPagesData = await fetchWithPagination('/me/accounts?fields=id,name,access_token,picture{url}&limit=100');
+        const allTargetsMap = new Map<string, Target>();
+        allPagesData.forEach(p => allTargetsMap.set(p.id, { ...p, type: 'facebook' }));
+        
+        const igAccounts = await fetchInstagramAccounts(Array.from(allTargetsMap.values()));
+        igAccounts.forEach(ig => allTargetsMap.set(ig.id, ig));
+        
+        const finalTargets = Array.from(allTargetsMap.values());
+        setTargets(finalTargets);
+        
+        await db.collection('users').doc(user.uid).set({ targets: finalTargets }, { merge: true });
+    } catch (error: any) {
+        setTargetsError(`فشل تحميل بياناتك من فيسبوك. الخطأ: ${error.message}`);
+    } finally {
+        setTargetsLoading(false);
+    }
+  }, [user, appUser?.fbAccessToken, isSimulation]);
+
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
         setLoadingUser(true);
@@ -96,11 +125,23 @@ const App: React.FC = () => {
 
             const userDocRef = db.collection('users').doc(currentUser.uid);
             const userDoc = await userDocRef.get();
-            let userData: AppUser;
+            
             if (userDoc.exists) {
-                userData = userDoc.data() as AppUser;
+                const userData = userDoc.data() as AppUser;
+                setAppUser(userData);
+                setApiKey(userData.geminiApiKey || null);
+                setStabilityApiKey(userData.stabilityApiKey || null);
+                setFavoriteTargetIds(new Set(userData.favoriteTargetIds || []));
+                if (!userData.onboardingCompleted) setIsTourOpen(true);
+
+                if (userData.isAdmin) {
+                    try {
+                        const usersSnapshot = await db.collection('users').get();
+                        setAllUsers(usersSnapshot.docs.map(doc => doc.data() as AppUser));
+                    } catch (error) { console.error("Failed to fetch all users:", error); }
+                }
             } else {
-               userData = {
+               const newUser: AppUser = {
                    email: currentUser.email!,
                    uid: currentUser.uid,
                    isAdmin: false,
@@ -111,27 +152,9 @@ const App: React.FC = () => {
                    displayName: '',
                    photoURL: ''
                };
-               await userDocRef.set(userData, { merge: true });
-            }
-            
-            setAppUser(userData);
-            setApiKey(userData.geminiApiKey || null);
-            setStabilityApiKey(userData.stabilityApiKey || null);
-            setFavoriteTargetIds(new Set(userData.favoriteTargetIds || []));
-            if (!userData.onboardingCompleted) setIsTourOpen(true);
-
-            if (userData.targets && userData.targets.length > 0) {
-                setTargets(userData.targets);
-                setTargetsLoading(false);
-            } else {
-                setTargetsLoading(!!userData.fbAccessToken); 
-            }
-
-            if (userData.isAdmin) {
-                try {
-                    const usersSnapshot = await db.collection('users').get();
-                    setAllUsers(usersSnapshot.docs.map(doc => doc.data() as AppUser));
-                } catch (error) { console.error("Failed to fetch all users:", error); }
+               await userDocRef.set(newUser, { merge: true });
+               setAppUser(newUser);
+               setIsTourOpen(true);
             }
         } else {
             setUser(null); setAppUser(null); setApiKey(null);
@@ -144,6 +167,20 @@ const App: React.FC = () => {
     });
     return () => unsubscribe();
   }, []);
+  
+  useEffect(() => {
+      if (appUser?.fbAccessToken) {
+          fetchFacebookData();
+      } else {
+          // If there's no token, but there might be stale data in Firestore,
+          // load it so the user sees something while they connect.
+          if (appUser?.targets && appUser.targets.length > 0) {
+              setTargets(appUser.targets);
+          }
+          setTargetsLoading(false);
+      }
+  }, [appUser, fetchFacebookData]);
+
 
   useEffect(() => {
     const loadHistory = async () => {
@@ -225,7 +262,7 @@ const App: React.FC = () => {
               if (response?.error) {
                 if (response.error.code === 190) { 
                   alert("انتهت صلاحية جلسة فيسبوك. يرجى إعادة ربط الحساب.");
-                  await db.collection('users').doc(user!.uid).set({ fbAccessToken: null }, { merge: true });
+                  if (user) await db.collection('users').doc(user.uid).set({ fbAccessToken: null }, { merge: true });
                 }
                 throw new Error(`خطأ في واجهة فيسبوك: ${response.error.message}`);
               }
@@ -239,59 +276,29 @@ const App: React.FC = () => {
   const fetchInstagramAccounts = useCallback(async (pages: Target[]): Promise<Target[]> => {
     if (pages.length === 0 || !appUser?.fbAccessToken) return [];
     const batchRequest = pages.map(page => ({ method: 'GET', relative_url: `${page.id}?fields=instagram_business_account{id,name,username,profile_picture_url}` }));
-    const response: any = await new Promise(resolve => window.FB.api('/', 'POST', { batch: JSON.stringify(batchRequest), access_token: appUser.fbAccessToken }, (res: any) => resolve(res)));
-    const igAccounts: Target[] = [];
-    if (response && !response.error) {
-        response.forEach((res: any, index: number) => {
-            if (res.code === 200) {
-                const body = JSON.parse(res.body);
-                if (body?.instagram_business_account) {
-                    const igAccount = body.instagram_business_account;
-                    igAccounts.push({
-                        id: igAccount.id, name: igAccount.name ? `${igAccount.name} (@${igAccount.username})` : `@${igAccount.username}`,
-                        type: 'instagram', parentPageId: pages[index].id, access_token: pages[index].access_token,
-                        picture: { data: { url: igAccount.profile_picture_url || 'https://via.placeholder.com/150/833AB4/FFFFFF?text=IG' } }
-                    });
-                }
-            }
-        });
-    }
-    return igAccounts;
-  }, [appUser?.fbAccessToken]);
-
-  const fetchFacebookData = useCallback(async () => {
-    if (!user || isSimulation || !appUser?.fbAccessToken) {
-      if (isSimulation) {
-        setTargets(MOCK_TARGETS); setBusinesses(MOCK_BUSINESSES); setTargetsLoading(false);
-      } else {
-        setTargetsLoading(false);
-      }
-      return;
-    }
     
-    setTargetsLoading(true);
-    setTargetsError(null);
-    try {
-        const allPagesData = await fetchWithPagination('/me/accounts?fields=id,name,access_token,picture{url}&limit=100');
-        const allTargetsMap = new Map<string, Target>();
-        allPagesData.forEach(p => allTargetsMap.set(p.id, { ...p, type: 'facebook' }));
-        const igAccounts = await fetchInstagramAccounts(Array.from(allTargetsMap.values()));
-        igAccounts.forEach(ig => allTargetsMap.set(ig.id, ig));
-        const finalTargets = Array.from(allTargetsMap.values());
-        setTargets(finalTargets);
-        await db.collection('users').doc(user.uid).set({ targets: finalTargets }, { merge: true });
-    } catch (error: any) {
-        setTargetsError(`فشل تحميل بياناتك من فيسبوك. الخطأ: ${error.message}`);
-    } finally {
-        setTargetsLoading(false);
-    }
-  }, [user, appUser, isSimulation, fetchInstagramAccounts, fetchWithPagination]);
-
-  useEffect(() => {
-    if (appUser?.fbAccessToken && (!appUser.targets || appUser.targets.length === 0)) {
-        fetchFacebookData();
-    }
-  }, [appUser, fetchFacebookData]);
+    return new Promise(resolve => {
+        window.FB.api('/', 'POST', { batch: JSON.stringify(batchRequest), access_token: appUser.fbAccessToken }, (response: any) => {
+            const igAccounts: Target[] = [];
+            if (response && !response.error) {
+                response.forEach((res: any, index: number) => {
+                    if (res.code === 200) {
+                        const body = JSON.parse(res.body);
+                        if (body?.instagram_business_account) {
+                            const igAccount = body.instagram_business_account;
+                            igAccounts.push({
+                                id: igAccount.id, name: igAccount.name ? `${igAccount.name} (@${igAccount.username})` : `@${igAccount.username}`,
+                                type: 'instagram', parentPageId: pages[index].id, access_token: pages[index].access_token,
+                                picture: { data: { url: igAccount.profile_picture_url || 'https://via.placeholder.com/150/833AB4/FFFFFF?text=IG' } }
+                            });
+                        }
+                    }
+                });
+            }
+            resolve(igAccounts);
+        });
+    });
+  }, [appUser?.fbAccessToken]);
   
   const handleLoadPagesFromBusiness = useCallback(async (businessId: string) => {
     setLoadingBusinessId(businessId);
@@ -344,16 +351,14 @@ const App: React.FC = () => {
         const credential = result?.credential as firebase.auth.OAuthCredential;
         if (credential?.accessToken) {
           await exchangeAndStoreLongLivedToken(user.uid, credential.accessToken);
-          // The onAuthStateChanged listener will handle fetching the updated user document
-          // which will now contain the long-lived token, triggering data fetching.
           alert("تم ربط حساب فيسبوك بنجاح! جاري جلب صفحاتك...");
-          await fetchFacebookData(); // Manually trigger data fetch
+          // The auth state change listener will pick up the new token and trigger a fetch.
         }
     } catch (error: any) {
         if (error.code === 'auth/credential-already-in-use') alert("هذا الحساب الفيسبوك مرتبط بالفعل بحساب آخر.");
         else alert(`فشل الاتصال بفيسبوك. السبب: ${error.message}`);
     }
-  }, [user, fetchFacebookData]);
+  }, [user]);
 
   const handleLogout = useCallback(async () => { await auth.signOut(); }, []);
 
