@@ -250,8 +250,22 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
 
     try {
         const getImageUrl = (post: any): string | undefined => {
-            return post.picture || undefined;
+            if (!post.attachments?.data?.[0]) return undefined;
+            const attachment = post.attachments.data[0];
+        
+            // Check for a direct image source in the main attachment
+            if (attachment.media?.image?.src) {
+                return attachment.media.image.src;
+            }
+        
+            // Check for an image source in sub-attachments (for albums/carousels)
+            if (attachment.subattachments?.data?.[0]?.media?.image?.src) {
+                return attachment.subattachments.data[0].media.image.src;
+            }
+        
+            return undefined;
         };
+        
         
         
         
@@ -259,7 +273,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         showNotification('partial', `(1/4) جلب المنشورات المجدولة...`);
         let finalScheduled: ScheduledPost[] = [];
         try {
-            const scheduledPostFields = "id,message,scheduled_publish_time,attachments{type,media{image{src}},subattachments{media{image{src}}}}";
+            const scheduledPostFields = "id,message,scheduled_publish_time,attachments{media,subattachments}";
             const scheduledUrl = `/${target.id}/scheduled_posts?fields=${scheduledPostFields}&limit=25`;
             const scheduledData = await makeRequestWithRetry(scheduledUrl, target.access_token);
             
@@ -288,7 +302,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         showNotification('partial', `(2/4) جلب المنشورات المنشورة...`);
         let fbPublishedContent: any[] = [];
         try {
-            const postContentFields = "id,message,created_time,link,picture";
+            const postContentFields = "id,message,created_time,link,attachments{media,subattachments}";
             const publishedUrl = `/${target.id}/published_posts?fields=${postContentFields}&limit=25`;
             const publishedData = await makeRequestWithRetry(publishedUrl, target.access_token);
             fbPublishedContent = publishedData.data || [];
