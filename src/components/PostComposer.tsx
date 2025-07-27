@@ -87,7 +87,7 @@ const PostComposer: React.FC<PostComposerProps> = ({
     setIsGeneratingText(true);
     setAiTextError('');
     try {
-      const suggestion = await generatePostSuggestion(aiClient, aiTopic, pageProfile);
+      const suggestion = await generatePostSuggestion(aiClient, aiTopic);
       onPostTextChange(suggestion);
     } catch (e: any) {
       setAiTextError(e.message || 'An error occurred.');
@@ -140,7 +140,7 @@ ${hashtags}`);
     if (!aiClient || isViewer) return;
     setIsSuggestingTime(true);
     try {
-      const bestTime = await getBestPostingTime(aiClient, managedTarget.id, pageProfile);
+      const bestTime = await getBestPostingTime(aiClient, managedTarget.id);
       onIsScheduledChange(true);
       onScheduleDateChange(new Date(bestTime).toISOString().slice(0, 16));
     } catch (e) {
