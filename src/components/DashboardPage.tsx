@@ -211,6 +211,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     }
     
     setSyncingTargetId(target.id);
+    setPublishedPosts([]); // Clear old posts immediately
+    setScheduledPosts([]); // Clear old scheduled posts
     showNotification('partial', `جاري مزامنة بيانات ${target.name}...`);
 
     const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -249,15 +251,11 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     };
 
     try {
-        const getPhotoId = (post: any): string | undefined => {
-            if (post.attachments?.data?.[0]?.media_type === 'photo' || post.attachments?.data?.[0]?.type === 'photo') {
-                return post.attachments.data[0].target?.id || post.object_id;
-            }
-            if (post.attachments?.data?.[0]?.subattachments?.data?.[0]?.target?.id) {
-                 return post.attachments.data[0].subattachments.data[0].target.id;
-            }
-            return undefined;
+        const getPhotoIdFromPost = (post: any): string | undefined => {
+            // The object_id is the most reliable identifier for a photo attached to a post.
+            return post.object_id;
         };
+        
         
         
         // STEP 1: Fetch Scheduled Posts with safer field structure
@@ -269,7 +267,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             const scheduledData = await makeRequestWithRetry(scheduledUrl, target.access_token);
             
             finalScheduled = (scheduledData.data || []).map((post: any) => {
-                const photoId = getPhotoId(post);
+                const photoId = getPhotoIdFromPost(post);
                 return {
                     id: post.id, 
                     text: post.message || '', 
@@ -299,7 +297,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         showNotification('partial', `(2/4) جلب المنشورات المنشورة...`);
         let fbPublishedContent: any[] = [];
         try {
-            const postContentFields = "id,message,created_time,object_id,permalink_url";
+            const postContentFields = "id,message,created_time,permalink_url,object_id";
             const publishedUrl = `/${target.id}/published_posts?fields=${postContentFields}&limit=25`;
             const publishedData = await makeRequestWithRetry(publishedUrl, target.access_token);
             fbPublishedContent = publishedData.data || [];
@@ -343,13 +341,13 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         }
         const finalPublished = fbPublishedContent.map((post: any) => {
             const engagement = engagementMap.get(post.id) || {};
-            const photoId = getPhotoId(post);
+            const photoId = getPhotoIdFromPost(post);
             return {
                 id: post.id,
                 text: post.message || '',
                 publishedAt: new Date(post.created_time),
-                photoId: photoId, // Store the permanent ID
-                // Construct the permanent, non-expiring URL on the fly
+                photoId: photoId, // Save the permanent ID
+                // Always construct the URL on the fly
                 imagePreview: photoId ? `https://graph.facebook.com/${photoId}/picture?access_token=${target.access_token}` : undefined,
                 analytics: {
                     likes: engagement.likes?.summary?.total_count || 0,
@@ -362,6 +360,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                 pageAvatarUrl: target.picture.data.url,
             } as PublishedPost;
         });
+        
         
         
         setPublishedPosts(finalPublished);
@@ -396,7 +395,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                                         link: post.link,
                                         post: { 
                                             message: post.message, 
-                                            picture: getPhotoId(post) 
+                                            picture: getPhotoIdFromPost(post) 
                                         },
                                         authorName: comment.from.name, 
                                         authorPictureUrl: comment.from.picture?.data?.url
