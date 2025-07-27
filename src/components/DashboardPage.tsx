@@ -118,7 +118,47 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
     const [isSchedulingStrategy, setIsSchedulingStrategy] = useState(false);
     const [planError, setPlanError] = useState<string | null>(null);
-
+    const showNotification = useCallback((type: 'success' | 'error' | 'partial', message: string) => {
+        setNotification({ type, message });
+        if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+        undoTimerRef.current = setTimeout(() => setNotification(null), 5000);
+      }, []);
+    const makeRequestWithRetry = useCallback(async (url: string, accessToken: string): Promise<any> => {
+        const response = await fetch(`https://graph.facebook.com/v19.0${url}&access_token=${accessToken}`);
+        const data = await response.json();
+        if (!response.ok || data.error) {
+            const errorInfo = data.error || {};
+            if (errorInfo.code === 190) {
+                throw new FacebookTokenError(errorInfo.message || 'Invalid or expired token.');
+            }
+            throw new Error(errorInfo.message || `HTTP ${response.status}: ${response.statusText}`);
+        }
+        return data;
+    }, []); // Note the empty dependency array
+    const onFetchMessageHistory = useCallback(async (conversationId: string) => {
+        if (!managedTarget.access_token) {
+            showNotification('error', 'رمز الوصول للصفحة مفقود لجلب سجل الرسائل.');
+            return;
+        }
+        showNotification('partial', `جاري جلب سجل الرسائل...`);
+        try {
+            const historyData = await makeRequestWithRetry(`/${conversationId}/messages?fields=from,to,message,created_time&limit=100`, managedTarget.access_token);
+            
+            setInboxItems(prevItems => prevItems.map(item => 
+                item.conversationId === conversationId ? { ...item, messages: (historyData.data || []).map((msg: any) => ({
+                    id: msg.id, text: msg.message, from: (msg.from.id === managedTarget.id ? 'page' : 'user'), timestamp: msg.created_time
+                })).reverse() } : item
+            ));
+            showNotification('success', 'تم جلب سجل الرسائل.');
+        } catch (error: any) {
+            if (error instanceof FacebookTokenError) {
+                onTokenError();
+            } else {
+                showNotification('error', `فشل جلب سجل الرسائل: ${error.message}`);
+            }
+        }
+    }, [managedTarget.id, managedTarget.access_token, onTokenError, showNotification, makeRequestWithRetry]);
+   
     const linkedInstagramTarget = useMemo(() => allTargets.find(t => t.type === 'instagram' && t.parentPageId === managedTarget.id) || null, [managedTarget, allTargets]);
     const bulkSchedulerTargets = useMemo(() => [managedTarget, ...(linkedInstagramTarget ? [linkedInstagramTarget] : [])], [managedTarget, linkedInstagramTarget]);
 
@@ -131,11 +171,6 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
       setImagePreview(null);
     }, [selectedImage]);
 
-    const showNotification = useCallback((type: 'success' | 'error' | 'partial', message: string) => {
-      setNotification({ type, message });
-      if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
-      undoTimerRef.current = setTimeout(() => setNotification(null), 5000);
-    }, []);
 
     const getTargetDataRef = useCallback(() => db.collection('targets_data').doc(managedTarget.id), [managedTarget]);
     const saveDataToFirestore = useCallback(async (dataToSave: { [key: string]: any }) => {
@@ -219,19 +254,6 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     setScheduledPosts([]);
     setInboxItems([]); // Clear inbox at the start of sync
     showNotification('partial', `جاري مزامنة بيانات ${target.name}...`);
-
-    const makeRequestWithRetry = async (url: string, accessToken: string): Promise<any> => {
-        const response = await fetch(`https://graph.facebook.com/v19.0${url}&access_token=${accessToken}`);
-        const data = await response.json();
-        if (!response.ok || data.error) {
-            const errorInfo = data.error || {};
-            if (errorInfo.code === 190) {
-                throw new FacebookTokenError(errorInfo.message || 'Invalid or expired token.');
-            }
-            throw new Error(errorInfo.message || `HTTP ${response.status}: ${response.statusText}`);
-        }
-        return data;
-    };
 
     try {
         const getImageUrlFromPost = (post: any): string | undefined => {
@@ -1019,27 +1041,7 @@ const onFetchPostInsights = async (postId: string): Promise<any> => {
         }
     }}
     
-  onFetchMessageHistory={async (conversationId: string) => {
-    if (!managedTarget.access_token) {
-        showNotification('error', 'رمز الوصول للصفحة مفقود لجلب سجل الرسائل.');
-        return;
-    }
-    showNotification('partial', `جاري جلب سجل الرسائل...`);
-    try {
-        const response = await fetch(`https://graph.facebook.com/v19.0/${conversationId}/messages?fields=from,to,message,created_time&access_token=${managedTarget.access_token}`);
-        const data = await response.json();
-        if (data.error) throw new Error(data.error.message);
-
-        setInboxItems(prevItems => prevItems.map(item => 
-            item.conversationId === conversationId ? { ...item, messages: (data.data || []).map((msg: any) => ({
-                id: msg.id, text: msg.message, from: (msg.from.id === managedTarget.id ? 'page' : 'user'), timestamp: msg.created_time
-            })).reverse() } : item // عكس الترتيب لعرض الأقدم أولاً
-        ));
-        showNotification('success', 'تم جلب سجل الرسائل.');
-    } catch (error: any) {
-        showNotification('error', `فشل جلب سجل الرسائل: ${error.message}`);
-    }
-}}
+    onFetchMessageHistory={onFetchMessageHistory}
     autoResponderSettings={{ rules: [], fallback: { mode: 'off', staticMessage: '' } }}
     onAutoResponderSettingsChange={() => { showNotification('partial', 'تغيير إعدادات الرد التلقائي (محاكاة).'); }}
     onSync={() => syncFacebookData(managedTarget)} 
