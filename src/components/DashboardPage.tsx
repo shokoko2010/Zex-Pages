@@ -81,6 +81,7 @@ const initialPageProfile: PageProfile = { description: '', services: '', contact
 const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, managedTarget, allTargets, onChangePage, onLogout, aiClient, stabilityApiKey, onSettingsClick, fetchWithPagination, theme, onToggleTheme, fbAccessToken, strategyHistory, onDeleteStrategy, onSavePlan, onTokenError }) => {
     const [view, setView] = useState<DashboardView>('composer');
     const [postText, setPostText] = useState('');
+    const [lastSyncTime, setLastSyncTime] = useState<string | undefined>(undefined);
     const [selectedImage, setSelectedImage] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [isScheduled, setIsScheduled] = useState(false);
@@ -733,8 +734,10 @@ await getTargetDataRef().set(cleanedDataToSave, { merge: true });
                         loadedAudienceCityData = data.audienceCityData || {};
                         loadedAudienceCountryData = data.audienceCountryData || {};
                         lastSyncTime = data.lastSync;
-                        console.log("Loaded lastSyncTime from Firestore:", lastSyncTime); // Add this log
-
+                        const loadedSyncTime = data.lastSync; // Use a temporary variable
+                        setLastSyncTime(loadedSyncTime); // Set the state
+                        console.log("Loaded data from Firestore. lastSyncTime:", loadedSyncTime); // Log loaded time
+                    
                     }
     
                     // Set state with loaded data immediately
@@ -755,6 +758,8 @@ await getTargetDataRef().set(cleanedDataToSave, { merge: true });
                     if (isAdmin || loadedProfile.ownerUid === user.uid) {
                         setCurrentUserRole('owner');
                     } else {
+                        setLastSyncTime(undefined); // Set to undefined if no data found
+                        console.log("No data found in Firestore."); // Log if no data
                         console.log("No data found in Firestore."); // Log if no data
                         setCurrentUserRole(loadedProfile.team?.find(m => m.uid === user.uid)?.role || 'viewer');
                     }
@@ -1414,7 +1419,7 @@ return (
          <NavItem icon={<UserCircleIcon className="w-5 h-5" />} label="ملف الصفحة" active={view === 'profile'} onClick={() => setView('profile')} />
       </nav>
       <div className="mt-8 pt-4 border-t dark:border-gray-700">
-            <Button onClick={() => syncFacebookData(managedTarget)} isLoading={!!syncingTargetId} variant="secondary" className="w-full" disabled={currentUserRole === 'viewer'}>
+            <Button onClick={() => syncFacebookData(managedTarget, lastSyncTime)} isLoading={!!syncingTargetId} variant="secondary" className="w-full" disabled={currentUserRole === 'viewer'}>
                 <ArrowPathIcon className="w-5 h-5 ml-2" />
                 {syncingTargetId ? 'جاري المزامنة...' : 'مزامنة بيانات فيسبوك'}
             </Button>
