@@ -318,7 +318,10 @@ await getTargetDataRef().set(cleanedDataToSave, { merge: true });
         // Accept lastSyncTime as a parameter
         
     
-    
+        const now = Math.floor(Date.now() / 1000); // Current Unix timestamp
+        const thirtyDaysAgo = Math.floor((Date.now() - 30 * 24 * 60 * 60 * 1000) / 1000); // Unix timestamp for 30 days ago
+        const timePeriodParams = `&since=${thirtyDaysAgo}&until=${now}`; // Parameters for recent period
+ 
         // Sync data from Facebook API
         const syncFacebookData = useCallback(async (target: Target, lastSyncTime?: string) => {            if (!target.access_token) {
             console.log("syncFacebookData called with lastSyncTime:", lastSyncTime); // Add this log   
@@ -332,10 +335,7 @@ await getTargetDataRef().set(cleanedDataToSave, { merge: true });
             setSyncingTargetId(target.id);
     
             showNotification('partial', `جاري مزامنة بيانات ${target.name}...`);
-    
-            const sinceParam = lastSyncTime ? `&since=${Math.floor(new Date(lastSyncTime).getTime() / 1000)}` : '';
-            console.log("Generated sinceParam:", sinceParam); // Add this log here
-    
+        
             try {
                 const getImageUrlFromPost = (post: any): string | undefined => {
                     return post.attachments?.data?.[0]?.media?.image?.src;
@@ -347,7 +347,7 @@ await getTargetDataRef().set(cleanedDataToSave, { merge: true });
             try {
                 const scheduledPostFields = "id,message,scheduled_publish_time,attachments{media}";
                 // Use fetchWithPagination for scheduled posts
-                const scheduledData = await fetchWithPagination(`/${target.id}/scheduled_posts?fields=${scheduledPostFields}${sinceParam}`, target.access_token);
+                const scheduledData = await fetchWithPagination(`/${target.id}/scheduled_posts?fields=${scheduledPostFields}${timePeriodParams}`, target.access_token);
                 fetchedScheduledPosts = (scheduledData || []).map((post: any) => ({
                     id: post.id || null, // Ensure id is always included
                     text: post.message || '', // Ensure text is always a string
@@ -379,7 +379,7 @@ await getTargetDataRef().set(cleanedDataToSave, { merge: true });
                 try {
                     const postContentFields = "id,message,created_time,permalink_url,attachments{media}";
                     // Use fetchWithPagination for published posts
-                    const publishedData = await fetchWithPagination(`/${target.id}/published_posts?fields=${postContentFields}${sinceParam}`, target.access_token);
+                    const publishedData = await fetchWithPagination(`/${target.id}/published_posts?fields=${postContentFields}${timePeriodParams}`, target.access_token);
                     fetchedPublishedContent = publishedData || []; // fetchWithPagination returns an array directly
                 } catch (error) {
                     if (error instanceof FacebookTokenError) throw error;
@@ -401,6 +401,8 @@ await getTargetDataRef().set(cleanedDataToSave, { merge: true });
                         }
                     }
                 }
+                
+
                 const finalNewPublished = fetchedPublishedContent.map((post: any) => {
                     const engagement = engagementMap.get(post.id) || {};
                     return {
@@ -434,7 +436,7 @@ await getTargetDataRef().set(cleanedDataToSave, { merge: true });
             // Fetch NEW Conversations (Use fetchWithPagination and sinceParam)
             try {
                 const convoFields = "participants,messages.limit(1){from,to,message,created_time}";
-                const conversationsData = await fetchWithPagination(`/${target.id}/conversations?fields=${convoFields}${sinceParam}`, target.access_token);
+                const conversationsData = await fetchWithPagination(`/${target.id}/conversations?fields=${convoFields}${timePeriodParams}`, target.access_token);
                 if (conversationsData) { // fetchWithPagination returns an array
                     conversationsData.forEach((convo: any) => {
                         const lastMsg = convo.messages?.data?.[0];
