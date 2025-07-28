@@ -220,9 +220,17 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
 
     const getTargetDataRef = useCallback(() => db.collection('targets_data').doc(managedTarget.id), [managedTarget]);
     const saveDataToFirestore = useCallback(async (dataToSave: { [key: string]: any }) => {
-      try { await getTargetDataRef().set(dataToSave, { merge: true }); }
-      catch (error) { showNotification('error', 'فشل حفظ البيانات.'); }
+        console.log("Saving data to Firestore:", dataToSave); // Logging data before saving
+        try {
+            await getTargetDataRef().set(dataToSave, { merge: true });
+            showNotification('success', 'تم حفظ البيانات بنجاح!');
+        } catch (error: any) {
+            console.error("Firestore Save Error:", error); // Improved error logging
+            showNotification('error', `فشل حفظ البيانات: ${error.message}`);
+        }
     }, [getTargetDataRef, showNotification]);
+  
+  
     
     const clearComposer = useCallback(() => {
       setPostText('');
@@ -609,6 +617,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     
     
                 showNotification('partial', `(6/6) حفظ البيانات...`);
+                console.log("Saving data to Firestore:", dataToSave); // Added logging
                 await saveDataToFirestore({
                     scheduledPosts: scheduledPosts.map(p => ({ ...p, scheduledAt: p.scheduledAt.toISOString() })),
                     publishedPosts: publishedPosts.map(p => ({ ...p, publishedAt: p.publishedAt.toISOString() })),
