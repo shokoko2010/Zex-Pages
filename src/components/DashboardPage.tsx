@@ -315,12 +315,9 @@ await getTargetDataRef().set(cleanedDataToSave, { merge: true });
       }
   };
   
-        // Accept lastSyncTime as a parameter
         
     
-        const now = Math.floor(Date.now() / 1000); // Current Unix timestamp
-        const thirtyDaysAgo = Math.floor((Date.now() - 30 * 24 * 60 * 60 * 1000) / 1000); // Unix timestamp for 30 days ago
-        const timePeriodParams = `&since=${thirtyDaysAgo}&until=${now}`; // Parameters for recent period
+    
  
         // Sync data from Facebook API
         const syncFacebookData = useCallback(async (target: Target, lastSyncTime?: string) => {            if (!target.access_token) {
@@ -335,7 +332,14 @@ await getTargetDataRef().set(cleanedDataToSave, { merge: true });
             setSyncingTargetId(target.id);
     
             showNotification('partial', `جاري مزامنة بيانات ${target.name}...`);
-        
+            // Calculate time period based on lastSyncTime
+            const now = Math.floor(Date.now() / 1000);
+            // Use lastSyncTime if available, otherwise calculate a period from a reasonable past date
+            const sinceTimestamp = lastSyncTime ? Math.floor(new Date(lastSyncTime).getTime() / 1000) : Math.floor((Date.now() - 90 * 24 * 60 * 60 * 1000) / 1000); // Example: 90 days ago if no lastSync
+            const timePeriodParams = `&since=${sinceTimestamp}&until=${now}`;
+
+            console.log("Generated timePeriodParams:", timePeriodParams); // Log the generated params
+
             try {
                 const getImageUrlFromPost = (post: any): string | undefined => {
                     return post.attachments?.data?.[0]?.media?.image?.src;
