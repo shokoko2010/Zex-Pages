@@ -356,7 +356,7 @@ const App: React.FC = () => {
   const handleFacebookConnect = useCallback(async () => {
     if (!user) return;
     const facebookProvider = new firebase.auth.FacebookAuthProvider();
-    facebookProvider.addScope('email,public_profile,business_management,pages_show_list,read_insights,pages_manage_posts,pages_read_engagement,pages_manage_engagement,pages_messaging,instagram_basic,instagram_manage_comments,instagram_manage_messages');
+    facebookProvider.addScope('email,public_profile,business_management,pages_show_list,read_insights,pages_manage_posts,pages_read_engagement,pages_manage_engagement,pages_messaging,instagram_basic,instagram_manage_comments,instagram_manage_messages,ads_management,ads_read'); // Added ads_management and ads_read
     
     try {
         const result = await auth.currentUser?.linkWithPopup(facebookProvider);
