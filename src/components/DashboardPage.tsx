@@ -445,55 +445,51 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                         processedPerformanceSummary.growthRate = 0;
                     }
                     setPerformanceSummaryData(processedPerformanceSummary);
-
+    
+                    // Process data for Content Type Performance chart
                     const photoPosts = finalPublished.filter(p => p.imagePreview);
                     const textPosts = finalPublished.filter(p => !p.imagePreview);
-
                     const totalPhotoEngagement = photoPosts.reduce((sum, p) => sum + (p.analytics.likes || 0) + (p.analytics.comments || 0) + (p.analytics.shares || 0), 0);
                     const totalTextEngagement = textPosts.reduce((sum, p) => sum + (p.analytics.likes || 0) + (p.analytics.comments || 0) + (p.analytics.shares || 0), 0);
-                    
                     const contentTypeChartData: ContentTypePerformanceData[] = [];
                     if (photoPosts.length > 0) {
-                        contentTypeChartData.push({
-                            type: 'منشورات الصور',
-                            count: photoPosts.length,
-                            avgEngagement: totalPhotoEngagement / photoPosts.length
-                        });
+                        contentTypeChartData.push({ type: 'منشورات الصور', count: photoPosts.length, avgEngagement: totalPhotoEngagement / photoPosts.length });
                     }
                     if (textPosts.length > 0) {
-                        contentTypeChartData.push({
-                            type: 'منشورات نصية',
-                            count: textPosts.length,
-                            avgEngagement: totalTextEngagement / textPosts.length
-                        });
+                        contentTypeChartData.push({ type: 'منشورات نصية', count: textPosts.length, avgEngagement: totalTextEngagement / textPosts.length });
                     }
                     setContentTypePerformanceData(contentTypeChartData);
-
-                    try {
-                        // This metric requires period=day
-                        const onlineFansData = await makeRequestWithRetry(`/${target.id}/insights?metric=page_fans_online_per_day&period=day`, target.access_token);
-                        if (onlineFansData.data && onlineFansData.data.length > 0 && onlineFansData.data[0].values.length > 0) {
-                            // The API returns one value for 'day' period, which is an object of hours.
-                            const latestDayData = onlineFansData.data[0].values[0];
-                            const heatmap: HeatmapDataPoint[] = [];
-                            const hourlyValues: { [hour: number]: number } = latestDayData.value || {};
     
-                            // Populate heatmap for all 7 days using the same data from the last day as a typical pattern
-                            for (let day = 0; day < 7; day++) {
-                                for (let hour = 0; hour < 24; hour++) {
-                                    heatmap.push({
-                                        day: day,
-                                        hour: hour,
-                                        engagement: hourlyValues[hour] || 0 // Use the value for the specific hour, or 0 if not present
-                                    });
-                                }
-                            }
-                            setHeatmapData(heatmap);
+                    // Process data for Posting Times Heatmap from actual post engagement
+                    const heatmapGrid: number[][] = Array(7).fill(0).map(() => Array(24).fill(0));
+                    const postCountGrid: number[][] = Array(7).fill(0).map(() => Array(24).fill(0));
+    
+                    finalPublished.forEach(post => {
+                        const postDate = new Date(post.publishedAt);
+                        const dayOfWeek = postDate.getDay(); // Sunday = 0, Monday = 1, etc.
+                        const hourOfDay = postDate.getHours();
+                        const postEngagement = (post.analytics.likes || 0) + (post.analytics.comments || 0) + (post.analytics.shares || 0);
+    
+                        if (dayOfWeek >= 0 && hourOfDay >= 0) {
+                            heatmapGrid[dayOfWeek][hourOfDay] += postEngagement;
+                            postCountGrid[dayOfWeek][hourOfDay] += 1;
                         }
-                    } catch (error) {
-                        console.warn('Failed to fetch page_fans_online_per_day insight:', error);
-                        setHeatmapData([]); // Clear on failure
+                    });
+    
+                    const heatmap: HeatmapDataPoint[] = [];
+                    for (let day = 0; day < 7; day++) {
+                        for (let hour = 0; hour < 24; hour++) {
+                            if (postCountGrid[day][hour] > 0) {
+                                heatmap.push({
+                                    day: day,
+                                    hour: hour,
+                                    engagement: heatmapGrid[day][hour] / postCountGrid[day][hour] // Average engagement
+                                });
+                            }
+                        }
                     }
+                    setHeatmapData(heatmap);
+    
                 } catch (error) {
                     if (error instanceof FacebookTokenError) throw error;
                     console.error('Facebook Insights Fetch Error:', error);
