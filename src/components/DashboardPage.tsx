@@ -433,43 +433,44 @@ await getTargetDataRef().set(cleanedDataToSave, { merge: true });
                  });
     
     
-            // STEP 4: Fetch NEW Inbox Items (Messages and Comments)
-            showNotification('partial', `(4/6) جلب صندوق الوارد الجديد...`);
-            const newInboxItems: InboxItem[] = [];
+                // Fetch Recent Inbox Items (Messages and Comments)
+                showNotification('partial', `(4/6) جلب صندوق الوارد الأحدث...`);
+                const newInboxItems: InboxItem[] = [];
 
-            // Fetch NEW Conversations (Use fetchWithPagination and sinceParam)
-            try {
-                const convoFields = "participants,messages.limit(1){from,to,message,created_time}";
-                const conversationsData = await fetchWithPagination(`/${target.id}/conversations?fields=${convoFields}${timePeriodParams}`, target.access_token);
-                if (conversationsData) { // fetchWithPagination returns an array
-                    conversationsData.forEach((convo: any) => {
-                        const lastMsg = convo.messages?.data?.[0];
-                        if (lastMsg && lastMsg.from.id !== target.id) {
-                            const participant = convo.participants.data.find((p: any) => p.id !== target.id);
-                            if (participant) {
-                                newInboxItems.push({
-                                    id: lastMsg.id || null,
-                                    type: 'message',
-                                    from: participant || null,
-                                    text: lastMsg.message || '',
-                                    timestamp: lastMsg.created_time || null,
-                                    status: 'new',
-                                    conversationId: convo.id || null,
-                                    authorName: participant.name || null,
-                                    authorPictureUrl: `https://graph.facebook.com/${participant.id}/picture?type=normal` || null,
-                                    link: null, // Set to null for messages
-                                    post: null, // Set to null for messages
-                                    messages: [], // Set to empty array for the top-level item
-                                    isReplied: false, // Ensure this is included
-                                } as InboxItem);
+                // Fetch Recent Conversations (Use limit)
+                try {
+                    const convoFields = "participants,messages.limit(1){from,to,message,created_time}";
+                    // Fetch the most recent 100 conversations (adjust limit as needed)
+                    const conversationsData = await fetchWithPagination(`/${target.id}/conversations?fields=${convoFields}&limit=200`, target.access_token);
+                    if (conversationsData) { // fetchWithPagination returns an array
+                        conversationsData.forEach((convo: any) => {
+                            const lastMsg = convo.messages?.data?.[0];
+                            if (lastMsg && lastMsg.from.id !== target.id) {
+                                const participant = convo.participants.data.find((p: any) => p.id !== target.id);
+                                if (participant) {
+                                    newInboxItems.push({
+                                        id: lastMsg.id || null,
+                                        type: 'message',
+                                        from: participant || null,
+                                        text: lastMsg.message || '',
+                                        timestamp: lastMsg.created_time || null,
+                                        status: 'new', // Assuming newly fetched are 'new', status will be updated from Firestore later
+                                        conversationId: convo.id || null,
+                                        authorName: participant.name || null,
+                                        authorPictureUrl: `https://graph.facebook.com/${participant.id}/picture?type=normal` || null,
+                                        link: null,
+                                        post: null,
+                                        messages: [],
+                                        isReplied: false, // This will be updated from Firestore
+                                    } as InboxItem);
+                                }
                             }
-                        }
-                    });
+                        });
+                    }
+                } catch (error) {
+                    if (error instanceof FacebookTokenError) throw error;
+                    console.warn('Failed to fetch recent conversations:', error);
                 }
-            } catch (error) {
-                if (error instanceof FacebookTokenError) throw error;
-                console.warn('Failed to fetch new conversations:', error);
-            }
 
                 // Fetch NEW Comments from NEW published posts
                 if (fetchedPublishedContent.length > 0) {
