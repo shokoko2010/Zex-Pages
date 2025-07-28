@@ -470,23 +470,21 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                     setContentTypePerformanceData(contentTypeChartData);
 
                     try {
-                        const onlineFansData = await makeRequestWithRetry(`/${target.id}/insights?metric=page_fans_online_per_day&period=days_28`, target.access_token);
+                        // This metric requires period=day
+                        const onlineFansData = await makeRequestWithRetry(`/${target.id}/insights?metric=page_fans_online_per_day&period=day`, target.access_token);
                         if (onlineFansData.data && onlineFansData.data.length > 0 && onlineFansData.data[0].values.length > 0) {
-                            const dailyValues = onlineFansData.data[0].values;
+                            // The API returns one value for 'day' period, which is an object of hours.
+                            const latestDayData = onlineFansData.data[0].values[0];
                             const heatmap: HeatmapDataPoint[] = [];
-                            const hourlyAverages = new Array(24).fill(0);
-                            dailyValues.forEach((dayData: any) => {
-                                Object.entries(dayData.value).forEach(([hour, value]) => {
-                                    hourlyAverages[parseInt(hour)] += value as number;
-                                });
-                            });
-
+                            const hourlyValues: { [hour: number]: number } = latestDayData.value || {};
+    
+                            // Populate heatmap for all 7 days using the same data from the last day as a typical pattern
                             for (let day = 0; day < 7; day++) {
                                 for (let hour = 0; hour < 24; hour++) {
                                     heatmap.push({
                                         day: day,
                                         hour: hour,
-                                        engagement: hourlyAverages[hour] / dailyValues.length
+                                        engagement: hourlyValues[hour] || 0 // Use the value for the specific hour, or 0 if not present
                                     });
                                 }
                             }
@@ -494,7 +492,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                         }
                     } catch (error) {
                         console.warn('Failed to fetch page_fans_online_per_day insight:', error);
-                        setHeatmapData([]);
+                        setHeatmapData([]); // Clear on failure
                     }
                 } catch (error) {
                     if (error instanceof FacebookTokenError) throw error;
