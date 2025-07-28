@@ -333,10 +333,7 @@ await getTargetDataRef().set(cleanedDataToSave, { merge: true });
             showNotification('partial', `جاري مزامنة بيانات ${target.name}...`);
     
             const sinceParam = lastSyncTime ? `&since=${Math.floor(new Date(lastSyncTime).getTime() / 1000)}` : '';
-    
-            let fetchedScheduledPosts: ScheduledPost[] = [];
-            let fetchedPublishedContent: any[] = [];
-            let fetchedInboxItems: InboxItem[] = [];
+            console.log("Generated sinceParam:", sinceParam); // Add this log here
     
             try {
                 const getImageUrlFromPost = (post: any): string | undefined => {
