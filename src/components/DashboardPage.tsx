@@ -17,7 +17,6 @@ import type { User } from '../services/firebaseService';
 import { generateContentPlan, generatePerformanceSummary, generatePostInsights, generateBestPostingTimesHeatmap, generateContentTypePerformance, generatePostSuggestion, generateImageFromPrompt, generateHashtags, generateDescriptionForImage, enhanceProfileFromFacebookData } from '../services/geminiService';
 import { generateImageWithStabilityAI } from '../services/stabilityai';
 
-
 // Icons
 import PencilSquareIcon from './icons/PencilSquareIcon';
 import CalendarIcon from './icons/CalendarIcon';
@@ -78,7 +77,6 @@ const NavItem: React.FC<{
 );
 
 const initialPageProfile: PageProfile = { description: '', services: '', contactInfo: '', website: '', links: [], currentOffers: '', address: '', country: '', language: 'ar', contentGenerationLanguages: ['ar'], ownerUid: '', team: [], members: [] };
-
 
 const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, managedTarget, allTargets, onChangePage, onLogout, aiClient, stabilityApiKey, onSettingsClick, fetchWithPagination, theme, onToggleTheme, strategyHistory, onDeleteStrategy, onSavePlan, onTokenError }) => {
     const [view, setView] = useState<DashboardView>('composer');
@@ -171,7 +169,6 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
       setImagePreview(null);
     }, [selectedImage]);
 
-
     const getTargetDataRef = useCallback(() => db.collection('targets_data').doc(managedTarget.id), [managedTarget]);
     const saveDataToFirestore = useCallback(async (dataToSave: { [key: string]: any }) => {
       try { await getTargetDataRef().set(dataToSave, { merge: true }); }
@@ -239,368 +236,405 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
       }
   };
   
+        const syncFacebookData = useCallback(async (target: Target) => {
+            if (!target.access_token) {
+                showNotification('error', 'رمز الوصول للصفحة مفقود.');
+                return;
+            }
+            if (syncingTargetId) {
+                showNotification('error', 'مزامنة أخرى قيد التنفيذ، يرجى الانتظار.');
+                return;
+            }
+            setSyncingTargetId(target.id);
+            setPublishedPosts([]);
+            setScheduledPosts([]);
+            setInboxItems([]);
+            setPerformanceSummaryData(null);
+            setPerformanceSummaryText('');
+            setAudienceGrowthData([]);
+            setHeatmapData([]);
+            setContentTypePerformanceData([]);
 
-  const syncFacebookData = useCallback(async (target: Target) => {
-    if (!target.access_token) {
-        showNotification('error', 'رمز الوصول للصفحة مفقود.');
-        return;
-    }
-    if (syncingTargetId) {
-        showNotification('error', 'مزامنة أخرى قيد التنفيذ، يرجى الانتظار.');
-        return;
-    }
-    setSyncingTargetId(target.id);
-    setPublishedPosts([]);
-    setScheduledPosts([]);
-    setInboxItems([]);
-    // Clear previous analytics data when syncing
-    setPerformanceSummaryData(null);
-    setPerformanceSummaryText('');
-    setAudienceGrowthData([]);
-    setHeatmapData([]);
-    setContentTypePerformanceData([]);
+            showNotification('partial', `جاري مزامنة بيانات ${target.name}...`);
 
-    showNotification('partial', `جاري مزامنة بيانات ${target.name}...`);
+            try {
+                const getImageUrlFromPost = (post: any): string | undefined => {
+                    return post.attachments?.data?.[0]?.media?.image?.src;
+                };
 
-    try {
-        const getImageUrlFromPost = (post: any): string | undefined => {
-            return post.attachments?.data?.[0]?.media?.image?.src;
-        };
-
-        // STEP 1: Fetch Scheduled Posts (keep as is)
-        showNotification('partial', `(1/6) جلب المنشورات المجدولة...`); // Updated step count
-        let finalScheduled: ScheduledPost[] = [];
-        try {
-            const scheduledPostFields = "id,message,scheduled_publish_time,attachments{media}";
-            const scheduledData = await makeRequestWithRetry(`/${target.id}/scheduled_posts?fields=${scheduledPostFields}&limit=50`, target.access_token);
-            finalScheduled = (scheduledData.data || []).map((post: any) => ({
-                id: post.id, text: post.message || '', scheduledAt: new Date(post.scheduled_publish_time * 1000),
-                imageUrl: getImageUrlFromPost(post), hasImage: !!getImageUrlFromPost(post), targetId: target.id,
-                targetInfo: { name: target.name, avatarUrl: target.picture.data.url, type: target.type },
-                status: 'scheduled', isReminder: false, type: 'post'
-            } as ScheduledPost));
-            setScheduledPosts(finalScheduled);
-        } catch (error) {
-            if (error instanceof FacebookTokenError) throw error;
-            console.warn('Failed to fetch scheduled posts:', error);
-        }
-
-        // STEP 2: Fetch Published Posts (keep as is)
-        showNotification('partial', `(2/6) جلب المنشورات المنشورة...`); // Updated step count
-        let fbPublishedContent: any[] = [];
-        try {
-            const postContentFields = "id,message,created_time,permalink_url,attachments{media}";
-            const publishedData = await makeRequestWithRetry(`/${target.id}/published_posts?fields=${postContentFields}&limit=50`, target.access_token);
-            fbPublishedContent = publishedData.data || [];
-        } catch (error) {
-            if (error instanceof FacebookTokenError) throw error;
-            console.warn('Failed to fetch published posts:', error);
-        }
-
-        // STEP 3: Fetch Engagement Data for Published Posts (keep as is)
-        showNotification('partial', `(3/6) جلب التفاعلات للمنشورات...`); // Updated step count
-        const engagementMap = new Map<string, any>();
-        if (fbPublishedContent.length > 0) {
-            for (const post of fbPublishedContent) {
+                showNotification('partial', `(1/6) جلب المنشورات المجدولة...`);
+                let finalScheduled: ScheduledPost[] = [];
                 try {
-                    const engagement = await makeRequestWithRetry(`/${post.id}?fields=likes.summary(true),comments.summary(true),shares.summary(true)`, target.access_token);
-                    engagementMap.set(post.id, engagement);
+                    const scheduledPostFields = "id,message,scheduled_publish_time,attachments{media}";
+                    const scheduledData = await makeRequestWithRetry(`/${target.id}/scheduled_posts?fields=${scheduledPostFields}&limit=50`, target.access_token);
+                    finalScheduled = (scheduledData.data || []).map((post: any) => ({
+                        id: post.id, text: post.message || '', scheduledAt: new Date(post.scheduled_publish_time * 1000),
+                        imageUrl: getImageUrlFromPost(post), hasImage: !!getImageUrlFromPost(post), targetId: target.id,
+                        targetInfo: { name: target.name, avatarUrl: target.picture.data.url, type: target.type },
+                        status: 'scheduled', isReminder: false, type: 'post'
+                    } as ScheduledPost));
+                    setScheduledPosts(finalScheduled);
                 } catch (error) {
                     if (error instanceof FacebookTokenError) throw error;
-                    console.warn(`Failed to fetch engagement for post ${post.id}:`, error);
+                    console.warn('Failed to fetch scheduled posts:', error);
                 }
-            }
-        }
-        const finalPublished = fbPublishedContent.map((post: any) => {
-            const engagement = engagementMap.get(post.id) || {};
-            return {
-                id: post.id, text: post.message || '', publishedAt: new Date(post.created_time),
-                imagePreview: getImageUrlFromPost(post),
-                analytics: {
-                    likes: engagement.likes?.summary?.total_count || 0,
-                    comments: engagement.comments?.summary?.total_count || 0,
-                    shares: engagement.shares?.summary?.total_count || 0,
-                }, pageId: target.id, pageName: target.name, pageAvatarUrl: target.picture.data.url,
-            } as PublishedPost;
-        });
-        setPublishedPosts(finalPublished);
 
-        // STEP 4: Fetch Inbox Items (Messages and Comments) (keep as is, with increased limits)
-        showNotification('partial', `(4/6) جلب صندوق الوارد...`); // Updated step count
-        const newInbox: InboxItem[] = [];
-        // Fetch Conversations (Private Messages)
-        try {
-            const convoFields = "participants,messages.limit(1){from,to,message,created_time}";
-            const conversationsData = await makeRequestWithRetry(`/${target.id}/conversations?fields=${convoFields}&limit=50`, target.access_token);
-            if (conversationsData.data) {
-                conversationsData.data.forEach((convo: any) => {
-                    const lastMsg = convo.messages?.data?.[0];
-                    if (lastMsg && lastMsg.from.id !== target.id) {
-                        const participant = convo.participants.data.find((p: any) => p.id !== target.id);
-                        if (participant) {
-                            newInbox.push({
-                                id: lastMsg.id, type: 'message', from: participant, text: lastMsg.message,
-                                timestamp: lastMsg.created_time, status: 'new', conversationId: convo.id,
-                                authorName: participant.name, authorPictureUrl: `https://graph.facebook.com/${participant.id}/picture?type=normal`
-                            } as InboxItem);
+                showNotification('partial', `(2/6) جلب المنشورات المنشورة...`);
+                let fbPublishedContent: any[] = [];
+                try {
+                    const postContentFields = "id,message,created_time,permalink_url,attachments{media}";
+                    const publishedData = await makeRequestWithRetry(`/${target.id}/published_posts?fields=${postContentFields}&limit=50`, target.access_token);
+                    fbPublishedContent = publishedData.data || [];
+                } catch (error) {
+                    if (error instanceof FacebookTokenError) throw error;
+                    console.warn('Failed to fetch published posts:', error);
+                }
+
+                showNotification('partial', `(3/6) جلب التفاعلات للمنشورات...`);
+                const engagementMap = new Map<string, any>();
+                if (fbPublishedContent.length > 0) {
+                    for (const post of fbPublishedContent) {
+                        try {
+                            const engagement = await makeRequestWithRetry(`/${post.id}?fields=likes.summary(true),comments.summary(true),shares.summary(true)`, target.access_token);
+                            engagementMap.set(post.id, engagement);
+                        } catch (error) {
+                            if (error instanceof FacebookTokenError) throw error;
+                            console.warn(`Failed to fetch engagement for post ${post.id}:`, error);
                         }
                     }
+                }
+                const finalPublished = fbPublishedContent.map((post: any) => {
+                    const engagement = engagementMap.get(post.id) || {};
+                    return {
+                        id: post.id, text: post.message || '', publishedAt: new Date(post.created_time),
+                        imagePreview: getImageUrlFromPost(post),
+                        analytics: {
+                            likes: engagement.likes?.summary?.total_count || 0,
+                            comments: engagement.comments?.summary?.total_count || 0,
+                            shares: engagement.shares?.summary?.total_count || 0,
+                        }, pageId: target.id, pageName: target.name, pageAvatarUrl: target.picture.data.url,
+                    } as PublishedPost;
                 });
-            }
-        } catch (error) {
-            if (error instanceof FacebookTokenError) throw error;
-            console.warn('Failed to fetch conversations:', error);
-        }
-        // Fetch Comments from recent published posts
-        if (fbPublishedContent.length > 0) {
-            for (const post of fbPublishedContent) {
+                setPublishedPosts(finalPublished);
+
+                showNotification('partial', `(4/6) جلب صندوق الوارد...`);
+                const newInbox: InboxItem[] = [];
                 try {
-                    const commentsData = await makeRequestWithRetry(`/${post.id}/comments?limit=50&fields=from{name,picture},message,created_time,id`, target.access_token);
-                    if (commentsData.data) {
-                        commentsData.data.forEach((comment: any) => {
-                            if (comment.from.id !== target.id) {
-                                newInbox.push({
-                                    id: comment.id, type: 'comment', from: comment.from, text: comment.message,
-                                    timestamp: comment.created_time, status: 'new', link: post.permalink_url,
-                                    post: { message: post.message, picture: getImageUrlFromPost(post) },
-                                    authorName: comment.from.name, authorPictureUrl: comment.from.picture?.data?.url
-                                } as InboxItem);
+                    const convoFields = "participants,messages.limit(1){from,to,message,created_time}";
+                    const conversationsData = await makeRequestWithRetry(`/${target.id}/conversations?fields=${convoFields}&limit=50`, target.access_token);
+                    if (conversationsData.data) {
+                        conversationsData.data.forEach((convo: any) => {
+                            const lastMsg = convo.messages?.data?.[0];
+                            if (lastMsg && lastMsg.from.id !== target.id) {
+                                const participant = convo.participants.data.find((p: any) => p.id !== target.id);
+                                if (participant) {
+                                    newInbox.push({
+                                        id: lastMsg.id, type: 'message', from: participant, text: lastMsg.message,
+                                        timestamp: lastMsg.created_time, status: 'new', conversationId: convo.id,
+                                        authorName: participant.name, authorPictureUrl: `https://graph.facebook.com/${participant.id}/picture?type=normal`
+                                    } as InboxItem);
+                                }
                             }
                         });
                     }
                 } catch (error) {
-                   if (error instanceof FacebookTokenError) throw error;
-                   console.warn(`Failed to fetch comments for post ${post.id}:`, error);
+                    if (error instanceof FacebookTokenError) throw error;
+                    console.warn('Failed to fetch conversations:', error);
                 }
+                if (fbPublishedContent.length > 0) {
+                    for (const post of fbPublishedContent) {
+                        try {
+                            const commentsData = await makeRequestWithRetry(`/${post.id}/comments?limit=50&fields=from{name,picture},message,created_time,id`, target.access_token);
+                            if (commentsData.data) {
+                                commentsData.data.forEach((comment: any) => {
+                                    if (comment.from.id !== target.id) {
+                                        newInbox.push({
+                                            id: comment.id, type: 'comment', from: comment.from, text: comment.message,
+                                            timestamp: comment.created_time, status: 'new', link: post.permalink_url,
+                                            post: { message: post.message, picture: getImageUrlFromPost(post) },
+                                            authorName: comment.from.name, authorPictureUrl: comment.from.picture?.data?.url
+                                        } as InboxItem);
+                                    }
+                                });
+                            }
+                        } catch (error) {
+                        if (error instanceof FacebookTokenError) throw error;
+                        console.warn(`Failed to fetch comments for post ${post.id}:`, error);
+                        }
+                    }
+                }
+                setInboxItems(newInbox.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+
+                showNotification('partial', `(5/6) جلب تحليلات الصفحة...`);
+                try {
+                    let processedPerformanceSummary: PerformanceSummaryData = {
+                        totalPosts: finalPublished.length,
+                        averageEngagement: 0,
+                        growthRate: 0,
+                        totalReach: 0,
+                        totalEngagement: 0,
+                        engagementRate: 0,
+                        topPosts: finalPublished.sort((a, b) => (b.analytics.likes || 0) + (b.analytics.comments || 0) + (b.analytics.shares || 0) - ((a.analytics.likes || 0) + (a.analytics.comments || 0) + (a.analytics.shares || 0))).slice(0, 3),
+                        postCount: finalPublished.length,
+                    };
+                    let totalEngagement = 0;
+                    let totalReach = 0;
+                    let fanCountStart = 0;
+                    let fanCountEnd = 0;
+
+                    const period = analyticsPeriod === '7d' ? 'week' : 'days_28';
+
+                    try {
+                        const audienceGrowthDataResponse = await makeRequestWithRetry(`/${target.id}/insights?metric=page_fans&period=${period}`, target.access_token);
+                        if (audienceGrowthDataResponse.data && audienceGrowthDataResponse.data.length > 0) {
+                            const fanMetric = audienceGrowthDataResponse.data[0];
+                            if (fanMetric.values && fanMetric.values.length > 1) {
+                                const processedData: AudienceGrowthData[] = fanMetric.values.map((value: any) => ({
+                                    date: value.end_time,
+                                    fanCount: value.value
+                                }));
+                                setAudienceGrowthData(processedData);
+                                fanCountStart = fanMetric.values[0].value;
+                                fanCountEnd = fanMetric.values[fanMetric.values.length - 1].value;
+                            } else if (fanMetric.values && fanMetric.values.length === 1) {
+                                const processedData: AudienceGrowthData[] = fanMetric.values.map((value: any) => ({
+                                    date: value.end_time,
+                                    fanCount: value.value
+                                }));
+                                setAudienceGrowthData(processedData);
+                                fanCountEnd = fanMetric.values[0].value;
+                                fanCountStart = fanCountEnd;
+                            }
+                        }
+                    } catch (error) {
+                        if (error instanceof FacebookTokenError) throw error;
+                        console.warn('Failed to fetch page_fans insight:', error);
+                        setAudienceGrowthData([]);
+                    }
+
+                    try {
+                        const postEngagementsData = await makeRequestWithRetry(`/${target.id}/insights?metric=page_post_engagements&period=${period}`, target.access_token);
+                        if (postEngagementsData.data && postEngagementsData.data.length > 0 && postEngagementsData.data[0].values.length > 0) {
+                            totalEngagement = postEngagementsData.data[0].values[postEngagementsData.data[0].values.length - 1].value;
+                        }
+                    } catch (error) {
+                        if (error instanceof FacebookTokenError) throw error;
+                        console.warn('Failed to fetch page_post_engagements insight:', error);
+                    }
+
+                    try {
+                        const impressionsData = await makeRequestWithRetry(`/${target.id}/insights?metric=page_impressions_unique&period=${period}`, target.access_token);
+                        if (impressionsData.data && impressionsData.data.length > 0 && impressionsData.data[0].values.length > 0) {
+                            totalReach = impressionsData.data[0].values[impressionsData.data[0].values.length - 1].value;
+                        }
+                    } catch (error) {
+                        if (error instanceof FacebookTokenError) throw error;
+                        console.warn('Failed to fetch page_impressions_unique insight:', error);
+                    }
+
+                    processedPerformanceSummary.totalEngagement = totalEngagement;
+                    processedPerformanceSummary.totalReach = totalReach;
+                    if (totalReach > 0) {
+                        processedPerformanceSummary.engagementRate = (totalEngagement / totalReach) * 100;
+                    }
+                    if (fanCountStart > 0) {
+                        processedPerformanceSummary.growthRate = ((fanCountEnd - fanCountStart) / fanCountStart) * 100;
+                    } else if (fanCountEnd > 0) {
+                        processedPerformanceSummary.growthRate = 100;
+                    } else {
+                        processedPerformanceSummary.growthRate = 0;
+                    }
+                    setPerformanceSummaryData(processedPerformanceSummary);
+
+                    const photoPosts = finalPublished.filter(p => p.imagePreview);
+                    const textPosts = finalPublished.filter(p => !p.imagePreview);
+
+                    const totalPhotoEngagement = photoPosts.reduce((sum, p) => sum + (p.analytics.likes || 0) + (p.analytics.comments || 0) + (p.analytics.shares || 0), 0);
+                    const totalTextEngagement = textPosts.reduce((sum, p) => sum + (p.analytics.likes || 0) + (p.analytics.comments || 0) + (p.analytics.shares || 0), 0);
+                    
+                    const contentTypeChartData: ContentTypePerformanceData[] = [];
+                    if (photoPosts.length > 0) {
+                        contentTypeChartData.push({
+                            type: 'منشورات الصور',
+                            count: photoPosts.length,
+                            avgEngagement: totalPhotoEngagement / photoPosts.length
+                        });
+                    }
+                    if (textPosts.length > 0) {
+                        contentTypeChartData.push({
+                            type: 'منشورات نصية',
+                            count: textPosts.length,
+                            avgEngagement: totalTextEngagement / textPosts.length
+                        });
+                    }
+                    setContentTypePerformanceData(contentTypeChartData);
+
+                    try {
+                        const onlineFansData = await makeRequestWithRetry(`/${target.id}/insights?metric=page_fans_online_per_day&period=days_28`, target.access_token);
+                        if (onlineFansData.data && onlineFansData.data.length > 0 && onlineFansData.data[0].values.length > 0) {
+                            const dailyValues = onlineFansData.data[0].values;
+                            const heatmap: HeatmapDataPoint[] = [];
+                            const hourlyAverages = new Array(24).fill(0);
+                            dailyValues.forEach((dayData: any) => {
+                                Object.entries(dayData.value).forEach(([hour, value]) => {
+                                    hourlyAverages[parseInt(hour)] += value as number;
+                                });
+                            });
+
+                            for (let day = 0; day < 7; day++) {
+                                for (let hour = 0; hour < 24; hour++) {
+                                    heatmap.push({
+                                        day: day,
+                                        hour: hour,
+                                        engagement: hourlyAverages[hour] / dailyValues.length
+                                    });
+                                }
+                            }
+                            setHeatmapData(heatmap);
+                        }
+                    } catch (error) {
+                        console.warn('Failed to fetch page_fans_online_per_day insight:', error);
+                        setHeatmapData([]);
+                    }
+                } catch (error) {
+                    if (error instanceof FacebookTokenError) throw error;
+                    console.error('Facebook Insights Fetch Error:', error);
+                    showNotification('error', `فشل جلب تحليلات الصفحة: ${error instanceof Error ? error.message : 'خطأ غير معروف'}`);
+                    setPerformanceSummaryData(null);
+                    setPerformanceSummaryText('');
+                    setAudienceGrowthData([]);
+                    setHeatmapData([]);
+                    setContentTypePerformanceData([]);
+                }
+
+                showNotification('partial', `(6/6) حفظ البيانات...`);
+                await saveDataToFirestore({
+                    scheduledPosts: finalScheduled.map(p => ({ ...p, scheduledAt: p.scheduledAt.toISOString() })),
+                    publishedPosts: finalPublished.map(p => ({ ...p, publishedAt: p.publishedAt.toISOString() })),
+                    inboxItems: newInbox,
+                    performanceSummaryData: performanceSummaryData,
+                    audienceGrowthData: audienceGrowthData,
+                    heatmapData: heatmapData,
+                    contentTypeData: contentTypeData,
+                    lastSync: new Date().toISOString()
+                });
+                showNotification('success', 'تمت المزامنة بنجاح!');
+
+            } catch (error: unknown) {
+                console.error("Facebook Sync Error details:", error);
+                if (error instanceof FacebookTokenError) {
+                    onTokenError();
+                } else {
+                    const errorMessage = error instanceof Error ? error.message : 'حدث خطأ غير معروف';
+                    showNotification('error', `فشل المزامنة: ${errorMessage}`);
+                }
+            } finally {
+                setSyncingTargetId(null);
+                setIsInboxLoading(false);
+                setPublishedPostsLoading(false);
             }
-        }
-        setInboxItems(newInbox.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+        }, [managedTarget, saveDataToFirestore, showNotification, syncingTargetId, onTokenError, makeRequestWithRetry, analyticsPeriod]);
 
+        useEffect(() => {
+            const loadDataAndSync = async () => {
+                const dataRef = getTargetDataRef();
+                setPublishedPostsLoading(true); setIsInboxLoading(true);
+                const docSnap = await dataRef.get();
+                let loadedProfile: PageProfile = initialPageProfile;
 
-        // STEP 5: Fetch Page Insights Data for Analytics (NEW - Modified)
-showNotification('partial', `(5/6) جلب تحليلات الصفحة...`); // Updated step count
-try {
-    const processedAudienceGrowth: AudienceGrowthData[] = [];
-    let processedPerformanceSummary: PerformanceSummaryData = {
-         totalPosts: finalPublished.length,
-         averageEngagement: 0,
-         growthRate: 0,
-         totalReach: 0,
-         totalEngagement: 0,
-         engagementRate: 0,
-         topPosts: finalPublished.sort((a, b) => (b.analytics.likes || 0) + (b.analytics.comments || 0) + (b.analytics.shares || 0) - ((a.analytics.likes || 0) + (a.analytics.comments || 0) + (a.analytics.shares || 0))).slice(0, 3),
-         postCount: finalPublished.length,
-    };
-    let totalEngagement = 0;
-    let totalReach = 0;
-    let fanCountEnd = 0;
+                if (docSnap.exists) {
+                    const data = docSnap.data()!;
+                    loadedProfile = { ...initialPageProfile, ...(data.pageProfile || {}) };
+                    setDrafts(data.drafts || []);
+                    setScheduledPosts(data.scheduledPosts?.map((p: any) => ({...p, scheduledAt: new Date(p.scheduledAt)})) || []);
+                    setPublishedPosts(data.publishedPosts?.map((p:any) => ({...p, publishedAt: new Date(p.publishedAt)})) || []);
+                    setInboxItems(data.inboxItems?.map((item: any) => ({...item, status: item.status as 'new' | 'replied' | 'done',})) || []);
+                    setPerformanceSummaryData(data.performanceSummaryData || null);
+                    setPerformanceSummaryText(data.performanceSummaryText || '');
+                    setAudienceGrowthData(data.audienceGrowthData || []);
+                    setHeatmapData(data.heatmapData || []);
+                    setContentTypePerformanceData(data.contentTypeData || []); 
+                }
+                if (isAdmin || loadedProfile.ownerUid === user.uid) {
+                    setCurrentUserRole('owner');
+                } else {
+                    setCurrentUserRole(loadedProfile.team?.find(m => m.uid === user.uid)?.role || 'viewer');
+                }
+                setPageProfile(loadedProfile);
+                await syncFacebookData(managedTarget);
+            };
+            loadDataAndSync();
+        }, [managedTarget.id, user.uid, isAdmin]);
 
-    const period = analyticsPeriod === '7d' ? 'week' : 'days_28';
-
-    // Fetch Audience Growth (page_fans) - Often works with 'day', 'week', or 'days_28'
-    try {
-        const audienceGrowthDataResponse = await makeRequestWithRetry(`/${target.id}/insights?metric=page_fans&period=${period}`, target.access_token);
-        if (audienceGrowthDataResponse.data && audienceGrowthDataResponse.data.length > 0) {
-             // Process audience growth data - likely time series
-             const fanMetric = audienceGrowthDataResponse.data[0];
-             if (fanMetric.values && fanMetric.values.length > 0) {
-                  // Assuming values is an array of data points over time
-                  const processedData = fanMetric.values.map((value: any) => ({
-                       date: value.end_time, // Use end_time for date
-                       fanCount: value.value // Use value for fan count
-                  }));
-                  setAudienceGrowthData(processedData);
-                  // Get the latest fan count
-                  fanCountEnd = fanMetric.values[fanMetric.values.length - 1].value;
-             }
-        }
-    } catch (error) {
-        if (error instanceof FacebookTokenError) throw error;
-        console.warn('Failed to fetch page_fans insight:', error);
-    }
-
-    // Fetch Engagement and Reach Metrics (Simplified to most common metrics for testing)
-    try {
-        const postEngagementsData = await makeRequestWithRetry(`/${target.id}/insights?metric=page_post_engagements&period=${period}`, target.access_token);
-        if (postEngagementsData.data && postEngagementsData.data.length > 0 && postEngagementsData.data[0].values.length > 0) {
-            totalEngagement = postEngagementsData.data[0].values[postEngagementsData.data[0].values.length - 1].value;
-        }
-    } catch (error) {
-        if (error instanceof FacebookTokenError) throw error;
-        console.warn('Failed to fetch page_post_engagements insight:', error);
-    }
-
-    try {
-        const impressionsData = await makeRequestWithRetry(`/${target.id}/insights?metric=page_impressions_unique&period=${period}`, target.access_token);
-        if (impressionsData.data && impressionsData.data.length > 0 && impressionsData.data[0].values.length > 0) {
-            totalReach = impressionsData.data[0].values[impressionsData.data[0].values.length - 1].value;
-        }
-    } catch (error) {
-        if (error instanceof FacebookTokenError) throw error;
-        console.warn('Failed to fetch page_impressions_unique insight:', error);
-    }
-
-
-     // Update performance summary with fetched data
-     processedPerformanceSummary.totalEngagement = totalEngagement;
-     processedPerformanceSummary.totalReach = totalReach;
-     if (totalReach > 0) {
-         processedPerformanceSummary.engagementRate = (totalEngagement / totalReach) * 100;
-     }
-    // Growth rate calculation still needs historical data fetch and comparison
-
-    setPerformanceSummaryData(processedPerformanceSummary);
-
-    // Placeholder for heatmap and content type data fetching and processing
-    // These often require different metrics and periods/breakdowns
-    setHeatmapData([]); // Placeholder
-    setContentTypePerformanceData([]); // Placeholder
-
-
-} catch (error) {
-    if (error instanceof FacebookTokenError) throw error;
-    console.error('Facebook Insights Fetch Error:', error); // Log the main error
-    showNotification('error', `فشل جلب تحليلات الصفحة: ${error instanceof Error ? error.message : 'خطأ غير معروف'}`);
-    // Clear analytics data if fetching fails
-    setPerformanceSummaryData(null);
-    setPerformanceSummaryText('');
-    setAudienceGrowthData([]);
-    setHeatmapData([]);
-    setContentTypePerformanceData([]);
-}
-
-
-// STEP 6: Save all data to Firestore (updated to include analytics data)
-showNotification('partial', `(6/6) حفظ البيانات...`);
-await saveDataToFirestore({
-    scheduledPosts: finalScheduled.map(p => ({ ...p, scheduledAt: p.scheduledAt.toISOString() })),
-    publishedPosts: finalPublished.map(p => ({ ...p, publishedAt: p.publishedAt.toISOString() })),
-    inboxItems: newInbox,
-    performanceSummaryData: performanceSummaryData,
-    audienceGrowthData: audienceGrowthData,
-    heatmapData: heatmapData,
-    contentTypeData: contentTypeData,
-    lastSync: new Date().toISOString()
-});
-showNotification('success', 'تمت المزامنة بنجاح!');
-
-} catch (error: unknown) {
-console.error("Facebook Sync Error details:", error);
-if (error instanceof FacebookTokenError) {
-    onTokenError();
-} else {
-    const errorMessage = error instanceof Error ? error.message : 'حدث خطأ غير معروف';
-    showNotification('error', `فشل المزامنة: ${errorMessage}`);
-}
-} finally {
-setSyncingTargetId(null);
-setIsInboxLoading(false);
-setPublishedPostsLoading(false);
-}
-}, [managedTarget, saveDataToFirestore, showNotification, syncingTargetId, onTokenError, makeRequestWithRetry, analyticsPeriod]);
-
-    useEffect(() => {
-        const loadDataAndSync = async () => {
-            const dataRef = getTargetDataRef();
-            setPublishedPostsLoading(true); setIsInboxLoading(true);
-            const docSnap = await dataRef.get();
-            let loadedProfile: PageProfile = initialPageProfile;
-
-            if (docSnap.exists) {
-                const data = docSnap.data()!;
-                loadedProfile = { ...initialPageProfile, ...(data.pageProfile || {}) };
-                setDrafts(data.drafts || []);
-                setScheduledPosts(data.scheduledPosts?.map((p: any) => ({...p, scheduledAt: new Date(p.scheduledAt)})) || []);
-                setPublishedPosts(data.publishedPosts?.map((p:any) => ({...p, publishedAt: new Date(p.publishedAt)})) || []);
-                setInboxItems(data.inboxItems?.map((item: any) => ({...item, status: item.status as 'new' | 'replied' | 'done',})) || []);
-                setPerformanceSummaryData(data.performanceSummaryData || null);
-                setPerformanceSummaryText(data.performanceSummaryText || '');
-                setAudienceGrowthData(data.audienceGrowthData || []);
-                setHeatmapData(data.heatmapData || []);
-                setContentTypePerformanceData(data.contentTypeData || []); 
+        const handlePublish = async (postType: PostType, postOptions: { [key: string]: any }) => {
+            setComposerError('');
+            if (!managedTarget.access_token) {
+                setComposerError('رمز الوصول للصفحة غير صالح. حاول إعادة المزامنة أو المصادقة.');
+                showNotification('error', 'رمز الوصول للصفحة غير صالح.');
+                return;
             }
-            if (isAdmin || loadedProfile.ownerUid === user.uid) {
-                setCurrentUserRole('owner');
-            } else {
-                setCurrentUserRole(loadedProfile.team?.find(m => m.uid === user.uid)?.role || 'viewer');
-            }
-            setPageProfile(loadedProfile);
-            await syncFacebookData(managedTarget);
-        };
-        loadDataAndSync();
-    }, [managedTarget.id, user.uid, isAdmin]);
-
-
-    const handlePublish = async (postType: PostType, postOptions: { [key: string]: any }) => {
-        setComposerError('');
-        if (!managedTarget.access_token) {
-            setComposerError('رمز الوصول للصفحة غير صالح. حاول إعادة المزامنة أو المصادقة.');
-            showNotification('error', 'رمز الوصول للصفحة غير صالح.');
-            return;
-        }
-    
-        // ملاحظة: أنواع المنشورات "story" و "reel" تتطلب منطقًا أكثر تعقيدًا
-        // وخاصةً لـ Instagram. هذا المثال يركز على "post" لفيسبوك.
-        if (postType === 'story' || postType === 'reel') {
-            showNotification('error', 'نشر القصص والريلز غير مدعوم حاليًا في هذا المثال.');
-            return;
-        }
         
-        setIsPublishing(true);
-    
-        try {
-            const targetId = managedTarget.id;
-            const accessToken = managedTarget.access_token;
-            const baseUrl = `https://graph.facebook.com/v19.0/${targetId}`;
-            let endpoint = '/feed';
-            const formData = new FormData();
-    
-            formData.append('access_token', accessToken);
-            if (postText) {
-                formData.append('message', postText);
+            // ملاحظة: أنواع المنشورات "story" و "reel" تتطلب منطقًا أكثر تعقيدًا
+            // وخاصةً لـ Instagram. هذا المثال يركز على "post" لفيسبوك.
+            if (postType === 'story' || postType === 'reel') {
+                showNotification('error', 'نشر القصص والريلز غير مدعوم حاليًا في هذا المثال.');
+                return;
             }
-    
-            if (isScheduled && scheduleDate) {
-                const scheduledTime = new Date(scheduleDate);
-                // فيسبوك يتوقع الوقت بتنسيق UNIX timestamp
-                formData.append('scheduled_publish_time', String(Math.floor(scheduledTime.getTime() / 1000)));
-                formData.append('published', 'false');
-            } else {
-                formData.append('published', 'true');
+            
+            setIsPublishing(true);
+        
+            try {
+                const targetId = managedTarget.id;
+                const accessToken = managedTarget.access_token;
+                const baseUrl = `https://graph.facebook.com/v19.0/${targetId}`;
+                let endpoint = '/feed';
+                const formData = new FormData();
+        
+                formData.append('access_token', accessToken);
+                if (postText) {
+                    formData.append('message', postText);
+                }
+        
+                if (isScheduled && scheduleDate) {
+                    const scheduledTime = new Date(scheduleDate);
+                    // فيسبوك يتوقع الوقت بتنسيق UNIX timestamp
+                    formData.append('scheduled_publish_time', String(Math.floor(scheduledTime.getTime() / 1000)));
+                    formData.append('published', 'false');
+                } else {
+                    formData.append('published', 'true');
+                }
+        
+                if (selectedImage) {
+                    endpoint = '/photos';
+                    formData.append('source', selectedImage);
+                } else if (!postText) {
+                    setComposerError('لا يمكن إنشاء منشور فارغ. أضف نصًا أو صورة.');
+                    setIsPublishing(false);
+                    return;
+                }
+        
+                const response = await fetch(`${baseUrl}${endpoint}`, {
+                    method: 'POST',
+                    body: formData,
+                });
+        
+                const responseData = await response.json();
+                if (!response.ok || responseData.error) {
+                    throw new Error(responseData.error?.message || 'فشل نشر المنشور.');
+                }
+        
+                showNotification('success', `تم ${isScheduled ? 'جدولة' : 'نشر'} المنشور بنجاح!`);
+                clearComposer();
+                // انتظر قليلاً قبل المزامنة للسماح لفيسبوك بمعالجة المنشور
+                setTimeout(() => syncFacebookData(managedTarget), 3000); 
+        
+            } catch (error: any) {
+                setComposerError(`فشل النشر: ${error.message}`);
+                showNotification('error', `فشل النشر: ${error.message}`);
+            } finally {
+                setIsPublishing(false);
             }
-    
-            if (selectedImage) {
-                endpoint = '/photos';
-                formData.append('source', selectedImage);
-            } else if (!postText) {
-                 setComposerError('لا يمكن إنشاء منشور فارغ. أضف نصًا أو صورة.');
-                 setIsPublishing(false);
-                 return;
-            }
-    
-            const response = await fetch(`${baseUrl}${endpoint}`, {
-                method: 'POST',
-                body: formData,
-            });
-    
-            const responseData = await response.json();
-            if (!response.ok || responseData.error) {
-                throw new Error(responseData.error?.message || 'فشل نشر المنشور.');
-            }
-    
-            showNotification('success', `تم ${isScheduled ? 'جدولة' : 'نشر'} المنشور بنجاح!`);
-            clearComposer();
-            // انتظر قليلاً قبل المزامنة للسماح لفيسبوك بمعالجة المنشور
-            setTimeout(() => syncFacebookData(managedTarget), 3000); 
-    
-        } catch (error: any) {
-            setComposerError(`فشل النشر: ${error.message}`);
-            showNotification('error', `فشل النشر: ${error.message}`);
-        } finally {
-            setIsPublishing(false);
-        }
-    };
-    
+        };    
 
     const handleSaveDraft = async () => {
         if (!postText.trim() && !selectedImage) {
@@ -741,7 +775,6 @@ setPublishedPostsLoading(false);
       }
   };
   
-
   const onGenerateDeepAnalytics = async () => {
     if (!aiClient || !publishedPosts.length) {
         showNotification('error', 'لا توجد بيانات أو عميل AI لإنشاء تحليلات معمقة.');
@@ -765,7 +798,6 @@ setPublishedPostsLoading(false);
     }
 };
 
-
 const onFetchPostInsights = async (postId: string): Promise<any> => {
   const post = publishedPosts.find(p => p.id === postId);
   if (!aiClient || !post) {
@@ -784,7 +816,6 @@ const onFetchPostInsights = async (postId: string): Promise<any> => {
       return null;
   }
 };
-
 
     // Bulk Scheduler Functions
     const onSchedulingStrategyChange = (strategy: 'even' | 'weekly') => setSchedulingStrategy(strategy);
@@ -832,7 +863,6 @@ const onFetchPostInsights = async (postId: string): Promise<any> => {
       showNotification('success', 'تمت إعادة جدولة المنشورات بنجاح!');
   };
   
-
     const onAddPosts = (files: FileList | null, textContent?: string) => {
         if (files) {
             const newPosts: BulkPostItem[] = Array.from(files).map((file, index) => ({
