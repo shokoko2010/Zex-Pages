@@ -348,11 +348,18 @@ await getTargetDataRef().set(cleanedDataToSave, { merge: true });
                     const scheduledPostFields = "id,message,scheduled_publish_time,attachments{media}";
                     const scheduledData = await makeRequestWithRetry(`/${target.id}/scheduled_posts?fields=${scheduledPostFields}&limit=50${sinceParam}`, target.access_token);
                     fetchedScheduledPosts = (scheduledData.data || []).map((post: any) => ({
-                        id: post.id, text: post.message || '', scheduledAt: new Date(post.scheduled_publish_time * 1000),
-                        imageUrl: getImageUrlFromPost(post), hasImage: !!getImageUrlFromPost(post), targetId: target.id,
-                        targetInfo: { name: target.name, avatarUrl: target.picture.data.url, type: target.type },
-                        status: 'scheduled', isReminder: false, type: 'post'
+                        id: post.id || null, // Ensure id is always included
+                        text: post.message || '', // Ensure text is always a string
+                        scheduledAt: post.scheduled_publish_time ? new Date(post.scheduled_publish_time * 1000) : null, // Ensure date is Date or null
+                        imageUrl: getImageUrlFromPost(post) || null, // Ensure imageUrl is string or null
+                        hasImage: !!getImageUrlFromPost(post), // Ensure hasImage is boolean
+                        targetId: target.id || null, // Ensure targetId is string or null
+                        targetInfo: target.picture.data.url ? { name: target.name || null, avatarUrl: target.picture.data.url || null, type: target.type || null } : null, // Ensure targetInfo structure is consistent or null
+                        status: 'scheduled', // Ensure status is always 'scheduled' string
+                        isReminder: false, // Ensure isReminder is always boolean
+                        type: 'post', // Ensure type is always 'post' string
                     } as ScheduledPost));
+                    
                     // Merge new scheduled posts with existing ones (fetched from state)
                     setScheduledPosts(prevScheduled => {
                         const existingIds = new Set(prevScheduled.map(p => p.id));
@@ -393,15 +400,21 @@ await getTargetDataRef().set(cleanedDataToSave, { merge: true });
                 const finalNewPublished = fetchedPublishedContent.map((post: any) => {
                     const engagement = engagementMap.get(post.id) || {};
                     return {
-                        id: post.id, text: post.message || '', publishedAt: new Date(post.created_time),
-                        imagePreview: getImageUrlFromPost(post),
-                        analytics: {
-                            likes: engagement.likes?.summary?.total_count || 0,
-                            comments: engagement.comments?.summary?.total_count || 0,
-                            shares: engagement.shares?.summary?.total_count || 0,
-                        }, pageId: target.id, pageName: target.name, pageAvatarUrl: target.picture.data.url,
+                        id: post.id || null,
+                        text: post.message || '',
+                        publishedAt: post.created_time ? new Date(post.created_time) : null,
+                        imagePreview: getImageUrlFromPost(post) || null, // Ensure string or null
+                        analytics: { // Ensure analytics object structure is consistent
+                            likes: engagement.likes?.summary?.total_count || 0, // Ensure number
+                            comments: engagement.comments?.summary?.total_count || 0, // Ensure number
+                            shares: engagement.shares?.summary?.total_count || 0, // Ensure number
+                        },
+                        pageId: target.id || null, // Ensure string or null
+                        pageName: target.name || null, // Ensure string or null
+                        pageAvatarUrl: target.picture.data.url || null, // Ensure string or null
                     } as PublishedPost;
                 });
+                
                  // Merge new published posts with existing ones (fetched from state)
                  setPublishedPosts(prevPublished => {
                      const existingIds = new Set(prevPublished.map(p => p.id));
@@ -425,10 +438,21 @@ await getTargetDataRef().set(cleanedDataToSave, { merge: true });
                                 const participant = convo.participants.data.find((p: any) => p.id !== target.id);
                                 if (participant) {
                                     newInboxItems.push({
-                                        id: lastMsg.id, type: 'message', from: participant, text: lastMsg.message,
-                                        timestamp: lastMsg.created_time, status: 'new', conversationId: convo.id,
-                                        authorName: participant.name, authorPictureUrl: `https://graph.facebook.com/${participant.id}/picture?type=normal`
-                                    } as InboxItem);
+                                        id: lastMsg.id || null,
+                                        type: 'message',
+                                        from: participant || null,
+                                        text: lastMsg.message || '',
+                                        timestamp: lastMsg.created_time || null,
+                                        status: 'new',
+                                        conversationId: convo.id || null,
+                                        authorName: participant.name || null,
+                                        authorPictureUrl: `https://graph.facebook.com/${participant.id}/picture?type=normal` || null,
+                                        link: null, // Or undefined
+                                        post: null,
+                                        messages: [], // Change null to empty array
+                                        isReplied: false,
+                                    } as InboxItem);                                    
+                                    
                                 }
                             }
                         });

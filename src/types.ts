@@ -194,7 +194,7 @@ export interface InboxItem {
   timestamp: string;
   status: 'new' | 'replied' | 'done';
   context?: string;
-  link?: string;
+  link?: string | null; // Allow null for link
   messages: InboxMessage[];
   conversationId: string;
   isReplied: boolean;
