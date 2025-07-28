@@ -320,7 +320,8 @@ await getTargetDataRef().set(cleanedDataToSave, { merge: true });
     
         // Sync data from Facebook API
         const syncFacebookData = useCallback(async (target: Target, lastSyncTime?: string) => {            if (!target.access_token) {
-                showNotification('error', 'رمز الوصول للصفحة مفقود.');
+            console.log("syncFacebookData called with lastSyncTime:", lastSyncTime); // Add this log   
+            showNotification('error', 'رمز الوصول للصفحة مفقود.');
                 return;
             }
             if (syncingTargetId) {
@@ -712,6 +713,7 @@ await getTargetDataRef().set(cleanedDataToSave, { merge: true });
                 let lastSyncTime: string | undefined;
     
                 try {
+                    console.log("Attempting to load data from Firestore..."); // Log before loading
                     const docSnap = await dataRef.get();
     
                     if (docSnap.exists) {
@@ -729,6 +731,8 @@ await getTargetDataRef().set(cleanedDataToSave, { merge: true });
                         loadedAudienceCityData = data.audienceCityData || {};
                         loadedAudienceCountryData = data.audienceCountryData || {};
                         lastSyncTime = data.lastSync;
+                        console.log("Loaded lastSyncTime from Firestore:", lastSyncTime); // Add this log
+
                     }
     
                     // Set state with loaded data immediately
@@ -744,10 +748,12 @@ await getTargetDataRef().set(cleanedDataToSave, { merge: true });
                     setContentTypePerformanceData(loadedContentTypeData);
                     setAudienceCityData(loadedAudienceCityData);
                     setAudienceCountryData(loadedAudienceCountryData);
-    
+                    console.log("State updated with Firestore data."); // Log after setting state
+            
                     if (isAdmin || loadedProfile.ownerUid === user.uid) {
                         setCurrentUserRole('owner');
                     } else {
+                        console.log("No data found in Firestore."); // Log if no data
                         setCurrentUserRole(loadedProfile.team?.find(m => m.uid === user.uid)?.role || 'viewer');
                     }
     
@@ -755,14 +761,18 @@ await getTargetDataRef().set(cleanedDataToSave, { merge: true });
                     console.error("Failed to load data from Firestore:", error);
                     showNotification('error', 'فشل جلب البيانات المحفوظة.');
                 } finally {
-                     // Always attempt to sync with Facebook after loading from Firestore
+                     console.log("Finished loading from Firestore. Calling syncFacebookData with lastSyncTime:", lastSyncTime); // Log before calling sync
                      await syncFacebookData(managedTarget, lastSyncTime);
+                     console.log("syncFacebookData called."); // Log after calling sync
+                     setIsInboxLoading(false); // These should be handled in syncFacebookData's finally
+                     setPublishedPostsLoading(false); // These should be handled in syncFacebookData's finally
                 }
             };
     
             loadDataAndSync();
     
-        }, [managedTarget.id, user.uid, isAdmin, getTargetDataRef, showNotification]); // Removed syncFacebookData// Added dependencies
+        }, [managedTarget.id, user.uid, isAdmin, getTargetDataRef, showNotification]);
+        
         const handlePublish = async (postType: PostType, postOptions: { [key: string]: any }) => {
             setComposerError('');
             if (!managedTarget.access_token) {
