@@ -145,7 +145,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         showNotification('partial', 'جاري جلب الحملات الإعلانية...');
         try {
             // Step 1: Fetch Ad Accounts using the User Access Token
-            const adAccountsData = await makeRequestWithRetry(`/me/adaccounts?fields=id,name`, fbAccessToken);
+            const adAccountsData = await makeRequestWithRetry(`/me?fields=adaccounts{id,name}`, fbAccessToken);
             
             if (adAccountsData.data && adAccountsData.data.length > 0) {
                 const firstAdAccountId = adAccountsData.data[0].id;
