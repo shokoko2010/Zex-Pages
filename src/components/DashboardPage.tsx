@@ -86,6 +86,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     const [isScheduled, setIsScheduled] = useState(false);
     const [scheduleDate, setScheduleDate] = useState('');
     const [composerError, setComposerError] = useState('');
+    const [audienceCityData, setAudienceCityData] = useState<{ [key: string]: number }>({});
+    const [audienceCountryData, setAudienceCountryData] = useState<{ [key: string]: number }>({});
     const [includeInstagram, setIncludeInstagram] = useState(false);
     const [editingScheduledPostId, setEditingScheduledPostId] = useState<string | null>(null);
     const [isPublishing, setIsPublishing] = useState(false);
@@ -491,27 +493,23 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                     setHeatmapData(heatmap);
 
                     // Fetch and process Audience Demographics data
-                    try {
-                        const demographicsMetrics = 'page_fans_city,page_fans_country';
-                        const demographicsData = await makeRequestWithRetry(`/${target.id}/insights?metric=${demographicsMetrics}&period=lifetime`, target.access_token);
+                try {
+                    const demographicsMetrics = 'page_fans_city,page_fans_country';
+                    const demographicsData = await makeRequestWithRetry(`/${target.id}/insights?metric=${demographicsMetrics}&period=lifetime`, target.access_token);
+                    
+                    if (demographicsData.data) {
+                        const cityData = demographicsData.data.find((m: any) => m.name === 'page_fans_city')?.values?.[0]?.value || {};
+                        const countryData = demographicsData.data.find((m: any) => m.name === 'page_fans_country')?.values?.[0]?.value || {};
                         
-                        if (demographicsData.data) {
-                            const cityData = demographicsData.data.find((m: any) => m.name === 'page_fans_city')?.values?.[0]?.value || {};
-                            const countryData = demographicsData.data.find((m: any) => m.name === 'page_fans_country')?.values?.[0]?.value || {};
-                            
-                            // Assuming AudienceDemographics component can handle this data structure
-                            // If not, we'll need to transform it.
-                            // For now, let's just log it to see the structure.
-                            console.log("Fetched City Data:", cityData);
-                            console.log("Fetched Country Data:", countryData);
-                            
-                            // Here you would set the state for demographics data
-                            // e.g., setAudienceCityData(cityData);
-                            // e.g., setAudienceCountryData(countryData);
-                        }
-                    } catch (error) {
-                        console.warn('Failed to fetch audience demographics insight:', error);
+                        // Set the state with the fetched data (even if empty)
+                        setAudienceCityData(cityData);
+                        setAudienceCountryData(countryData);
                     }
+                } catch (error) {
+                    console.warn('Failed to fetch audience demographics insight:', error);
+                    setAudienceCityData({}); // Clear on failure
+                    setAudienceCountryData({}); // Clear on failure
+                }
 
                 } catch (error) {
                     if (error instanceof FacebookTokenError) throw error;
@@ -1178,6 +1176,8 @@ const onFetchPostInsights = async (postId: string): Promise<any> => {
                     heatmapData={heatmapData} contentTypeData={contentTypeData}
                     isGeneratingDeepAnalytics={isGeneratingDeepAnalytics} managedTarget={managedTarget}
                     userPlan={userPlan} currentUserRole={currentUserRole}
+                    audienceCityData={audienceCityData} // Add this line
+                    audienceCountryData={audienceCountryData} // Add this line
                     onGeneratePerformanceSummary={onGeneratePerformanceSummary}
                     onGenerateDeepAnalytics={onGenerateDeepAnalytics} onFetchPostInsights={onFetchPostInsights} 
                 />

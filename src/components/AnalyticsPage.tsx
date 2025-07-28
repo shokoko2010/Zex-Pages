@@ -20,6 +20,8 @@ interface AnalyticsPageProps {
   audienceGrowthData: AudienceGrowthData[];
   heatmapData: HeatmapDataPoint[];
   contentTypeData: ContentTypePerformanceData[];
+  audienceCityData: { [key: string]: number }; // Add this line
+  audienceCountryData: { [key: string]: number }; // Add this line
   isGeneratingDeepAnalytics: boolean;
   managedTarget: Target; 
   userPlan: Plan | null;
@@ -41,6 +43,8 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
   audienceGrowthData,
   heatmapData,
   contentTypeData,
+  audienceCityData, // Receive this prop
+  audienceCountryData, // Receive this prop
   isGeneratingDeepAnalytics,
   userPlan,
   currentUserRole,
@@ -62,7 +66,8 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
         isGenerationAllowed={canViewDeepAnalytics && !!performanceSummaryData}
       />
       
-      <AudienceDemographics />
+      <AudienceDemographics cityData={audienceCityData} countryData={audienceCountryData} />
+
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2">
