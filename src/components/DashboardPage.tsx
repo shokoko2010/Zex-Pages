@@ -218,6 +218,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
       setImagePreview(null);
     }, [selectedImage]);
 
+
     const getTargetDataRef = useCallback(() => db.collection('targets_data').doc(managedTarget.id), [managedTarget]);
     const saveDataToFirestore = useCallback(async (dataToSave: { [key: string]: any }) => {
         console.log("Saving data to Firestore:", dataToSave); // Logging data before saving
@@ -617,7 +618,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     
     
                 showNotification('partial', `(6/6) حفظ البيانات...`);
-                console.log("Saving data to Firestore:", dataToSave); // Added logging
+                console.log("Saving data to Firestore:", ); // Added logging
                 await saveDataToFirestore({
                     scheduledPosts: scheduledPosts.map(p => ({ ...p, scheduledAt: p.scheduledAt.toISOString() })),
                     publishedPosts: publishedPosts.map(p => ({ ...p, publishedAt: p.publishedAt.toISOString() })),
