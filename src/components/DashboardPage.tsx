@@ -419,15 +419,15 @@ try {
         console.warn('Failed to fetch page_fans insight:', error);
     }
 
-    // Fetch Engagement and Reach Metrics (with individual calls for debugging)
+    // Fetch Engagement and Reach Metrics (Simplified to most common metrics for testing)
     try {
-        const engagedUsersData = await makeRequestWithRetry(`/${target.id}/insights?metric=page_engaged_users&period=${period}`, target.access_token);
-        if (engagedUsersData.data && engagedUsersData.data.length > 0 && engagedUsersData.data[0].values.length > 0) {
-            totalEngagement = engagedUsersData.data[0].values[engagedUsersData.data[0].values.length - 1].value;
+        const postEngagementsData = await makeRequestWithRetry(`/${target.id}/insights?metric=page_post_engagements&period=${period}`, target.access_token);
+        if (postEngagementsData.data && postEngagementsData.data.length > 0 && postEngagementsData.data[0].values.length > 0) {
+            totalEngagement = postEngagementsData.data[0].values[postEngagementsData.data[0].values.length - 1].value;
         }
     } catch (error) {
         if (error instanceof FacebookTokenError) throw error;
-        console.warn('Failed to fetch page_engaged_users insight:', error);
+        console.warn('Failed to fetch page_post_engagements insight:', error);
     }
 
     try {
@@ -440,21 +440,6 @@ try {
         console.warn('Failed to fetch page_impressions_unique insight:', error);
     }
 
-    try {
-        const postEngagementsData = await makeRequestWithRetry(`/${target.id}/insights?metric=page_post_engagements&period=${period}`, target.access_token);
-        // Process this metric if needed for your summary
-    } catch (error) {
-        if (error instanceof FacebookTokenError) throw error;
-        console.warn('Failed to fetch page_post_engagements insight:', error);
-    }
-
-    try {
-        const reactionsData = await makeRequestWithRetry(`/${target.id}/insights?metric=page_actions_post_reactions_total&period=${period}`, target.access_token);
-        // Process this metric if needed for your summary
-    } catch (error) {
-        if (error instanceof FacebookTokenError) throw error;
-        console.warn('Failed to fetch page_actions_post_reactions_total insight:', error);
-    }
 
      // Update performance summary with fetched data
      processedPerformanceSummary.totalEngagement = totalEngagement;
