@@ -709,7 +709,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     
             loadDataAndSync();
     
-        }, [managedTarget.id, user.uid, isAdmin, getTargetDataRef, showNotification, syncFacebookData]); // Added dependencies
+        }, [managedTarget.id, user.uid, isAdmin, getTargetDataRef, showNotification]); // Removed syncFacebookData// Added dependencies
         const handlePublish = async (postType: PostType, postOptions: { [key: string]: any }) => {
             setComposerError('');
             if (!managedTarget.access_token) {
