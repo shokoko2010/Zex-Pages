@@ -119,6 +119,25 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
     const [isSchedulingStrategy, setIsSchedulingStrategy] = useState(false);
     const [planError, setPlanError] = useState<string | null>(null);
+    const replaceUndefinedWithNull = (obj: any): any => {
+        if (obj === undefined) {
+            return null;
+        }
+        if (typeof obj !== 'object' || obj === null) {
+            return obj;
+        }
+        if (Array.isArray(obj)) {
+            return obj.map(item => replaceUndefinedWithNull(item));
+        }
+        const cleanedObject: { [key: string]: any } = {};
+        for (const key in obj) {
+            if (Object.prototype.hasOwnProperty.call(obj, key)) {
+                cleanedObject[key] = replaceUndefinedWithNull(obj[key]);
+            }
+        }
+        return cleanedObject;
+    };
+    
     const showNotification = useCallback((type: 'success' | 'error' | 'partial', message: string) => {
         setNotification({ type, message });
         if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
@@ -223,7 +242,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     const saveDataToFirestore = useCallback(async (dataToSave: { [key: string]: any }) => {
         console.log("Saving data to Firestore:", dataToSave); // Logging data before saving
         try {
-            await getTargetDataRef().set(dataToSave, { merge: true });
+            const cleanedDataToSave = replaceUndefinedWithNull(dataToSave);
+await getTargetDataRef().set(cleanedDataToSave, { merge: true });
             showNotification('success', 'تم حفظ البيانات بنجاح!');
         } catch (error: any) {
             console.error("Firestore Save Error:", error); // Improved error logging
@@ -622,13 +642,13 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                 await saveDataToFirestore({
                     scheduledPosts: scheduledPosts.map(p => ({ ...p, scheduledAt: p.scheduledAt.toISOString() })),
                     publishedPosts: publishedPosts.map(p => ({ ...p, publishedAt: p.publishedAt.toISOString() })),
-                    inboxItems: inboxItems,
-                    performanceSummaryData: performanceSummaryData,
-                    audienceGrowthData: audienceGrowthData,
-                    heatmapData: heatmapData,
-                    contentTypeData: contentTypeData,
-                    audienceCityData: audienceCityData,
-                    audienceCountryData: audienceCountryData,
+                    inboxItems: inboxItems, // Check objects within this array
+                    performanceSummaryData: performanceSummaryData, // Check properties of this object
+                    audienceGrowthData: audienceGrowthData, // Check objects within this array
+                    heatmapData: heatmapData, // Check objects within this array
+                    contentTypeData: contentTypeData, // Check objects within this array
+                    audienceCityData: audienceCityData, // Check properties of this object
+                    audienceCountryData: audienceCountryData, // Check properties of this object
                     lastSync: new Date().toISOString()
                 });
     
