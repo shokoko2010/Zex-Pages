@@ -285,7 +285,12 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
       }
   };
   
-        const syncFacebookData = useCallback(async (target: Target) => {
+        // Accept lastSyncTime as a parameter
+        
+    
+    
+        // Sync data from Facebook API
+        const syncFacebookData = useCallback(async (target: Target, lastSyncTime?: string) => {
             if (!target.access_token) {
                 showNotification('error', 'رمز الوصول للصفحة مفقود.');
                 return;
@@ -295,64 +300,69 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                 return;
             }
             setSyncingTargetId(target.id);
-            setPublishedPosts([]);
-            setScheduledPosts([]);
-            setInboxItems([]);
-            setPerformanceSummaryData(null);
-            setPerformanceSummaryText('');
-            setAudienceGrowthData([]);
-            setHeatmapData([]);
-            setContentTypePerformanceData([]);
-
+    
             showNotification('partial', `جاري مزامنة بيانات ${target.name}...`);
-
+    
+            const sinceParam = lastSyncTime ? `&since=${Math.floor(new Date(lastSyncTime).getTime() / 1000)}` : '';
+    
+            let fetchedScheduledPosts: ScheduledPost[] = [];
+            let fetchedPublishedContent: any[] = [];
+            let fetchedInboxItems: InboxItem[] = [];
+    
             try {
                 const getImageUrlFromPost = (post: any): string | undefined => {
                     return post.attachments?.data?.[0]?.media?.image?.src;
                 };
-
+    
+                // STEP 1: Fetch NEW Scheduled Posts
                 showNotification('partial', `(1/6) جلب المنشورات المجدولة...`);
-                let finalScheduled: ScheduledPost[] = [];
                 try {
                     const scheduledPostFields = "id,message,scheduled_publish_time,attachments{media}";
-                    const scheduledData = await makeRequestWithRetry(`/${target.id}/scheduled_posts?fields=${scheduledPostFields}&limit=50`, target.access_token);
-                    finalScheduled = (scheduledData.data || []).map((post: any) => ({
+                    const scheduledData = await makeRequestWithRetry(`/${target.id}/scheduled_posts?fields=${scheduledPostFields}&limit=50${sinceParam}`, target.access_token);
+                    fetchedScheduledPosts = (scheduledData.data || []).map((post: any) => ({
                         id: post.id, text: post.message || '', scheduledAt: new Date(post.scheduled_publish_time * 1000),
                         imageUrl: getImageUrlFromPost(post), hasImage: !!getImageUrlFromPost(post), targetId: target.id,
                         targetInfo: { name: target.name, avatarUrl: target.picture.data.url, type: target.type },
                         status: 'scheduled', isReminder: false, type: 'post'
                     } as ScheduledPost));
-                    setScheduledPosts(finalScheduled);
+                    // Merge new scheduled posts with existing ones (fetched from state)
+                    setScheduledPosts(prevScheduled => {
+                        const existingIds = new Set(prevScheduled.map(p => p.id));
+                        const merged = [...prevScheduled, ...fetchedScheduledPosts.filter(p => !existingIds.has(p.id))];
+                        return merged;
+                    });
+    
                 } catch (error) {
                     if (error instanceof FacebookTokenError) throw error;
                     console.warn('Failed to fetch scheduled posts:', error);
                 }
-
+    
+                // STEP 2: Fetch NEW Published Posts
                 showNotification('partial', `(2/6) جلب المنشورات المنشورة...`);
-                let fbPublishedContent: any[] = [];
                 try {
                     const postContentFields = "id,message,created_time,permalink_url,attachments{media}";
-                    const publishedData = await makeRequestWithRetry(`/${target.id}/published_posts?fields=${postContentFields}&limit=50`, target.access_token);
-                    fbPublishedContent = publishedData.data || [];
+                    const publishedData = await makeRequestWithRetry(`/${target.id}/published_posts?fields=${postContentFields}&limit=50${sinceParam}`, target.access_token);
+                    fetchedPublishedContent = publishedData.data || [];
                 } catch (error) {
                     if (error instanceof FacebookTokenError) throw error;
                     console.warn('Failed to fetch published posts:', error);
                 }
-
-                showNotification('partial', `(3/6) جلب التفاعلات للمنشورات...`);
+    
+                // STEP 3: Fetch Engagement Data for NEW Published Posts
+                showNotification('partial', `(3/6) جلب التفاعلات للمنشورات الجديدة...`);
                 const engagementMap = new Map<string, any>();
-                if (fbPublishedContent.length > 0) {
-                    for (const post of fbPublishedContent) {
+                if (fetchedPublishedContent.length > 0) {
+                    for (const post of fetchedPublishedContent) {
                         try {
                             const engagement = await makeRequestWithRetry(`/${post.id}?fields=likes.summary(true),comments.summary(true),shares.summary(true)`, target.access_token);
                             engagementMap.set(post.id, engagement);
                         } catch (error) {
                             if (error instanceof FacebookTokenError) throw error;
-                            console.warn(`Failed to fetch engagement for post ${post.id}:`, error);
+                            console.warn(`Failed to fetch engagement for new post ${post.id}:`, error);
                         }
                     }
                 }
-                const finalPublished = fbPublishedContent.map((post: any) => {
+                const finalNewPublished = fetchedPublishedContent.map((post: any) => {
                     const engagement = engagementMap.get(post.id) || {};
                     return {
                         id: post.id, text: post.message || '', publishedAt: new Date(post.created_time),
@@ -364,20 +374,29 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                         }, pageId: target.id, pageName: target.name, pageAvatarUrl: target.picture.data.url,
                     } as PublishedPost;
                 });
-                setPublishedPosts(finalPublished);
-
-                showNotification('partial', `(4/6) جلب صندوق الوارد...`);
-                const newInbox: InboxItem[] = [];
+                 // Merge new published posts with existing ones (fetched from state)
+                 setPublishedPosts(prevPublished => {
+                     const existingIds = new Set(prevPublished.map(p => p.id));
+                     const merged = [...prevPublished, ...finalNewPublished.filter(p => !existingIds.has(p.id))];
+                     return merged;
+                 });
+    
+    
+                // STEP 4: Fetch NEW Inbox Items (Messages and Comments)
+                showNotification('partial', `(4/6) جلب صندوق الوارد الجديد...`);
+                const newInboxItems: InboxItem[] = [];
+    
+                // Fetch NEW Conversations (Use sinceParam)
                 try {
                     const convoFields = "participants,messages.limit(1){from,to,message,created_time}";
-                    const conversationsData = await makeRequestWithRetry(`/${target.id}/conversations?fields=${convoFields}&limit=50`, target.access_token);
+                    const conversationsData = await makeRequestWithRetry(`/${target.id}/conversations?fields=${convoFields}&limit=50${sinceParam}`, target.access_token);
                     if (conversationsData.data) {
                         conversationsData.data.forEach((convo: any) => {
                             const lastMsg = convo.messages?.data?.[0];
                             if (lastMsg && lastMsg.from.id !== target.id) {
                                 const participant = convo.participants.data.find((p: any) => p.id !== target.id);
                                 if (participant) {
-                                    newInbox.push({
+                                    newInboxItems.push({
                                         id: lastMsg.id, type: 'message', from: participant, text: lastMsg.message,
                                         timestamp: lastMsg.created_time, status: 'new', conversationId: convo.id,
                                         authorName: participant.name, authorPictureUrl: `https://graph.facebook.com/${participant.id}/picture?type=normal`
@@ -388,16 +407,18 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                     }
                 } catch (error) {
                     if (error instanceof FacebookTokenError) throw error;
-                    console.warn('Failed to fetch conversations:', error);
+                    console.warn('Failed to fetch new conversations:', error);
                 }
-                if (fbPublishedContent.length > 0) {
-                    for (const post of fbPublishedContent) {
+                // Fetch NEW Comments from NEW published posts
+                if (fetchedPublishedContent.length > 0) {
+                    for (const post of fetchedPublishedContent) { // Check only newly fetched published posts for comments
                         try {
                             const commentsData = await makeRequestWithRetry(`/${post.id}/comments?limit=50&fields=from{name,picture},message,created_time,id`, target.access_token);
                             if (commentsData.data) {
                                 commentsData.data.forEach((comment: any) => {
-                                    if (comment.from.id !== target.id) {
-                                        newInbox.push({
+                                    // Only add comments created AFTER last sync time
+                                    if (comment.from.id !== target.id && (!lastSyncTime || new Date(comment.created_time) > new Date(lastSyncTime))) {
+                                        newInboxItems.push({
                                             id: comment.id, type: 'comment', from: comment.from, text: comment.message,
                                             timestamp: comment.created_time, status: 'new', link: post.permalink_url,
                                             post: { message: post.message, picture: getImageUrlFromPost(post) },
@@ -407,60 +428,67 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                                 });
                             }
                         } catch (error) {
-                        if (error instanceof FacebookTokenError) throw error;
-                        console.warn(`Failed to fetch comments for post ${post.id}:`, error);
+                           if (error instanceof FacebookTokenError) throw error;
+                           console.warn(`Failed to fetch comments for new post ${post.id}:`, error);
                         }
                     }
                 }
-                setInboxItems(newInbox.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
-
+                 // Merge new inbox items with existing ones and sort by timestamp
+                 setInboxItems(prevInbox => {
+                     const existingIds = new Set(prevInbox.map(item => item.id));
+                     const merged = [...prevInbox, ...newInboxItems.filter(item => !existingIds.has(item.id))];
+                     return merged.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+                 });
+    
+    
+                // STEP 5: Fetch Page Insights Data (Always fetch for the period, as 'since' might not apply universally)
                 showNotification('partial', `(5/6) جلب تحليلات الصفحة...`);
                 try {
-                    let processedPerformanceSummary: PerformanceSummaryData = {
-                        totalPosts: finalPublished.length,
-                        averageEngagement: 0,
-                        growthRate: 0,
-                        totalReach: 0,
-                        totalEngagement: 0,
-                        engagementRate: 0,
-                        topPosts: finalPublished.sort((a, b) => (b.analytics.likes || 0) + (b.analytics.comments || 0) + (b.analytics.shares || 0) - ((a.analytics.likes || 0) + (a.analytics.comments || 0) + (a.analytics.shares || 0))).slice(0, 3),
-                        postCount: finalPublished.length,
+                    let updatedPerformanceSummary: PerformanceSummaryData = {
+                         totalPosts: publishedPosts.length, // Use current state length
+                         averageEngagement: 0,
+                         growthRate: 0,
+                         totalReach: 0,
+                         totalEngagement: 0,
+                         engagementRate: 0,
+                         topPosts: publishedPosts.sort((a, b) => (b.analytics.likes || 0) + (b.analytics.comments || 0) + (b.analytics.shares || 0) - ((a.analytics.likes || 0) + (a.analytics.comments || 0) + (a.analytics.shares || 0))).slice(0, 3),
+                         postCount: publishedPosts.length, // Use current state length
                     };
                     let totalEngagement = 0;
                     let totalReach = 0;
                     let fanCountStart = 0;
                     let fanCountEnd = 0;
-
+    
                     const period = analyticsPeriod === '7d' ? 'week' : 'days_28';
-
+    
                     try {
                         const audienceGrowthDataResponse = await makeRequestWithRetry(`/${target.id}/insights?metric=page_fans&period=${period}`, target.access_token);
                         if (audienceGrowthDataResponse.data && audienceGrowthDataResponse.data.length > 0) {
-                            const fanMetric = audienceGrowthDataResponse.data[0];
-                            if (fanMetric.values && fanMetric.values.length > 1) {
-                                const processedData: AudienceGrowthData[] = fanMetric.values.map((value: any) => ({
-                                    date: value.end_time,
-                                    fanCount: value.value
-                                }));
-                                setAudienceGrowthData(processedData);
-                                fanCountStart = fanMetric.values[0].value;
-                                fanCountEnd = fanMetric.values[fanMetric.values.length - 1].value;
-                            } else if (fanMetric.values && fanMetric.values.length === 1) {
-                                const processedData: AudienceGrowthData[] = fanMetric.values.map((value: any) => ({
+                             const fanMetric = audienceGrowthDataResponse.data[0];
+                             if (fanMetric.values && fanMetric.values.length > 1) {
+                                  const processedData: AudienceGrowthData[] = fanMetric.values.map((value: any) => ({
+                                       date: value.end_time,
+                                       fanCount: value.value
+                                  }));
+                                  setAudienceGrowthData(processedData);
+                                  fanCountStart = fanMetric.values[0].value;
+                                  fanCountEnd = fanMetric.values[fanMetric.values.length - 1].value;
+                             } else if (fanMetric.values && fanMetric.values.length === 1) {
+                                 const processedData: AudienceGrowthData[] = fanMetric.values.map((value: any) => ({
                                     date: value.end_time,
                                     fanCount: value.value
                                 }));
                                 setAudienceGrowthData(processedData);
                                 fanCountEnd = fanMetric.values[0].value;
                                 fanCountStart = fanCountEnd;
-                            }
+                             }
                         }
                     } catch (error) {
                         if (error instanceof FacebookTokenError) throw error;
                         console.warn('Failed to fetch page_fans insight:', error);
                         setAudienceGrowthData([]);
                     }
-
+    
                     try {
                         const postEngagementsData = await makeRequestWithRetry(`/${target.id}/insights?metric=page_post_engagements&period=${period}`, target.access_token);
                         if (postEngagementsData.data && postEngagementsData.data.length > 0 && postEngagementsData.data[0].values.length > 0) {
@@ -470,7 +498,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                         if (error instanceof FacebookTokenError) throw error;
                         console.warn('Failed to fetch page_post_engagements insight:', error);
                     }
-
+    
                     try {
                         const impressionsData = await makeRequestWithRetry(`/${target.id}/insights?metric=page_impressions_unique&period=${period}`, target.access_token);
                         if (impressionsData.data && impressionsData.data.length > 0 && impressionsData.data[0].values.length > 0) {
@@ -480,51 +508,61 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                         if (error instanceof FacebookTokenError) throw error;
                         console.warn('Failed to fetch page_impressions_unique insight:', error);
                     }
-
-                    processedPerformanceSummary.totalEngagement = totalEngagement;
-                    processedPerformanceSummary.totalReach = totalReach;
+    
+                    updatedPerformanceSummary.totalEngagement = totalEngagement;
+                    updatedPerformanceSummary.totalReach = totalReach;
                     if (totalReach > 0) {
-                        processedPerformanceSummary.engagementRate = (totalEngagement / totalReach) * 100;
+                        updatedPerformanceSummary.engagementRate = (totalEngagement / totalReach) * 100;
                     }
                     if (fanCountStart > 0) {
-                        processedPerformanceSummary.growthRate = ((fanCountEnd - fanCountStart) / fanCountStart) * 100;
+                        updatedPerformanceSummary.growthRate = ((fanCountEnd - fanCountStart) / fanCountStart) * 100;
                     } else if (fanCountEnd > 0) {
-                        processedPerformanceSummary.growthRate = 100;
+                        updatedPerformanceSummary.growthRate = 100;
                     } else {
-                        processedPerformanceSummary.growthRate = 0;
+                        updatedPerformanceSummary.growthRate = 0;
                     }
-                    setPerformanceSummaryData(processedPerformanceSummary);
+                    setPerformanceSummaryData(updatedPerformanceSummary);
     
-                    // Process data for Content Type Performance chart
-                    const photoPosts = finalPublished.filter(p => p.imagePreview);
-                    const textPosts = finalPublished.filter(p => !p.imagePreview);
-                    const totalPhotoEngagement = photoPosts.reduce((sum, p) => sum + (p.analytics.likes || 0) + (p.analytics.comments || 0) + (p.analytics.shares || 0), 0);
-                    const totalTextEngagement = textPosts.reduce((sum, p) => sum + (p.analytics.likes || 0) + (p.analytics.comments || 0) + (p.analytics.shares || 0), 0);
+                    // Process data for Content Type Performance chart from ALL published posts (fetched from state)
+                    const allPhotoPosts = publishedPosts.filter(p => p.imagePreview);
+                    const allTextPosts = publishedPosts.filter(p => !p.imagePreview);
+    
+                    const totalPhotoEngagement = allPhotoPosts.reduce((sum, p) => sum + (p.analytics.likes || 0) + (p.analytics.comments || 0) + (p.analytics.shares || 0), 0);
+                    const totalTextEngagement = allTextPosts.reduce((sum, p) => sum + (p.analytics.likes || 0) + (p.analytics.comments || 0) + (p.analytics.shares || 0), 0);
+                    
                     const contentTypeChartData: ContentTypePerformanceData[] = [];
-                    if (photoPosts.length > 0) {
-                        contentTypeChartData.push({ type: 'منشورات الصور', count: photoPosts.length, avgEngagement: totalPhotoEngagement / photoPosts.length });
+                    if (allPhotoPosts.length > 0) {
+                        contentTypeChartData.push({
+                            type: 'منشورات الصور',
+                            count: allPhotoPosts.length,
+                            avgEngagement: totalPhotoEngagement / allPhotoPosts.length
+                        });
                     }
-                    if (textPosts.length > 0) {
-                        contentTypeChartData.push({ type: 'منشورات نصية', count: textPosts.length, avgEngagement: totalTextEngagement / textPosts.length });
+                    if (allTextPosts.length > 0) {
+                        contentTypeChartData.push({
+                            type: 'منشورات نصية',
+                            count: allTextPosts.length,
+                            avgEngagement: totalTextEngagement / allTextPosts.length
+                        });
                     }
                     setContentTypePerformanceData(contentTypeChartData);
     
-                    // Process data for Posting Times Heatmap from actual post engagement
+                    // Process data for Posting Times Heatmap from ALL published posts (fetched from state)
                     const heatmapGrid: number[][] = Array(7).fill(0).map(() => Array(24).fill(0));
                     const postCountGrid: number[][] = Array(7).fill(0).map(() => Array(24).fill(0));
-
-                    finalPublished.forEach(post => {
+    
+                    publishedPosts.forEach(post => {
                         const postDate = new Date(post.publishedAt);
-                        const dayOfWeek = postDate.getDay();
+                        const dayOfWeek = postDate.getDay(); // Sunday = 0, Monday = 1, etc.
                         const hourOfDay = postDate.getHours();
                         const postEngagement = (post.analytics.likes || 0) + (post.analytics.comments || 0) + (post.analytics.shares || 0);
-
+    
                         if (dayOfWeek >= 0 && hourOfDay >= 0) {
                             heatmapGrid[dayOfWeek][hourOfDay] += postEngagement;
                             postCountGrid[dayOfWeek][hourOfDay] += 1;
                         }
                     });
-
+    
                     const heatmap: HeatmapDataPoint[] = [];
                     for (let day = 0; day < 7; day++) {
                         for (let hour = 0; hour < 24; hour++) {
@@ -538,26 +576,25 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                         }
                     }
                     setHeatmapData(heatmap);
-
-                    // Fetch and process Audience Demographics data
-                try {
-                    const demographicsMetrics = 'page_fans_city,page_fans_country';
-                    const demographicsData = await makeRequestWithRetry(`/${target.id}/insights?metric=${demographicsMetrics}&period=lifetime`, target.access_token);
-                    
-                    if (demographicsData.data) {
-                        const cityData = demographicsData.data.find((m: any) => m.name === 'page_fans_city')?.values?.[0]?.value || {};
-                        const countryData = demographicsData.data.find((m: any) => m.name === 'page_fans_country')?.values?.[0]?.value || {};
-                        
-                        // Set the state with the fetched data (even if empty)
-                        setAudienceCityData(cityData);
-                        setAudienceCountryData(countryData);
+    
+                     // Fetch and process Audience Demographics data (Always fetch lifetime for demographics)
+                    try {
+                        const demographicsMetrics = 'page_fans_city,page_fans_country';
+                        const demographicsData = await makeRequestWithRetry(`/${target.id}/insights?metric=${demographicsMetrics}&period=lifetime`, target.access_token);
+    
+                        if (demographicsData.data) {
+                            const cityData = demographicsData.data.find((m: any) => m.name === 'page_fans_city')?.values?.[0]?.value || {};
+                            const countryData = demographicsData.data.find((m: any) => m.name === 'page_fans_country')?.values?.[0]?.value || {};
+    
+                            setAudienceCityData(cityData);
+                            setAudienceCountryData(countryData);
+                        }
+                    } catch (error) {
+                        console.warn('Failed to fetch audience demographics insight:', error);
+                        setAudienceCityData({});
+                        setAudienceCountryData({});
                     }
-                } catch (error) {
-                    console.warn('Failed to fetch audience demographics insight:', error);
-                    setAudienceCityData({}); // Clear on failure
-                    setAudienceCountryData({}); // Clear on failure
-                }
-
+    
                 } catch (error) {
                     if (error instanceof FacebookTokenError) throw error;
                     console.error('Facebook Insights Fetch Error:', error);
@@ -567,22 +604,26 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                     setAudienceGrowthData([]);
                     setHeatmapData([]);
                     setContentTypePerformanceData([]);
+                    setAudienceCityData({});
+                    setAudienceCountryData({});
                 }
-
-
+    
+    
                 showNotification('partial', `(6/6) حفظ البيانات...`);
                 await saveDataToFirestore({
-                    scheduledPosts: finalScheduled.map(p => ({ ...p, scheduledAt: p.scheduledAt.toISOString() })),
-                    publishedPosts: finalPublished.map(p => ({ ...p, publishedAt: p.publishedAt.toISOString() })),
-                    inboxItems: newInbox,
-                    performanceSummaryData: performanceSummaryData,
-                    audienceGrowthData: audienceGrowthData,
-                    heatmapData: heatmapData,
-                    contentTypeData: contentTypeData,
+                    scheduledPosts: scheduledPosts.map(p => ({ ...p, scheduledAt: p.scheduledAt.toISOString() })), // Save updated state
+                    publishedPosts: publishedPosts.map(p => ({ ...p, publishedAt: p.publishedAt.toISOString() })), // Save updated state
+                    inboxItems: inboxItems, // Save updated state
+                    performanceSummaryData: performanceSummaryData, // Save updated state
+                    audienceGrowthData: audienceGrowthData, // Save updated state
+                    heatmapData: heatmapData, // Save updated state
+                    contentTypeData: contentTypeData, // Save updated state
+                    audienceCityData: audienceCityData, // Save updated state
+                    audienceCountryData: audienceCountryData, // Save updated state
                     lastSync: new Date().toISOString()
                 });
                 showNotification('success', 'تمت المزامنة بنجاح!');
-
+    
             } catch (error: unknown) {
                 console.error("Facebook Sync Error details:", error);
                 if (error instanceof FacebookTokenError) {
@@ -596,39 +637,80 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                 setIsInboxLoading(false);
                 setPublishedPostsLoading(false);
             }
-        }, [managedTarget, saveDataToFirestore, showNotification, syncingTargetId, onTokenError, makeRequestWithRetry, analyticsPeriod]);
-
+        }, [managedTarget, saveDataToFirestore, showNotification, syncingTargetId, onTokenError, makeRequestWithRetry, analyticsPeriod, audienceCityData, audienceCountryData, inboxItems, publishedPosts, scheduledPosts]); // Add all dependencies
+        
+        // Fetch data from Firestore and then sync with Facebook
         useEffect(() => {
             const loadDataAndSync = async () => {
                 const dataRef = getTargetDataRef();
                 setPublishedPostsLoading(true); setIsInboxLoading(true);
-                const docSnap = await dataRef.get();
+    
+                let loadedScheduledPosts: ScheduledPost[] = [];
+                let loadedPublishedPosts: PublishedPost[] = [];
+                let loadedInboxItems: InboxItem[] = [];
+                let loadedDrafts: Draft[] = [];
+                let loadedPerformanceSummaryData: PerformanceSummaryData | null = null;
+                let loadedPerformanceSummaryText: string = '';
+                let loadedAudienceGrowthData: AudienceGrowthData[] = [];
+                let loadedHeatmapData: HeatmapDataPoint[] = [];
+                let loadedContentTypeData: ContentTypePerformanceData[] = [];
+                let loadedAudienceCityData: { [key: string]: number } = {};
+                let loadedAudienceCountryData: { [key: string]: number } = {};
                 let loadedProfile: PageProfile = initialPageProfile;
-
-                if (docSnap.exists) {
-                    const data = docSnap.data()!;
-                    loadedProfile = { ...initialPageProfile, ...(data.pageProfile || {}) };
-                    setDrafts(data.drafts || []);
-                    setScheduledPosts(data.scheduledPosts?.map((p: any) => ({...p, scheduledAt: new Date(p.scheduledAt)})) || []);
-                    setPublishedPosts(data.publishedPosts?.map((p:any) => ({...p, publishedAt: new Date(p.publishedAt)})) || []);
-                    setInboxItems(data.inboxItems?.map((item: any) => ({...item, status: item.status as 'new' | 'replied' | 'done',})) || []);
-                    setPerformanceSummaryData(data.performanceSummaryData || null);
-                    setPerformanceSummaryText(data.performanceSummaryText || '');
-                    setAudienceGrowthData(data.audienceGrowthData || []);
-                    setHeatmapData(data.heatmapData || []);
-                    setContentTypePerformanceData(data.contentTypeData || []); 
+                let lastSyncTime: string | undefined;
+    
+                try {
+                    const docSnap = await dataRef.get();
+    
+                    if (docSnap.exists) {
+                        const data = docSnap.data()!;
+                        loadedProfile = { ...initialPageProfile, ...(data.pageProfile || {}) };
+                        loadedDrafts = data.drafts || [];
+                        loadedScheduledPosts = data.scheduledPosts?.map((p: any) => ({...p, scheduledAt: new Date(p.scheduledAt)})) || [];
+                        loadedPublishedPosts = data.publishedPosts?.map((p:any) => ({...p, publishedAt: new Date(p.publishedAt)})) || [];
+                        loadedInboxItems = data.inboxItems?.map((item: any) => ({...item, status: item.status as 'new' | 'replied' | 'done',})) || [];
+                        loadedPerformanceSummaryData = data.performanceSummaryData || null;
+                        loadedPerformanceSummaryText = data.performanceSummaryText || '';
+                        loadedAudienceGrowthData = data.audienceGrowthData || [];
+                        loadedHeatmapData = data.heatmapData || [];
+                        loadedContentTypeData = data.contentTypeData || [];
+                        loadedAudienceCityData = data.audienceCityData || {};
+                        loadedAudienceCountryData = data.audienceCountryData || {};
+                        lastSyncTime = data.lastSync;
+                    }
+    
+                    // Set state with loaded data immediately
+                    setPageProfile(loadedProfile);
+                    setDrafts(loadedDrafts);
+                    setScheduledPosts(loadedScheduledPosts);
+                    setPublishedPosts(loadedPublishedPosts);
+                    setInboxItems(loadedInboxItems);
+                    setPerformanceSummaryData(loadedPerformanceSummaryData);
+                    setPerformanceSummaryText(loadedPerformanceSummaryText);
+                    setAudienceGrowthData(loadedAudienceGrowthData);
+                    setHeatmapData(loadedHeatmapData);
+                    setContentTypePerformanceData(loadedContentTypeData);
+                    setAudienceCityData(loadedAudienceCityData);
+                    setAudienceCountryData(loadedAudienceCountryData);
+    
+                    if (isAdmin || loadedProfile.ownerUid === user.uid) {
+                        setCurrentUserRole('owner');
+                    } else {
+                        setCurrentUserRole(loadedProfile.team?.find(m => m.uid === user.uid)?.role || 'viewer');
+                    }
+    
+                } catch (error) {
+                    console.error("Failed to load data from Firestore:", error);
+                    showNotification('error', 'فشل جلب البيانات المحفوظة.');
+                } finally {
+                     // Always attempt to sync with Facebook after loading from Firestore
+                     await syncFacebookData(managedTarget, lastSyncTime);
                 }
-                if (isAdmin || loadedProfile.ownerUid === user.uid) {
-                    setCurrentUserRole('owner');
-                } else {
-                    setCurrentUserRole(loadedProfile.team?.find(m => m.uid === user.uid)?.role || 'viewer');
-                }
-                setPageProfile(loadedProfile);
-                await syncFacebookData(managedTarget);
             };
+    
             loadDataAndSync();
-        }, [managedTarget.id, user.uid, isAdmin]);
-
+    
+        }, [managedTarget.id, user.uid, isAdmin, getTargetDataRef, showNotification, syncFacebookData]); // Added dependencies
         const handlePublish = async (postType: PostType, postOptions: { [key: string]: any }) => {
             setComposerError('');
             if (!managedTarget.access_token) {
