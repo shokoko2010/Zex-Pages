@@ -610,18 +610,17 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     
                 showNotification('partial', `(6/6) حفظ البيانات...`);
                 await saveDataToFirestore({
-                    scheduledPosts: scheduledPosts.map(p => ({ ...p, scheduledAt: p.scheduledAt.toISOString() })), // Save updated state
-                    publishedPosts: publishedPosts.map(p => ({ ...p, publishedAt: p.publishedAt.toISOString() })), // Save updated state
-                    inboxItems: inboxItems, // Save updated state
-                    performanceSummaryData: performanceSummaryData, // Save updated state
-                    audienceGrowthData: audienceGrowthData, // Save updated state
-                    heatmapData: heatmapData, // Save updated state
-                    contentTypeData: contentTypeData, // Save updated state
-                    audienceCityData: audienceCityData, // Save updated state
-                    audienceCountryData: audienceCountryData, // Save updated state
+                    scheduledPosts: scheduledPosts.map(p => ({ ...p, scheduledAt: p.scheduledAt.toISOString() })),
+                    publishedPosts: publishedPosts.map(p => ({ ...p, publishedAt: p.publishedAt.toISOString() })),
+                    inboxItems: inboxItems,
+                    performanceSummaryData: performanceSummaryData,
+                    audienceGrowthData: audienceGrowthData,
+                    heatmapData: heatmapData,
+                    contentTypeData: contentTypeData,
+                    audienceCityData: audienceCityData,
+                    audienceCountryData: audienceCountryData,
                     lastSync: new Date().toISOString()
                 });
-                showNotification('success', 'تمت المزامنة بنجاح!');
     
             } catch (error: unknown) {
                 console.error("Facebook Sync Error details:", error);
