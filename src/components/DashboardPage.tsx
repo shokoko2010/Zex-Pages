@@ -86,6 +86,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     const [isScheduled, setIsScheduled] = useState(false);
     const [scheduleDate, setScheduleDate] = useState('');
     const [composerError, setComposerError] = useState('');
+    const [adCampaigns, setAdCampaigns] = useState<any[]>([]); // Using 'any[]' for now, will define a type later
     const [audienceCityData, setAudienceCityData] = useState<{ [key: string]: number }>({});
     const [audienceCountryData, setAudienceCountryData] = useState<{ [key: string]: number }>({});
     const [includeInstagram, setIncludeInstagram] = useState(false);
@@ -135,6 +136,46 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         }
         return data;
     }, []); // Note the empty dependency array
+    const fetchAdCampaigns = useCallback(async () => {
+        if (!user || !managedTarget.access_token) {
+            showNotification('error', 'رمز الوصول للصفحة مفقود لجلب الحملات الإعلانية.');
+            return;
+        }
+
+        showNotification('partial', 'جاري جلب الحملات الإعلانية...');
+        try {
+            // Step 1: Fetch Ad Accounts
+            const adAccountsData = await makeRequestWithRetry(`/me/adaccounts?fields=id,name`, managedTarget.access_token);
+            
+            if (adAccountsData.data && adAccountsData.data.length > 0) {
+                const firstAdAccountId = adAccountsData.data[0].id; // Use the first ad account
+
+                // Step 2: Fetch Campaigns for the Ad Account with Insights
+                const campaignFields = 'id,name,status,spend,reach,objective';
+                const campaignsData = await makeRequestWithRetry(`/${firstAdAccountId}/campaigns?fields=${campaignFields}`, managedTarget.access_token);
+
+                if (campaignsData.data) {
+                    setAdCampaigns(campaignsData.data);
+                    showNotification('success', 'تم جلب الحملات الإعلانية بنجاح.');
+                } else {
+                    setAdCampaigns([]);
+                    showNotification('partial', 'لم يتم العثور على حملات إعلانية لهذا الحساب.');
+                }
+            } else {
+                setAdCampaigns([]);
+                showNotification('partial', 'لم يتم العثور على حسابات إعلانية.');
+            }
+        } catch (error: any) {
+            console.error('Failed to fetch ad campaigns:', error);
+            showNotification('error', `فشل جلب الحملات الإعلانية: ${error.message}`);
+            setAdCampaigns([]);
+        }
+    }, [user, managedTarget.access_token, makeRequestWithRetry, showNotification]);
+    useEffect(() => {
+        if (view === 'ads') {
+            fetchAdCampaigns();
+        }
+    }, [view, fetchAdCampaigns]);
     const onFetchMessageHistory = useCallback(async (conversationId: string) => {
         if (!managedTarget.access_token) {
             showNotification('error', 'رمز الوصول للصفحة مفقود لجلب سجل الرسائل.');
@@ -1191,11 +1232,13 @@ const onFetchPostInsights = async (postId: string): Promise<any> => {
                 />
             );
         case 'ads': 
-            return (
-                <AdsManagerPage 
-                    selectedTarget={managedTarget} role={currentUserRole} 
-                />
-            );
+        return (
+            <AdsManagerPage 
+                selectedTarget={managedTarget} 
+                role={currentUserRole}
+                campaigns={adCampaigns} // Pass the fetched campaigns
+            />
+        );
         default: 
             return <div className="p-8 text-center text-gray-500 dark:text-gray-400">اختر قسمًا من القائمة للبدء.</div>;
     }
