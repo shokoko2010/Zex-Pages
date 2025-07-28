@@ -290,8 +290,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     
     
         // Sync data from Facebook API
-        const syncFacebookData = useCallback(async (target: Target, lastSyncTime?: string) => {
-            if (!target.access_token) {
+        const syncFacebookData = useCallback(async (target: Target, lastSyncTime?: string) => {            if (!target.access_token) {
                 showNotification('error', 'رمز الوصول للصفحة مفقود.');
                 return;
             }
@@ -637,8 +636,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                 setIsInboxLoading(false);
                 setPublishedPostsLoading(false);
             }
-        }, [managedTarget, saveDataToFirestore, showNotification, syncingTargetId, onTokenError, makeRequestWithRetry, analyticsPeriod, audienceCityData, audienceCountryData, inboxItems, publishedPosts, scheduledPosts]); // Add all dependencies
-        
+        }, [managedTarget, saveDataToFirestore, showNotification, syncingTargetId, onTokenError, makeRequestWithRetry, analyticsPeriod]); // Removed state variables
+
         // Fetch data from Firestore and then sync with Facebook
         useEffect(() => {
             const loadDataAndSync = async () => {
