@@ -776,7 +776,7 @@ await getTargetDataRef().set(cleanedDataToSave, { merge: true });
                     showNotification('error', 'فشل جلب البيانات المحفوظة.');
                 } finally {
                      console.log("Finished loading from Firestore. Calling syncFacebookData with lastSyncTime:", lastSyncTime); // Log before calling sync
-                     await syncFacebookData(managedTarget, lastSyncTime);
+                     await syncFacebookData(managedTarget); // Call without lastSyncTime
                      console.log("syncFacebookData called."); // Log after calling sync
                      setIsInboxLoading(false); // These should be handled in syncFacebookData's finally
                      setPublishedPostsLoading(false); // These should be handled in syncFacebookData's finally
@@ -1426,7 +1426,7 @@ return (
          <NavItem icon={<UserCircleIcon className="w-5 h-5" />} label="ملف الصفحة" active={view === 'profile'} onClick={() => setView('profile')} />
       </nav>
       <div className="mt-8 pt-4 border-t dark:border-gray-700">
-            <Button onClick={() => syncFacebookData(managedTarget, lastSyncTime)} isLoading={!!syncingTargetId} variant="secondary" className="w-full" disabled={currentUserRole === 'viewer'}>
+            <Button onClick={() => syncFacebookData(managedTarget)} isLoading={!!syncingTargetId} variant="secondary" className="w-full" disabled={currentUserRole === 'viewer'}>
                 <ArrowPathIcon className="w-5 h-5 ml-2" />
                 {syncingTargetId ? 'جاري المزامنة...' : 'مزامنة بيانات فيسبوك'}
             </Button>
