@@ -463,19 +463,19 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                     // Process data for Posting Times Heatmap from actual post engagement
                     const heatmapGrid: number[][] = Array(7).fill(0).map(() => Array(24).fill(0));
                     const postCountGrid: number[][] = Array(7).fill(0).map(() => Array(24).fill(0));
-    
+
                     finalPublished.forEach(post => {
                         const postDate = new Date(post.publishedAt);
-                        const dayOfWeek = postDate.getDay(); // Sunday = 0, Monday = 1, etc.
+                        const dayOfWeek = postDate.getDay();
                         const hourOfDay = postDate.getHours();
                         const postEngagement = (post.analytics.likes || 0) + (post.analytics.comments || 0) + (post.analytics.shares || 0);
-    
+
                         if (dayOfWeek >= 0 && hourOfDay >= 0) {
                             heatmapGrid[dayOfWeek][hourOfDay] += postEngagement;
                             postCountGrid[dayOfWeek][hourOfDay] += 1;
                         }
                     });
-    
+
                     const heatmap: HeatmapDataPoint[] = [];
                     for (let day = 0; day < 7; day++) {
                         for (let hour = 0; hour < 24; hour++) {
@@ -483,13 +483,36 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                                 heatmap.push({
                                     day: day,
                                     hour: hour,
-                                    engagement: heatmapGrid[day][hour] / postCountGrid[day][hour] // Average engagement
+                                    engagement: heatmapGrid[day][hour] / postCountGrid[day][hour]
                                 });
                             }
                         }
                     }
                     setHeatmapData(heatmap);
-    
+
+                    // Fetch and process Audience Demographics data
+                    try {
+                        const demographicsMetrics = 'page_fans_city,page_fans_country';
+                        const demographicsData = await makeRequestWithRetry(`/${target.id}/insights?metric=${demographicsMetrics}&period=lifetime`, target.access_token);
+                        
+                        if (demographicsData.data) {
+                            const cityData = demographicsData.data.find((m: any) => m.name === 'page_fans_city')?.values?.[0]?.value || {};
+                            const countryData = demographicsData.data.find((m: any) => m.name === 'page_fans_country')?.values?.[0]?.value || {};
+                            
+                            // Assuming AudienceDemographics component can handle this data structure
+                            // If not, we'll need to transform it.
+                            // For now, let's just log it to see the structure.
+                            console.log("Fetched City Data:", cityData);
+                            console.log("Fetched Country Data:", countryData);
+                            
+                            // Here you would set the state for demographics data
+                            // e.g., setAudienceCityData(cityData);
+                            // e.g., setAudienceCountryData(countryData);
+                        }
+                    } catch (error) {
+                        console.warn('Failed to fetch audience demographics insight:', error);
+                    }
+
                 } catch (error) {
                     if (error instanceof FacebookTokenError) throw error;
                     console.error('Facebook Insights Fetch Error:', error);
@@ -500,6 +523,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                     setHeatmapData([]);
                     setContentTypePerformanceData([]);
                 }
+
 
                 showNotification('partial', `(6/6) حفظ البيانات...`);
                 await saveDataToFirestore({
