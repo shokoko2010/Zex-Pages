@@ -344,45 +344,50 @@ await getTargetDataRef().set(cleanedDataToSave, { merge: true });
                 };
     
                 // STEP 1: Fetch NEW Scheduled Posts
-                showNotification('partial', `(1/6) جلب المنشورات المجدولة...`);
-                try {
-                    const scheduledPostFields = "id,message,scheduled_publish_time,attachments{media}";
-                    const scheduledData = await makeRequestWithRetry(`/${target.id}/scheduled_posts?fields=${scheduledPostFields}&limit=50${sinceParam}`, target.access_token);
-                    fetchedScheduledPosts = (scheduledData.data || []).map((post: any) => ({
-                        id: post.id || null, // Ensure id is always included
-                        text: post.message || '', // Ensure text is always a string
-                        scheduledAt: post.scheduled_publish_time ? new Date(post.scheduled_publish_time * 1000) : null, // Ensure date is Date or null
-                        imageUrl: getImageUrlFromPost(post) || null, // Ensure imageUrl is string or null
-                        hasImage: !!getImageUrlFromPost(post), // Ensure hasImage is boolean
-                        targetId: target.id || null, // Ensure targetId is string or null
-                        targetInfo: target.picture.data.url ? { name: target.name || null, avatarUrl: target.picture.data.url || null, type: target.type || null } : null, // Ensure targetInfo structure is consistent or null
-                        status: 'scheduled', // Ensure status is always 'scheduled' string
-                        isReminder: false, // Ensure isReminder is always boolean
-                        type: 'post', // Ensure type is always 'post' string
-                    } as ScheduledPost));
-                    
-                    // Merge new scheduled posts with existing ones (fetched from state)
-                    setScheduledPosts(prevScheduled => {
-                        const existingIds = new Set(prevScheduled.map(p => p.id));
-                        const merged = [...prevScheduled, ...fetchedScheduledPosts.filter(p => !existingIds.has(p.id))];
-                        return merged;
-                    });
-    
+            showNotification('partial', `(1/6) جلب المنشورات المجدولة...`);
+            let fetchedScheduledPosts: ScheduledPost[] = []; // Changed variable name for clarity
+            try {
+                const scheduledPostFields = "id,message,scheduled_publish_time,attachments{media}";
+                // Use fetchWithPagination for scheduled posts
+                const scheduledData = await fetchWithPagination(`/${target.id}/scheduled_posts?fields=${scheduledPostFields}${sinceParam}`, target.access_token);
+                fetchedScheduledPosts = (scheduledData || []).map((post: any) => ({
+                    id: post.id || null, // Ensure id is always included
+                    text: post.message || '', // Ensure text is always a string
+                    scheduledAt: post.scheduled_publish_time ? new Date(post.scheduled_publish_time * 1000) : null, // Ensure date is Date or null
+                    imageUrl: getImageUrlFromPost(post) || null, // Ensure imageUrl is string or null
+                    hasImage: !!getImageUrlFromPost(post), // Ensure hasImage is boolean
+                    targetId: target.id || null, // Ensure targetId is string or null
+                    targetInfo: target.picture?.data?.url ? { name: target.name || null, avatarUrl: target.picture.data.url || null, type: target.type || null } : null, // Ensure targetInfo structure is consistent or null
+                    status: 'scheduled', // Ensure status is always 'scheduled' string
+                    isReminder: false, // Ensure isReminder is always boolean
+                    type: 'post', // Ensure type is always 'post' string
+                } as ScheduledPost));
+                // Merge new scheduled posts with existing ones (fetched from state)
+                setScheduledPosts(prevScheduled => {
+                    const existingIds = new Set(prevScheduled.map(p => p.id));
+                    const merged = [...prevScheduled, ...fetchedScheduledPosts.filter(p => !existingIds.has(p.id))];
+                    return merged;
+                });
+
                 } catch (error) {
                     if (error instanceof FacebookTokenError) throw error;
                     console.warn('Failed to fetch scheduled posts:', error);
                 }
+
     
                 // STEP 2: Fetch NEW Published Posts
                 showNotification('partial', `(2/6) جلب المنشورات المنشورة...`);
+                let fetchedPublishedContent: any[] = []; // Changed variable name for clarity
                 try {
                     const postContentFields = "id,message,created_time,permalink_url,attachments{media}";
-                    const publishedData = await makeRequestWithRetry(`/${target.id}/published_posts?fields=${postContentFields}&limit=50${sinceParam}`, target.access_token);
-                    fetchedPublishedContent = publishedData.data || [];
+                    // Use fetchWithPagination for published posts
+                    const publishedData = await fetchWithPagination(`/${target.id}/published_posts?fields=${postContentFields}${sinceParam}`, target.access_token);
+                    fetchedPublishedContent = publishedData || []; // fetchWithPagination returns an array directly
                 } catch (error) {
                     if (error instanceof FacebookTokenError) throw error;
                     console.warn('Failed to fetch published posts:', error);
                 }
+
     
                 // STEP 3: Fetch Engagement Data for NEW Published Posts
                 showNotification('partial', `(3/6) جلب التفاعلات للمنشورات الجديدة...`);
@@ -424,44 +429,44 @@ await getTargetDataRef().set(cleanedDataToSave, { merge: true });
                  });
     
     
-                // STEP 4: Fetch NEW Inbox Items (Messages and Comments)
-                showNotification('partial', `(4/6) جلب صندوق الوارد الجديد...`);
-                const newInboxItems: InboxItem[] = [];
-    
-                // Fetch NEW Conversations (Use sinceParam)
-                try {
-                    const convoFields = "participants,messages.limit(1){from,to,message,created_time}";
-                    const conversationsData = await makeRequestWithRetry(`/${target.id}/conversations?fields=${convoFields}&limit=50${sinceParam}`, target.access_token);
-                    if (conversationsData.data) {
-                        conversationsData.data.forEach((convo: any) => {
-                            const lastMsg = convo.messages?.data?.[0];
-                            if (lastMsg && lastMsg.from.id !== target.id) {
-                                const participant = convo.participants.data.find((p: any) => p.id !== target.id);
-                                if (participant) {
-                                    newInboxItems.push({
-                                        id: lastMsg.id || null,
-                                        type: 'message',
-                                        from: participant || null,
-                                        text: lastMsg.message || '',
-                                        timestamp: lastMsg.created_time || null,
-                                        status: 'new',
-                                        conversationId: convo.id || null,
-                                        authorName: participant.name || null,
-                                        authorPictureUrl: `https://graph.facebook.com/${participant.id}/picture?type=normal` || null,
-                                        link: null, // Or undefined
-                                        post: null,
-                                        messages: [], // Change null to empty array
-                                        isReplied: false,
-                                    } as InboxItem);                                    
-                                    
-                                }
+            // STEP 4: Fetch NEW Inbox Items (Messages and Comments)
+            showNotification('partial', `(4/6) جلب صندوق الوارد الجديد...`);
+            const newInboxItems: InboxItem[] = [];
+
+            // Fetch NEW Conversations (Use fetchWithPagination and sinceParam)
+            try {
+                const convoFields = "participants,messages.limit(1){from,to,message,created_time}";
+                const conversationsData = await fetchWithPagination(`/${target.id}/conversations?fields=${convoFields}${sinceParam}`, target.access_token);
+                if (conversationsData) { // fetchWithPagination returns an array
+                    conversationsData.forEach((convo: any) => {
+                        const lastMsg = convo.messages?.data?.[0];
+                        if (lastMsg && lastMsg.from.id !== target.id) {
+                            const participant = convo.participants.data.find((p: any) => p.id !== target.id);
+                            if (participant) {
+                                newInboxItems.push({
+                                    id: lastMsg.id || null,
+                                    type: 'message',
+                                    from: participant || null,
+                                    text: lastMsg.message || '',
+                                    timestamp: lastMsg.created_time || null,
+                                    status: 'new',
+                                    conversationId: convo.id || null,
+                                    authorName: participant.name || null,
+                                    authorPictureUrl: `https://graph.facebook.com/${participant.id}/picture?type=normal` || null,
+                                    link: null, // Set to null for messages
+                                    post: null, // Set to null for messages
+                                    messages: [], // Set to empty array for the top-level item
+                                    isReplied: false, // Ensure this is included
+                                } as InboxItem);
                             }
-                        });
-                    }
-                } catch (error) {
-                    if (error instanceof FacebookTokenError) throw error;
-                    console.warn('Failed to fetch new conversations:', error);
+                        }
+                    });
                 }
+            } catch (error) {
+                if (error instanceof FacebookTokenError) throw error;
+                console.warn('Failed to fetch new conversations:', error);
+            }
+
                 // Fetch NEW Comments from NEW published posts
                 if (fetchedPublishedContent.length > 0) {
                     for (const post of fetchedPublishedContent) { // Check only newly fetched published posts for comments
