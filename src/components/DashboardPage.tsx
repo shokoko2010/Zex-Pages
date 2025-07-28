@@ -78,7 +78,7 @@ const NavItem: React.FC<{
 
 const initialPageProfile: PageProfile = { description: '', services: '', contactInfo: '', website: '', links: [], currentOffers: '', address: '', country: '', language: 'ar', contentGenerationLanguages: ['ar'], ownerUid: '', team: [], members: [] };
 
-const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, managedTarget, allTargets, onChangePage, onLogout, aiClient, stabilityApiKey, onSettingsClick, fetchWithPagination, theme, onToggleTheme, strategyHistory, onDeleteStrategy, onSavePlan, onTokenError }) => {
+const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, managedTarget, allTargets, onChangePage, onLogout, aiClient, stabilityApiKey, onSettingsClick, fetchWithPagination, theme, onToggleTheme, fbAccessToken, strategyHistory, onDeleteStrategy, onSavePlan, onTokenError }) => {
     const [view, setView] = useState<DashboardView>('composer');
     const [postText, setPostText] = useState('');
     const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -137,25 +137,31 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         return data;
     }, []); // Note the empty dependency array
     const fetchAdCampaigns = useCallback(async () => {
-        if (!user || !managedTarget.access_token) {
-            showNotification('error', 'رمز الوصول للصفحة مفقود لجلب الحملات الإعلانية.');
+        if (!user || !fbAccessToken) { // Use fbAccessToken instead of managedTarget.access_token
+            showNotification('error', 'رمز وصول المستخدم مفقود لجلب الحملات الإعلانية.');
             return;
         }
 
         showNotification('partial', 'جاري جلب الحملات الإعلانية...');
         try {
-            // Step 1: Fetch Ad Accounts
-            const adAccountsData = await makeRequestWithRetry(`/me/adaccounts?fields=id,name`, managedTarget.access_token);
+            // Step 1: Fetch Ad Accounts using the User Access Token
+            const adAccountsData = await makeRequestWithRetry(`/me/adaccounts?fields=id,name`, fbAccessToken);
             
             if (adAccountsData.data && adAccountsData.data.length > 0) {
-                const firstAdAccountId = adAccountsData.data[0].id; // Use the first ad account
+                const firstAdAccountId = adAccountsData.data[0].id;
 
                 // Step 2: Fetch Campaigns for the Ad Account with Insights
-                const campaignFields = 'id,name,status,spend,reach,objective';
-                const campaignsData = await makeRequestWithRetry(`/${firstAdAccountId}/campaigns?fields=${campaignFields}`, managedTarget.access_token);
+                const campaignFields = 'id,name,status,objective,insights{spend,reach}'; // Get insights directly
+                const campaignsData = await makeRequestWithRetry(`/${firstAdAccountId}/campaigns?fields=${campaignFields}`, fbAccessToken);
 
                 if (campaignsData.data) {
-                    setAdCampaigns(campaignsData.data);
+                    // Process campaigns to flatten the insights data
+                    const processedCampaigns = campaignsData.data.map((campaign: any) => ({
+                        ...campaign,
+                        spend: campaign.insights?.data?.[0]?.spend || '0',
+                        reach: campaign.insights?.data?.[0]?.reach || '0',
+                    }));
+                    setAdCampaigns(processedCampaigns);
                     showNotification('success', 'تم جلب الحملات الإعلانية بنجاح.');
                 } else {
                     setAdCampaigns([]);
@@ -170,7 +176,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             showNotification('error', `فشل جلب الحملات الإعلانية: ${error.message}`);
             setAdCampaigns([]);
         }
-    }, [user, managedTarget.access_token, makeRequestWithRetry, showNotification]);
+    }, [user, fbAccessToken, makeRequestWithRetry, showNotification]); // Update dependency array
     useEffect(() => {
         if (view === 'ads') {
             fetchAdCampaigns();
