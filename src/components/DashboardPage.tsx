@@ -419,31 +419,42 @@ try {
         console.warn('Failed to fetch page_fans insight:', error);
     }
 
-    // Fetch Engagement and Reach Metrics
+    // Fetch Engagement and Reach Metrics (with individual calls for debugging)
     try {
-        const engagementReachMetrics = [
-            'page_engaged_users',
-            'page_impressions_unique',
-            'page_post_engagements',
-            'page_actions_post_reactions_total'
-        ];
-         const engagementReachDataResponse = await makeRequestWithRetry(`/${target.id}/insights?metric=${engagementReachMetrics.join(',')}&period=${period}`, target.access_token);
-         if (engagementReachDataResponse.data) {
-             engagementReachDataResponse.data.forEach((metric: any) => {
-                 if (metric.name === 'page_engaged_users' && metric.values.length > 0) {
-                     totalEngagement = metric.values[metric.values.length - 1].value;
-                 } else if (metric.name === 'page_impressions_unique' && metric.values.length > 0) {
-                      totalReach = metric.values[metric.values.length - 1].value;
-                 }
-                 // You would process other engagement/reach metrics here
-             });
-         }
-
+        const engagedUsersData = await makeRequestWithRetry(`/${target.id}/insights?metric=page_engaged_users&period=${period}`, target.access_token);
+        if (engagedUsersData.data && engagedUsersData.data.length > 0 && engagedUsersData.data[0].values.length > 0) {
+            totalEngagement = engagedUsersData.data[0].values[engagedUsersData.data[0].values.length - 1].value;
+        }
     } catch (error) {
         if (error instanceof FacebookTokenError) throw error;
-         console.warn('Failed to fetch engagement/reach insights:', error);
+        console.warn('Failed to fetch page_engaged_users insight:', error);
     }
 
+    try {
+        const impressionsData = await makeRequestWithRetry(`/${target.id}/insights?metric=page_impressions_unique&period=${period}`, target.access_token);
+        if (impressionsData.data && impressionsData.data.length > 0 && impressionsData.data[0].values.length > 0) {
+            totalReach = impressionsData.data[0].values[impressionsData.data[0].values.length - 1].value;
+        }
+    } catch (error) {
+        if (error instanceof FacebookTokenError) throw error;
+        console.warn('Failed to fetch page_impressions_unique insight:', error);
+    }
+
+    try {
+        const postEngagementsData = await makeRequestWithRetry(`/${target.id}/insights?metric=page_post_engagements&period=${period}`, target.access_token);
+        // Process this metric if needed for your summary
+    } catch (error) {
+        if (error instanceof FacebookTokenError) throw error;
+        console.warn('Failed to fetch page_post_engagements insight:', error);
+    }
+
+    try {
+        const reactionsData = await makeRequestWithRetry(`/${target.id}/insights?metric=page_actions_post_reactions_total&period=${period}`, target.access_token);
+        // Process this metric if needed for your summary
+    } catch (error) {
+        if (error instanceof FacebookTokenError) throw error;
+        console.warn('Failed to fetch page_actions_post_reactions_total insight:', error);
+    }
 
      // Update performance summary with fetched data
      processedPerformanceSummary.totalEngagement = totalEngagement;
