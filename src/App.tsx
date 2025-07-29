@@ -202,7 +202,6 @@ const App: React.FC = () => {
     console.log('Attempting to fetch Facebook data.');
     if (!user || isSimulation || !appUser?.fbAccessToken || !sdkLoaded || !window.FB) {
         console.log('fetchFacebookData aborted: conditions not met.');
-        setTargetsLoading(false);
         return;
     }
     
@@ -249,8 +248,9 @@ const App: React.FC = () => {
             const userDoc = await userDocRef.get();
             
             if (userDoc.exists) {
-                setAppUser(userDoc.data() as AppUser);
-                console.log('App user data loaded:', userDoc.data());
+                const userData = userDoc.data() as AppUser;
+                setAppUser(userData);
+                console.log('App user data loaded:', userData);
             } else {
                const newUser: AppUser = {
                    email: currentUser.email!, uid: currentUser.uid, isAdmin: false,
@@ -393,9 +393,9 @@ const App: React.FC = () => {
     } catch(error: any) {
         if (error instanceof FacebookTokenError) {
             handleFacebookTokenError();
-        } else {
-            alert(`فشل تحميل الصفحات: ${error.message}`);
         }
+            alert(`فشل تحميل الصفحات: ${error.message}`);
+        
     } finally {
       setLoadingBusinessId(null);
     }
@@ -519,7 +519,7 @@ const App: React.FC = () => {
           onToggleTheme={handleToggleTheme}
           fbAccessToken={appUser?.fbAccessToken || null}
           strategyHistory={strategyHistory}
-          onSavePlan={handleContentPlan}
+          onSavePlan={handleSaveContentPlan}
           onDeleteStrategy={handleDeleteStrategy}
           onTokenError={handleFacebookTokenError}
         />
