@@ -13,6 +13,7 @@ import StarIcon from './icons/StarIcon';
 import Squares2x2Icon from './icons/Squares2x2Icon';
 import ListBulletIcon from './icons/ListBulletIcon';
 import ArrowPathIcon from './icons/ArrowPathIcon'; // Import the refresh icon
+import BriefcaseIcon from './icons/BriefcaseIcon'; // Using a briefcase icon for admin panel
 
 interface PageSelectorPageProps {
   targets: Target[];
@@ -25,14 +26,15 @@ interface PageSelectorPageProps {
   onSelectTarget: (target: Target) => void;
   onLogout: () => void;
   onSettingsClick: () => void;
+  onAdminClick: () => void; // Add this prop
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
   favoriteTargetIds: Set<string>;
   onToggleFavorite: (targetId: string) => void;
   isFacebookConnected: boolean;
-  onConnectFacebook: () => void;
-  onRefreshPages: () => void; // Add refresh handler prop
-  userPlan: Plan | null; // Add userPlan prop
+  onConnectFacebook: (isReauth?: boolean) => void; // Allow passing reauth flag
+  onRefreshPages: () => void;
+  userPlan: Plan | null;
 }
 
 const TargetCard: React.FC<{ target: Target; linkedInstagram: Target | null; onSelect: () => void; isFavorite: boolean; onToggleFavorite: (e: React.MouseEvent) => void; }> = ({ target, linkedInstagram, onSelect, isFavorite, onToggleFavorite }) => {
@@ -111,6 +113,7 @@ const PageSelectorPage: React.FC<PageSelectorPageProps> = ({
   onSelectTarget,
   onLogout,
   onSettingsClick,
+  onAdminClick, // Use this prop
   theme,
   onToggleTheme,
   favoriteTargetIds,
@@ -118,7 +121,7 @@ const PageSelectorPage: React.FC<PageSelectorPageProps> = ({
   isFacebookConnected,
   onConnectFacebook,
   onRefreshPages,
-  userPlan, // Destructure userPlan
+  userPlan,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isPortfolioDropdownOpen, setIsPortfolioDropdownOpen] = useState(false);
@@ -159,11 +162,16 @@ const PageSelectorPage: React.FC<PageSelectorPageProps> = ({
 
 
   const renderContent = () => {
-    if (isLoading) {
+    if (isLoading && targets.length === 0) {
       return <div className="text-center text-gray-500 dark:text-gray-400 py-10">جاري تحميل وجهات النشر...</div>;
     }
     if (error) {
-      return <div className="text-center text-red-500 py-10">{error}</div>;
+      return (
+        <div className="text-center text-red-500 py-10">
+          <p>{error}</p>
+          <Button onClick={() => onConnectFacebook(true)} className="mt-4">إعادة المصادقة مع فيسبوك</Button>
+        </div>
+      );
     }
     
     if (!isFacebookConnected) {
@@ -171,7 +179,7 @@ const PageSelectorPage: React.FC<PageSelectorPageProps> = ({
         <div className="text-center text-gray-500 dark:text-gray-400 p-8 border-2 border-dashed rounded-lg bg-white dark:bg-gray-800">
           <h3 className="font-semibold text-2xl text-gray-700 dark:text-gray-300 mb-2">الخطوة التالية: ربط حساب فيسبوك</h3>
           <p className="text-lg mb-6">للبدء في إدارة صفحاتك، يرجى ربط حسابك على فيسبوك.</p>
-          <Button onClick={onConnectFacebook} size="lg">
+          <Button onClick={() => onConnectFacebook()} size="lg">
             <FacebookIcon className="w-6 h-6 ml-3" />
             الربط مع فيسبوك
           </Button>
@@ -185,11 +193,11 @@ const PageSelectorPage: React.FC<PageSelectorPageProps> = ({
           <h3 className="font-semibold text-xl text-gray-700 dark:text-gray-300 mb-2">لم يتم العثور على أي وجهات</h3>
           <p className="text-sm mb-4">لا توجد لديك أي صفحات محفوظة أو يمكن الوصول إليها حاليًا.</p>
           <div className="flex justify-center items-center gap-4 mt-6">
-            <Button onClick={onRefreshPages}>
-                <ArrowPathIcon className="w-5 h-5 ml-2" />
+            <Button onClick={onRefreshPages} disabled={isLoading}>
+                <ArrowPathIcon className={`w-5 h-5 ml-2 ${isLoading ? 'animate-spin' : ''}`} />
                 تحديث الصفحات من فيسبوك
             </Button>
-            <Button onClick={onConnectFacebook} variant="secondary">
+            <Button onClick={() => onConnectFacebook(true)} variant="secondary">
                 إعادة ربط حساب فيسبوك
             </Button>
           </div>
@@ -205,7 +213,6 @@ const PageSelectorPage: React.FC<PageSelectorPageProps> = ({
         return <div className="text-center text-gray-500 dark:text-gray-400 py-10">لا توجد نتائج بحث تطابق "{searchQuery}".</div>;
     }
 
-    
     return (
         <div className="space-y-8">
             {viewMode === 'grid' ? (
@@ -256,6 +263,11 @@ const PageSelectorPage: React.FC<PageSelectorPageProps> = ({
         <header className="bg-white dark:bg-gray-800 shadow-md p-4 flex justify-between items-center">
             <h1 className="text-xl font-bold text-blue-600 dark:text-blue-400">zex-pages</h1>
             <div className="flex items-center gap-2">
+                {userPlan?.adminOnly && (
+                    <Button onClick={onAdminClick} variant="primary" className="!p-2" aria-label="لوحة تحكم الأدمن">
+                       <BriefcaseIcon className="w-5 h-5"/>
+                    </Button>
+                )}
                 <Button onClick={onSettingsClick} variant="secondary" className="!p-2" aria-label="الإعدادات">
                     <SettingsIcon className="w-5 h-5"/>
                 </Button>
@@ -283,7 +295,7 @@ const PageSelectorPage: React.FC<PageSelectorPageProps> = ({
                             <SearchIcon className="w-5 h-5 text-gray-400" />
                         </div>
                     </div>
-                     <Button onClick={onRefreshPages} variant="secondary" className="!p-3" aria-label="تحديث الصفحات" title="تحديث الصفحات من فيسبوك">
+                     <Button onClick={onRefreshPages} variant="secondary" className="!p-3" aria-label="تحديث الصفحات" title="تحديث الصفحات من فيسبوك" disabled={isLoading}>
                         <ArrowPathIcon className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
                     </Button>
                      <div className="flex items-center bg-gray-100 dark:bg-gray-700 p-1 rounded-lg flex-shrink-0">

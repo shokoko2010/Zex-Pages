@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect } from 'react';
 import PageSelectorPage from './components/PageSelectorPage';
 import DashboardPage from './components/DashboardPage';
@@ -396,81 +397,84 @@ const App: React.FC = () => {
   const handleLogout = useCallback(async () => { await auth.signOut(); }, []);
 
   const renderContent = () => {
-      if (currentPath.startsWith('/privacy-policy')) return <PrivacyPolicyPage />;
-      if (loadingUser) return <div className="flex items-center justify-center min-h-screen">جاري التحميل...</div>;
-      
-      if (!user || !appUser) return <HomePage onSignIn={handleEmailSignIn} onSignUp={handleEmailSignUp} authError={authError} />;
-      
-      let userPlan = plans.find(p => p.id === appUser.planId) || plans.find(p => p.id === 'free') || null;
-
-      if (appUser.isAdmin) {
-          userPlan = {
-            id: 'admin', name: 'Admin Plan', priceMonthly: 0, priceAnnual: 0,
-            description: "Admin", features: ['All features for admin'],
-            limits: {
-              maxPages: -1, maxTeamMembers: -1, aiFeatures: true,
-              maxScheduledPostsPerMonth: -1, imageGenerationQuota: -1, pages: -1, 
-              aiText: true, aiImage: true, scheduledPosts: -1, drafts: -1, 
-              bulkScheduling: true, contentPlanner: true, deepAnalytics: true,
-              autoResponder: true, contentApprovalWorkflow: false, 
-            },
-            adminOnly: true, price: 0, pricePeriod: 'monthly',
-          } as Plan; 
-      }
-
-      if (selectedTarget) {
-        return (
-          <DashboardPage
-            user={user}
-            isAdmin={appUser.isAdmin || false}
-            userPlan={userPlan}
-            allUsers={allUsers}
-            managedTarget={selectedTarget}
-            allTargets={targets}
-            onChangePage={() => setSelectedTarget(null)}
-            onLogout={handleLogout}
-            isSimulationMode={isSimulation}
-            aiClient={aiClient}
-            stabilityApiKey={stabilityApiKey}
-            onSettingsClick={() => setIsSettingsModalOpen(true)}
-            fetchWithPagination={fetchWithPagination}
-            theme={theme}
-            onToggleTheme={handleToggleTheme}
-            fbAccessToken={appUser.fbAccessToken || null} 
-            strategyHistory={strategyHistory}
-            onSavePlan={handleSaveContentPlan}
-            onDeleteStrategy={handleDeleteStrategy}
-            onTokenError={handleFacebookTokenError}
-          />
-        );
-      }
-      
-      if (appUser.isAdmin) {
-          return <AdminPage appUser={appUser} allUsers={allUsers} onLogout={handleLogout} onSettingsClick={() => setIsSettingsModalOpen(true)} theme={theme} onToggleTheme={handleToggleTheme} plans={plans} onSelectTarget={setSelectedTarget} />;
-      }
-
+    if (currentPath.startsWith('/privacy-policy')) return <PrivacyPolicyPage />;
+    if (loadingUser) return <div className="flex items-center justify-center min-h-screen">جاري التحميل...</div>;
+  
+    if (!user || !appUser) return <HomePage onSignIn={handleEmailSignIn} onSignUp={handleEmailSignUp} authError={authError} />;
+  
+    let userPlan = plans.find(p => p.id === appUser.planId) || plans.find(p => p.id === 'free') || null;
+  
+    if (appUser.isAdmin) {
+      userPlan = {
+        id: 'admin', name: 'Admin Plan', priceMonthly: 0, priceAnnual: 0,
+        description: "Admin", features: ['All features for admin'],
+        limits: {
+          maxPages: -1, maxTeamMembers: -1, aiFeatures: true,
+          maxScheduledPostsPerMonth: -1, imageGenerationQuota: -1, pages: -1,
+          aiText: true, aiImage: true, scheduledPosts: -1, drafts: -1,
+          bulkScheduling: true, contentPlanner: true, deepAnalytics: true,
+          autoResponder: true, contentApprovalWorkflow: false,
+        },
+        adminOnly: true, price: 0, pricePeriod: 'monthly',
+      } as Plan;
+    }
+  
+    if (currentPath.startsWith('/admin') && appUser.isAdmin) {
+      return <AdminPage appUser={appUser} allUsers={allUsers} onLogout={handleLogout} onSettingsClick={() => setIsSettingsModalOpen(true)} theme={theme} onToggleTheme={handleToggleTheme} plans={plans} onSelectTarget={setSelectedTarget} />;
+    }
+  
+    if (selectedTarget) {
       return (
-        <PageSelectorPage
-          targets={targets}
-          businesses={businesses}
-          onLoadPagesFromBusiness={handleLoadPagesFromBusiness}
-          loadingBusinessId={loadingBusinessId}
-          loadedBusinessIds={loadedBusinessIds}
-          isLoading={targetsLoading}
-          error={targetsError}
-          onSelectTarget={setSelectedTarget}
+        <DashboardPage
+          user={user}
+          isAdmin={appUser.isAdmin || false}
+          userPlan={userPlan}
+          allUsers={allUsers}
+          managedTarget={selectedTarget}
+          allTargets={targets}
+          onChangePage={() => {
+            setSelectedTarget(null);
+            setCurrentPath('/'); // Navigate back to page selector
+          }}
           onLogout={handleLogout}
+          isSimulationMode={isSimulation}
+          aiClient={aiClient}
+          stabilityApiKey={stabilityApiKey}
           onSettingsClick={() => setIsSettingsModalOpen(true)}
+          fetchWithPagination={fetchWithPagination}
           theme={theme}
           onToggleTheme={handleToggleTheme}
-          favoriteTargetIds={favoriteTargetIds}
-          onToggleFavorite={handleToggleFavorite}
-          isFacebookConnected={!!appUser.fbAccessToken}
-          onConnectFacebook={handleFacebookConnect}
-          onRefreshPages={fetchFacebookData}
-          userPlan={userPlan}
+          fbAccessToken={appUser.fbAccessToken || null}
+          strategyHistory={strategyHistory}
+          onSavePlan={handleSaveContentPlan}
+          onDeleteStrategy={handleDeleteStrategy}
+          onTokenError={handleFacebookTokenError}
         />
       );
+    }
+  
+    return (
+      <PageSelectorPage
+        targets={targets}
+        businesses={businesses}
+        onLoadPagesFromBusiness={handleLoadPagesFromBusiness}
+        loadingBusinessId={loadingBusinessId}
+        loadedBusinessIds={loadedBusinessIds}
+        isLoading={targetsLoading}
+        error={targetsError}
+        onSelectTarget={setSelectedTarget}
+        onLogout={handleLogout}
+        onSettingsClick={() => setIsSettingsModalOpen(true)}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
+        favoriteTargetIds={favoriteTargetIds}
+        onToggleFavorite={handleToggleFavorite}
+        isFacebookConnected={!!appUser.fbAccessToken}
+        onConnectFacebook={handleFacebookConnect}
+        onRefreshPages={fetchFacebookData}
+        userPlan={userPlan}
+      />
+    );
   };
   
   return (
@@ -483,4 +487,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-
