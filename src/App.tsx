@@ -353,24 +353,43 @@ const App: React.FC = () => {
     }
   }, []);
   
-  const handleFacebookConnect = useCallback(async () => {
+  const handleFacebookConnect = useCallback(async (isReauth = false) => {
     if (!user) return;
     const facebookProvider = new firebase.auth.FacebookAuthProvider();
-    facebookProvider.addScope('email,public_profile,business_management,pages_show_list,read_insights,pages_manage_posts,pages_read_engagement,pages_manage_engagement,pages_messaging,instagram_basic,instagram_manage_comments,instagram_manage_messages,ads_management,ads_read'); // Added ads_management and ads_read
+    facebookProvider.addScope('email,public_profile,business_management,pages_show_list,read_insights,pages_manage_posts,pages_read_engagement,pages_manage_engagement,pages_messaging,instagram_basic,instagram_manage_comments,instagram_manage_messages,ads_management,ads_read');
     
+    if (isReauth) {
+        facebookProvider.setCustomParameters({ auth_type: 'reauthenticate' });
+    }
+
     try {
-        const result = await auth.currentUser?.linkWithPopup(facebookProvider);
+        const result = isReauth 
+            ? await auth.currentUser?.reauthenticateWithPopup(facebookProvider)
+            : await auth.currentUser?.linkWithPopup(facebookProvider);
+            
         const credential = result?.credential as firebase.auth.OAuthCredential;
         if (credential?.accessToken) {
           await exchangeAndStoreLongLivedToken(user.uid, credential.accessToken);
           alert("تم ربط حساب فيسبوك بنجاح! جاري جلب صفحاتك...");
-          // The auth state change listener will see the updated user doc and trigger a fetch.
           const userDoc = await db.collection('users').doc(user.uid).get();
           setAppUser(userDoc.data() as AppUser);
         }
     } catch (error: any) {
-        if (error.code === 'auth/credential-already-in-use') alert("هذا الحساب الفيسبوك مرتبط بالفعل بحساب آخر.");
-        else alert(`فشل الاتصال بفيسبوك. السبب: ${error.message}`);
+        if (error.code === 'auth/credential-already-in-use') {
+            alert("هذا الحساب الفيسبوك مرتبط بالفعل بحساب آخر. سنحاول تسجيل دخولك باستخدامه.");
+            const credential = error.credential;
+            try {
+                const result = await auth.signInWithCredential(credential);
+                // After sign-in, the onAuthStateChanged listener will handle fetching the correct user data.
+                if (result.user) {
+                     alert("تم تسجيل الدخول بنجاح. سيتم تحديث الصفحة.");
+                }
+            } catch (signInError: any) {
+                 alert(`فشل تسجيل الدخول باستخدام حساب فيسبوك. السبب: ${signInError.message}`);
+            }
+        } else {
+            alert(`فشل الاتصال بفيسبوك. السبب: ${error.message}`);
+        }
     }
   }, [user]);
 
@@ -464,3 +483,4 @@ const App: React.FC = () => {
 };
 
 export default App;
+
