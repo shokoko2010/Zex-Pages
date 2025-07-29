@@ -1,3 +1,9 @@
+/// <reference types="vite/client" />
+
+interface Window {
+  fbAsyncInit: () => void;
+  FB: any; // Or specify a more detailed type if you have one
+}
 
 interface ImportMetaEnv {
   readonly VITE_FIREBASE_API_KEY: string;

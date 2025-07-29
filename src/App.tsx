@@ -23,17 +23,6 @@ class FacebookTokenError extends Error {
   }
 }
 
-
-const MOCK_TARGETS: Target[] = [
-    { id: '1', name: 'صفحة تجريبية 1', type: 'facebook', access_token: 'DUMMY_TOKEN_1', picture: { data: { url: 'https://via.placeholder.com/150/4B79A1/FFFFFF?text=Page1' } } },
-    { id: 'ig1', name: 'Zex Pages IG (@zex_pages_ig)', type: 'instagram', parentPageId: '1', access_token: 'DUMMY_TOKEN_1', picture: { data: { url: 'https://via.placeholder.com/150/E4405F/FFFFFF?text=IG' } } }
-];
-
-const MOCK_BUSINESSES: Business[] = [
-    { id: 'b1', name: 'الوكالة الرقمية الإبداعية', pictureUrl: 'https://via.placeholder.com/150' },
-    { id: 'b2', name: 'مجموعة مطاعم النكهة الأصيلة', pictureUrl: 'https://via.placeholder.com/150' },
-];
-
 const getIpAddress = async (): Promise<string> => {
     try {
         const response = await fetch('https://api.ipify.org?format=json');
@@ -46,12 +35,39 @@ const getIpAddress = async (): Promise<string> => {
     }
 };
 
+// Promise to handle Facebook SDK initialization
+const facebookSDKLoader = new Promise<void>(resolve => {
+    if (window.FB) {
+        window.FB.init({
+            appId      : import.meta.env.VITE_FACEBOOK_APP_ID,
+            cookie     : true,
+            xfbml      : true,
+            version    : 'v19.0'
+        });
+        window.FB.AppEvents.logPageView();
+        resolve();
+    } else {
+        // Use a more explicit type assertion for window.fbAsyncInit
+        (window as any).fbAsyncInit = function() {
+            window.FB.init({
+                appId      : import.meta.env.VITE_FACEBOOK_APP_ID,
+                cookie     : true,
+                xfbml      : true,
+                version    : 'v19.0'
+            });
+            window.FB.AppEvents.logPageView();
+            resolve();
+        };
+    }
+});
+
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [sdkLoaded, setSdkLoaded] = useState(false);
   
   const [plans, setPlans] = useState<Plan[]>([]);
   const [allUsers, setAllUsers] = useState<AppUser[]>([]);
@@ -79,6 +95,10 @@ const App: React.FC = () => {
   const [loadedBusinessIds, setLoadedBusinessIds] = useState<Set<string>>(new Set());
   const [strategyHistory, setStrategyHistory] = useState<StrategyHistoryItem[]>([]);
 
+  // Wait for the Facebook SDK to load and initialize
+  useEffect(() => {
+    facebookSDKLoader.then(() => setSdkLoaded(true));
+  }, []);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
@@ -101,6 +121,7 @@ const App: React.FC = () => {
   }, [user]);
 
   const fetchWithPagination = useCallback(async (initialPath: string, accessToken?: string): Promise<any[]> => {
+      if (!sdkLoaded || !window.FB) return [];
       let allData: any[] = [];
       let path: string | null = initialPath;
       const tokenToUse = accessToken || appUser?.fbAccessToken;
@@ -126,10 +147,10 @@ const App: React.FC = () => {
           counter++;
       }
       return allData;
-  }, [appUser?.fbAccessToken]);
+  }, [appUser?.fbAccessToken, sdkLoaded]);
 
   const fetchInstagramAccounts = useCallback(async (pages: Target[]): Promise<Target[]> => {
-    if (pages.length === 0 || !appUser?.fbAccessToken) return [];
+    if (pages.length === 0 || !appUser?.fbAccessToken || !sdkLoaded || !window.FB) return [];
     const batchRequest = pages.map(page => ({ method: 'GET', relative_url: `${page.id}?fields=instagram_business_account{id,name,username,profile_picture_url}` }));
     
     return new Promise(resolve => {
@@ -153,10 +174,10 @@ const App: React.FC = () => {
             resolve(igAccounts);
         });
     });
-  }, [appUser?.fbAccessToken]);
+  }, [appUser?.fbAccessToken, sdkLoaded]);
 
   const fetchFacebookData = useCallback(async () => {
-    if (!user || isSimulation || !appUser?.fbAccessToken) {
+    if (!user || isSimulation || !appUser?.fbAccessToken || !sdkLoaded || !window.FB) {
         setTargetsLoading(false);
         return;
     }
@@ -178,15 +199,17 @@ const App: React.FC = () => {
     } catch (error: any) {
         if (error instanceof FacebookTokenError) {
             handleFacebookTokenError();
-        } else {
+        }
+         else {
             setTargetsError(`فشل تحميل بياناتك من فيسبوك. الخطأ: ${error.message}`);
         }
     } finally {
         setTargetsLoading(false);
     }
-  }, [user, appUser?.fbAccessToken, isSimulation, fetchWithPagination, fetchInstagramAccounts, handleFacebookTokenError]);
+  }, [user, appUser?.fbAccessToken, isSimulation, fetchWithPagination, fetchInstagramAccounts, handleFacebookTokenError, sdkLoaded]);
 
   useEffect(() => {
+    if (!sdkLoaded) return;
     const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
         setLoadingUser(true);
         if (currentUser) {
@@ -222,10 +245,10 @@ const App: React.FC = () => {
         setLoadingUser(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [sdkLoaded]);
   
   useEffect(() => {
-    if (appUser) {
+    if (appUser && sdkLoaded) {
         setApiKey(appUser.geminiApiKey || null);
         setStabilityApiKey(appUser.stabilityApiKey || null);
         setFavoriteTargetIds(new Set(appUser.favoriteTargetIds || []));
@@ -244,7 +267,7 @@ const App: React.FC = () => {
             setTargetsLoading(false);
         }
     }
-  }, [appUser, fetchFacebookData]);
+  }, [appUser, fetchFacebookData, sdkLoaded]);
 
 
   useEffect(() => {
@@ -355,7 +378,7 @@ const App: React.FC = () => {
   }, []);
   
   const handleFacebookConnect = useCallback(async (isReauth = false) => {
-    if (!user) return;
+    if (!user || !sdkLoaded || !window.FB) return;
     const facebookProvider = new firebase.auth.FacebookAuthProvider();
     facebookProvider.addScope('email,public_profile,business_management,pages_show_list,read_insights,pages_manage_posts,pages_read_engagement,pages_manage_engagement,pages_messaging,instagram_basic,instagram_manage_comments,instagram_manage_messages,ads_management,ads_read');
     
@@ -381,7 +404,6 @@ const App: React.FC = () => {
             const credential = error.credential;
             try {
                 const result = await auth.signInWithCredential(credential);
-                // After sign-in, the onAuthStateChanged listener will handle fetching the correct user data.
                 if (result.user) {
                      alert("تم تسجيل الدخول بنجاح. سيتم تحديث الصفحة.");
                 }
@@ -392,13 +414,13 @@ const App: React.FC = () => {
             alert(`فشل الاتصال بفيسبوك. السبب: ${error.message}`);
         }
     }
-  }, [user]);
+  }, [user, sdkLoaded]);
 
   const handleLogout = useCallback(async () => { await auth.signOut(); }, []);
 
   const renderContent = () => {
+    if (!sdkLoaded || loadingUser) return <div className="flex items-center justify-center min-h-screen">جاري تهيئة التطبيق...</div>;
     if (currentPath.startsWith('/privacy-policy')) return <PrivacyPolicyPage />;
-    if (loadingUser) return <div className="flex items-center justify-center min-h-screen">جاري التحميل...</div>;
   
     if (!user || !appUser) return <HomePage onSignIn={handleEmailSignIn} onSignUp={handleEmailSignUp} authError={authError} />;
   
@@ -444,7 +466,7 @@ const App: React.FC = () => {
           fetchWithPagination={fetchWithPagination}
           theme={theme}
           onToggleTheme={handleToggleTheme}
-          fbAccessToken={appUser.fbAccessToken || null}
+          fbAccessToken={appUser?.fbAccessToken || null}
           strategyHistory={strategyHistory}
           onSavePlan={handleSaveContentPlan}
           onDeleteStrategy={handleDeleteStrategy}
@@ -470,7 +492,7 @@ const App: React.FC = () => {
         onToggleTheme={handleToggleTheme}
         favoriteTargetIds={favoriteTargetIds}
         onToggleFavorite={handleToggleFavorite}
-        isFacebookConnected={!!appUser.fbAccessToken}
+        isFacebookConnected={!!appUser?.fbAccessToken}
         onConnectFacebook={handleFacebookConnect}
         onRefreshPages={fetchFacebookData}
         userPlan={userPlan}
