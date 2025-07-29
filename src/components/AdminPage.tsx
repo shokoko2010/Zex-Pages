@@ -15,7 +15,6 @@ import ChartBarIcon from './icons/ChartBarIcon'; // Import ChartBarIcon for Admi
 import UserManagementPage from './UserManagementPage'; // Import UserManagementPage
 
 interface AdminPageProps {
-  user: User;
   appUser: AppUser; // Add appUser to props
   allUsers: AppUser[];
   plans: Plan[];
@@ -27,7 +26,6 @@ interface AdminPageProps {
 }
 
 const AdminPage: React.FC<AdminPageProps> = ({
-  user,
   appUser, // Destructure appUser
   allUsers,
   plans: initialPlans,

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Target, PublishedPost, Draft, ScheduledPost, BulkPostItem, ContentPlanItem, StrategyRequest, WeeklyScheduleSettings, PageProfile, PerformanceSummaryData, StrategyHistoryItem, InboxItem, AutoResponderSettings, Plan, Role, AppUser, AudienceGrowthData, HeatmapDataPoint, ContentTypePerformanceData, PostType } from '../types';
+import { Target, PublishedPost, Draft, ScheduledPost, BulkPostItem, ContentPlanItem, StrategyRequest, WeeklyScheduleSettings, PageProfile, PerformanceSummaryData, StrategyHistoryItem, InboxItem, Plan, Role, AppUser, AudienceGrowthData, HeatmapDataPoint, ContentTypePerformanceData, PostType } from '../types';
 import Header from './Header';
 import PostComposer from './PostComposer';
 import PostPreview from './PostPreview';
@@ -14,7 +14,7 @@ import AdsManagerPage from './AdsManagerPage';
 import Button from './ui/Button';
 import { db } from '../services/firebaseService';
 import type { User } from '../services/firebaseService';
-import { generateContentPlan, generatePerformanceSummary, generatePostInsights, generateBestPostingTimesHeatmap, generateContentTypePerformance, generatePostSuggestion, generateImageFromPrompt, generateHashtags, generateDescriptionForImage, enhanceProfileFromFacebookData } from '../services/geminiService';
+import { generateContentPlan, generatePerformanceSummary, generatePostInsights, generateBestPostingTimesHeatmap, generateContentTypePerformance, generatePostSuggestion, generateImageFromPrompt, generateDescriptionForImage, enhanceProfileFromFacebookData } from '../services/geminiService';
 import { generateImageWithStabilityAI } from '../services/stabilityai';
 
 // Icons
