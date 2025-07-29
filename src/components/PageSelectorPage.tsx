@@ -179,8 +179,7 @@ const PageSelectorPage: React.FC<PageSelectorPageProps> = ({
        );
     }
 
-    // Bypass targets.length check if adminOnly is true
-    if (targets.length === 0 && !isLoading && !userPlan?.adminOnly) {
+    if (targets.length === 0 && !isLoading) {
       return (
         <div className="text-center text-gray-500 dark:text-gray-400 p-8 border-2 border-dashed rounded-lg bg-white dark:bg-gray-800">
           <h3 className="font-semibold text-xl text-gray-700 dark:text-gray-300 mb-2">لم يتم العثور على أي وجهات</h3>
