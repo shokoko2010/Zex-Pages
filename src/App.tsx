@@ -465,6 +465,7 @@ const App: React.FC = () => {
         onSelectTarget={setSelectedTarget}
         onLogout={handleLogout}
         onSettingsClick={() => setIsSettingsModalOpen(true)}
+        onAdminClick={() => setCurrentPath('/admin')}
         theme={theme}
         onToggleTheme={handleToggleTheme}
         favoriteTargetIds={favoriteTargetIds}
