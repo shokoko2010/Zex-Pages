@@ -28,7 +28,7 @@ const exchangeAndStoreLongLivedToken = async (userId: string, shortLivedToken: s
     if (!userId || !shortLivedToken) return;
   
     const clientId = import.meta.env.VITE_FACEBOOK_APP_ID;
-    const clientSecret = import.meta.env.VITE_FACEBOOK_APP_SECRET;
+    const clientSecret = import.meta.env.VITE_FACEBASE_APP_SECRET;
     const url = `https://graph.facebook.com/v19.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${clientId}&client_secret=${clientSecret}&fb_exchange_token=${shortLivedToken}`;
   
     try {
@@ -38,7 +38,7 @@ const exchangeAndStoreLongLivedToken = async (userId: string, shortLivedToken: s
   
       if (longLivedToken) {
         await db.collection('users').doc(userId).update({
-          facebook_long_lived_token: longLivedToken,
+          fbAccessToken: longLivedToken,
         });
       }
     } catch (error) {
