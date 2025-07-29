@@ -37,7 +37,9 @@ const getIpAddress = async (): Promise<string> => {
 
 // Promise to handle Facebook SDK initialization
 const facebookSDKLoader = new Promise<void>(resolve => {
+    console.log('Attempting to initialize Facebook SDK...');
     if (window.FB) {
+        console.log('Facebook SDK already loaded.');
         window.FB.init({
             appId      : import.meta.env.VITE_FACEBOOK_APP_ID,
             cookie     : true,
@@ -47,8 +49,9 @@ const facebookSDKLoader = new Promise<void>(resolve => {
         window.FB.AppEvents.logPageView();
         resolve();
     } else {
-        // Use a more explicit type assertion for window.fbAsyncInit
+        console.log('Waiting for window.fbAsyncInit...');
         (window as any).fbAsyncInit = function() {
+            console.log('fbAsyncInit triggered.');
             window.FB.init({
                 appId      : import.meta.env.VITE_FACEBOOK_APP_ID,
                 cookie     : true,
@@ -97,7 +100,10 @@ const App: React.FC = () => {
 
   // Wait for the Facebook SDK to load and initialize
   useEffect(() => {
-    facebookSDKLoader.then(() => setSdkLoaded(true));
+    facebookSDKLoader.then(() => {
+        console.log('Facebook SDK loaded and initialized.');
+        setSdkLoaded(true);
+    });
   }, []);
 
   useEffect(() => {
@@ -121,17 +127,26 @@ const App: React.FC = () => {
   }, [user]);
 
   const fetchWithPagination = useCallback(async (initialPath: string, accessToken?: string): Promise<any[]> => {
-      if (!sdkLoaded || !window.FB) return [];
+      console.log('Attempting fetchWithPagination for path:', initialPath);
+      if (!sdkLoaded || !window.FB) {
+          console.log('fetchWithPagination aborted: SDK not loaded or FB object missing.');
+          return [];
+      }
       let allData: any[] = [];
       let path: string | null = initialPath;
       const tokenToUse = accessToken || appUser?.fbAccessToken;
-      if (!tokenToUse) throw new Error("Facebook Access Token is missing.");
+      if (!tokenToUse) {
+          console.log('fetchWithPagination aborted: Facebook Access Token is missing.');
+          throw new Error("Facebook Access Token is missing.");
+      }
 
       path = path.includes('?') ? `${path}&access_token=${tokenToUse}` : `${path}?access_token=${tokenToUse}`;
 
       let counter = 0;
       while (path && counter < 50) {
+          console.log('Fetching page:', path);
           const response: any = await new Promise(resolve => window.FB.api(path, (res: any) => resolve(res)));
+          console.log('Received response:', response);
           if (response?.data) {
               if (response.data.length > 0) allData = allData.concat(response.data);
               path = response.paging?.next ? response.paging.next.replace('https://graph.facebook.com', '') : null;
@@ -146,15 +161,21 @@ const App: React.FC = () => {
           }
           counter++;
       }
+      console.log('fetchWithPagination finished. Total data items:', allData.length);
       return allData;
   }, [appUser?.fbAccessToken, sdkLoaded]);
 
   const fetchInstagramAccounts = useCallback(async (pages: Target[]): Promise<Target[]> => {
-    if (pages.length === 0 || !appUser?.fbAccessToken || !sdkLoaded || !window.FB) return [];
+    console.log('Attempting fetchInstagramAccounts for', pages.length, 'pages.');
+    if (pages.length === 0 || !appUser?.fbAccessToken || !sdkLoaded || !window.FB) {
+        console.log('fetchInstagramAccounts aborted: conditions not met.');
+        return [];
+    }
     const batchRequest = pages.map(page => ({ method: 'GET', relative_url: `${page.id}?fields=instagram_business_account{id,name,username,profile_picture_url}` }));
     
     return new Promise(resolve => {
         window.FB.api('/', 'POST', { batch: JSON.stringify(batchRequest), access_token: appUser.fbAccessToken }, (response: any) => {
+            console.log('Received batch response for Instagram accounts:', response);
             const igAccounts: Target[] = [];
             if (response && !response.error) {
                 response.forEach((res: any, index: number) => {
@@ -171,17 +192,21 @@ const App: React.FC = () => {
                     }
                 });
             }
+            console.log('fetchInstagramAccounts finished. Found', igAccounts.length, 'Instagram accounts.');
             resolve(igAccounts);
         });
     });
   }, [appUser?.fbAccessToken, sdkLoaded]);
 
   const fetchFacebookData = useCallback(async () => {
+    console.log('Attempting to fetch Facebook data.');
     if (!user || isSimulation || !appUser?.fbAccessToken || !sdkLoaded || !window.FB) {
+        console.log('fetchFacebookData aborted: conditions not met.');
         setTargetsLoading(false);
         return;
     }
     
+    console.log('Fetching Facebook data...');
     setTargetsLoading(true);
     setTargetsError(null);
     try {
@@ -193,14 +218,15 @@ const App: React.FC = () => {
         igAccounts.forEach(ig => allTargetsMap.set(ig.id, ig));
         
         const finalTargets = Array.from(allTargetsMap.values());
+        console.log('Finished fetching Facebook data. Found', finalTargets.length, 'targets.');
         setTargets(finalTargets);
         
         await db.collection('users').doc(user.uid).set({ targets: finalTargets }, { merge: true });
     } catch (error: any) {
+        console.error('Error fetching Facebook data:', error);
         if (error instanceof FacebookTokenError) {
             handleFacebookTokenError();
-        }
-         else {
+        } else {
             setTargetsError(`فشل تحميل بياناتك من فيسبوك. الخطأ: ${error.message}`);
         }
     } finally {
@@ -209,8 +235,13 @@ const App: React.FC = () => {
   }, [user, appUser?.fbAccessToken, isSimulation, fetchWithPagination, fetchInstagramAccounts, handleFacebookTokenError, sdkLoaded]);
 
   useEffect(() => {
-    if (!sdkLoaded) return;
+    console.log('Auth state change useEffect triggered.');
+    if (!sdkLoaded) {
+        console.log('Auth state change useEffect skipped: SDK not loaded.');
+        return;
+    }
     const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
+        console.log('onAuthStateChanged triggered. Current user:', currentUser);
         setLoadingUser(true);
         if (currentUser) {
             setUser(currentUser);
@@ -219,6 +250,7 @@ const App: React.FC = () => {
             
             if (userDoc.exists) {
                 setAppUser(userDoc.data() as AppUser);
+                console.log('App user data loaded:', userDoc.data());
             } else {
                const newUser: AppUser = {
                    email: currentUser.email!, uid: currentUser.uid, isAdmin: false,
@@ -228,14 +260,17 @@ const App: React.FC = () => {
                await userDocRef.set(newUser, { merge: true });
                setAppUser(newUser);
                setIsTourOpen(true);
+               console.log('New app user created:', newUser);
             }
 
             try {
                 const plansSnapshot = await db.collection('plans').get();
                 setPlans(plansSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Plan)));
+                console.log('Plans loaded:', plansSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Plan)));
             } catch (error) { console.error("Failed to fetch plans:", error); }
 
         } else {
+            console.log('User logged out.');
             setUser(null); setAppUser(null); setApiKey(null);
             setStabilityApiKey(null); setTargets([]); setBusinesses([]);
             setSelectedTarget(null); setFavoriteTargetIds(new Set());
@@ -243,29 +278,37 @@ const App: React.FC = () => {
             setAuthError(null);
         }
         setLoadingUser(false);
+        console.log('Auth state change useEffect finished.');
     });
     return () => unsubscribe();
   }, [sdkLoaded]);
   
   useEffect(() => {
+    console.log('App user or SDK loaded useEffect triggered.');
     if (appUser && sdkLoaded) {
+        console.log('App user and SDK loaded. Checking conditions for fetching Facebook data.');
         setApiKey(appUser.geminiApiKey || null);
         setStabilityApiKey(appUser.stabilityApiKey || null);
         setFavoriteTargetIds(new Set(appUser.favoriteTargetIds || []));
         if (!appUser.onboardingCompleted) setIsTourOpen(true);
         
         if (appUser.isAdmin) {
+            console.log('User is admin. Fetching all users.');
             db.collection('users').get()
                 .then(snapshot => setAllUsers(snapshot.docs.map(doc => doc.data() as AppUser)))
                 .catch(err => console.error("Failed to fetch all users:", err));
         }
         
         if (appUser.fbAccessToken) {
+            console.log('Facebook access token exists. Attempting to fetch Facebook data.');
             fetchFacebookData();
         } else {
+            console.log('No Facebook access token. Loading targets from app user data.');
             setTargets(appUser.targets || []);
             setTargetsLoading(false);
         }
+    } else {
+        console.log('App user or SDK not loaded yet.');
     }
   }, [appUser, fetchFacebookData, sdkLoaded]);
 
@@ -378,7 +421,11 @@ const App: React.FC = () => {
   }, []);
   
   const handleFacebookConnect = useCallback(async (isReauth = false) => {
-    if (!user || !sdkLoaded || !window.FB) return;
+    console.log('handleFacebookConnect triggered.');
+    if (!user || !sdkLoaded || !window.FB) {
+        console.log('handleFacebookConnect aborted: conditions not met.');
+        return;
+    }
     const facebookProvider = new firebase.auth.FacebookAuthProvider();
     facebookProvider.addScope('email,public_profile,business_management,pages_show_list,read_insights,pages_manage_posts,pages_read_engagement,pages_manage_engagement,pages_messaging,instagram_basic,instagram_manage_comments,instagram_manage_messages,ads_management,ads_read');
     
@@ -393,12 +440,16 @@ const App: React.FC = () => {
             
         const credential = result?.credential as firebase.auth.OAuthCredential;
         if (credential?.accessToken) {
+          console.log('Facebook login successful. Exchanging token.', credential.accessToken);
           await exchangeAndStoreLongLivedToken(user.uid, credential.accessToken);
           alert("تم ربط حساب فيسبوك بنجاح! جاري جلب صفحاتك...");
           const userDoc = await db.collection('users').doc(user.uid).get();
           setAppUser(userDoc.data() as AppUser);
+        } else {
+            console.log('Facebook login result had no access token.', result);
         }
     } catch (error: any) {
+        console.error('Error during Facebook connection:', error);
         if (error.code === 'auth/credential-already-in-use') {
             alert("هذا الحساب الفيسبوك مرتبط بالفعل بحساب آخر. سنحاول تسجيل دخولك باستخدامه.");
             const credential = error.credential;
@@ -468,7 +519,7 @@ const App: React.FC = () => {
           onToggleTheme={handleToggleTheme}
           fbAccessToken={appUser?.fbAccessToken || null}
           strategyHistory={strategyHistory}
-          onSavePlan={handleSaveContentPlan}
+          onSavePlan={handleContentPlan}
           onDeleteStrategy={handleDeleteStrategy}
           onTokenError={handleFacebookTokenError}
         />
