@@ -462,8 +462,21 @@ const App: React.FC = () => {
                      // If sign-in is successful, update the app user state and potentially reload data
                      console.log('Signed in with existing Facebook linked account.');
                      const userDoc = await db.collection('users').doc(result.user.uid).get();
-                     setAppUser(userDoc.data() as AppUser);
-                     console.log('App user after signing in with existing credential:', userDoc.data());
+                     const userData = userDoc.data() as AppUser;
+                     setAppUser(userData);
+                     console.log('App user after signing in with existing credential:', userData);
+
+                     // ** Added: Attempt to exchange and store token after signing in with linked account **
+                     if (credential.accessToken) {
+                        console.log('Attempting to exchange token after signing in with linked account:', credential.accessToken);
+                        await exchangeAndStoreLongLivedToken(result.user.uid, credential.accessToken);
+                        // After storing, re-fetch user data to update state
+                        const updatedUserDoc = await db.collection('users').doc(result.user.uid).get();
+                        setAppUser(updatedUserDoc.data() as AppUser);
+                        console.log('App user after exchanging token and re-fetching:', updatedUserDoc.data());
+                     } else {
+                         console.log('No access token available from credential after signing in with linked account.');
+                     }
 
                      alert("تم تسجيل الدخول بنجاح باستخدام حساب فيسبوك المرتبط. سيتم تحديث الصفحات.");
                 }
@@ -475,7 +488,7 @@ const App: React.FC = () => {
             alert(`فشل الاتصال بفيسبوك. السبب: ${error.message}`);
         }
     }
-  }, [user, sdkLoaded]); // Dependencies
+  }, [user, sdkLoaded, exchangeAndStoreLongLivedToken]); // Added exchangeAndStoreLongLivedToken to dependencies
 
   const handleLogout = useCallback(async () => { await auth.signOut(); }, []);
 
