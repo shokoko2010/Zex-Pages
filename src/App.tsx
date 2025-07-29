@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect } from 'react';
 import PageSelectorPage from './components/PageSelectorPage';
 import DashboardPage from './components/DashboardPage';
@@ -71,14 +70,14 @@ const App: React.FC = () => {
   const [loadingUser, setLoadingUser] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
   const [sdkLoaded, setSdkLoaded] = useState(false);
-  
+
   const [plans, setPlans] = useState<Plan[]>([]);
   const [allUsers, setAllUsers] = useState<AppUser[]>([]);
 
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [stabilityApiKey, setStabilityApiKey] = useState<string | null>(null);
   const [aiClient, setAiClient] = useState<GoogleGenAI | null>(null);
-  
+
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isTourOpen, setIsTourOpen] = useState(false);
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
@@ -93,7 +92,7 @@ const App: React.FC = () => {
   const [targetsError, setTargetsError] = useState<string | null>(null);
   const [selectedTarget, setSelectedTarget] = useState<Target | null>(null);
   const [favoriteTargetIds, setFavoriteTargetIds] = useState<Set<string>>(new Set());
-  
+
   const [loadingBusinessId, setLoadingBusinessId] = useState<string | null>(null);
   const [loadedBusinessIds, setLoadedBusinessIds] = useState<Set<string>>(new Set());
   const [strategyHistory, setStrategyHistory] = useState<StrategyHistoryItem[]>([]);
@@ -110,13 +109,13 @@ const App: React.FC = () => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
     localStorage.setItem('theme', theme);
   }, [theme]);
-  
+
   useEffect(() => {
     const handlePopState = () => setCurrentPath(window.location.pathname);
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
-  
+
   const handleFacebookTokenError = useCallback(async () => {
     alert("انتهت صلاحية جلسة فيسبوك أو أصبحت غير صالحة. يرجى إعادة ربط الحساب.");
     if (user) {
@@ -152,7 +151,7 @@ const App: React.FC = () => {
               path = response.paging?.next ? response.paging.next.replace('https://graph.facebook.com', '') : null;
           } else {
               if (response?.error) {
-                if (response.error.code === 190) { 
+                if (response.error.code === 190) {
                   throw new FacebookTokenError(response.error.message);
                 }
                 throw new Error(`خطأ في واجهة فيسبوك: ${response.error.message}`);
@@ -172,7 +171,7 @@ const App: React.FC = () => {
         return [];
     }
     const batchRequest = pages.map(page => ({ method: 'GET', relative_url: `${page.id}?fields=instagram_business_account{id,name,username,profile_picture_url}` }));
-    
+
     return new Promise(resolve => {
         window.FB.api('/', 'POST', { batch: JSON.stringify(batchRequest), access_token: appUser.fbAccessToken }, (response: any) => {
             console.log('Received batch response for Instagram accounts:', response);
@@ -204,7 +203,7 @@ const App: React.FC = () => {
         console.log('fetchFacebookData aborted: conditions not met.');
         return;
     }
-    
+
     console.log('Fetching Facebook data...');
     setTargetsLoading(true);
     setTargetsError(null);
@@ -212,14 +211,14 @@ const App: React.FC = () => {
         const allPagesData = await fetchWithPagination('/me/accounts?fields=id,name,access_token,picture{url}&limit=100');
         const allTargetsMap = new Map<string, Target>();
         allPagesData.forEach(p => allTargetsMap.set(p.id, { ...p, type: 'facebook' }));
-        
+
         const igAccounts = await fetchInstagramAccounts(Array.from(allTargetsMap.values()));
         igAccounts.forEach(ig => allTargetsMap.set(ig.id, ig));
-        
+
         const finalTargets = Array.from(allTargetsMap.values());
         console.log('Finished fetching Facebook data. Found', finalTargets.length, 'targets.');
         setTargets(finalTargets);
-        
+
         await db.collection('users').doc(user.uid).set({ targets: finalTargets }, { merge: true });
     } catch (error: any) {
         console.error('Error fetching Facebook data:', error);
@@ -246,7 +245,7 @@ const App: React.FC = () => {
             setUser(currentUser);
             const userDocRef = db.collection('users').doc(currentUser.uid);
             const userDoc = await userDocRef.get();
-            
+
             if (userDoc.exists) {
                 const userData = userDoc.data() as AppUser;
                 setAppUser(userData);
@@ -282,7 +281,7 @@ const App: React.FC = () => {
     });
     return () => unsubscribe();
   }, [sdkLoaded]);
-  
+
   useEffect(() => {
     console.log('App user or SDK loaded useEffect triggered.');
     if (appUser && sdkLoaded) {
@@ -291,14 +290,14 @@ const App: React.FC = () => {
         setStabilityApiKey(appUser.stabilityApiKey || null);
         setFavoriteTargetIds(new Set(appUser.favoriteTargetIds || []));
         if (!appUser.onboardingCompleted) setIsTourOpen(true);
-        
+
         if (appUser.isAdmin) {
             console.log('User is admin. Fetching all users.');
             db.collection('users').get()
                 .then(snapshot => setAllUsers(snapshot.docs.map(doc => doc.data() as AppUser)))
                 .catch(err => console.error("Failed to fetch all users:", err));
         }
-        
+
         if (appUser.fbAccessToken) {
             console.log('Facebook access token exists. Attempting to fetch Facebook data.');
             fetchFacebookData();
@@ -342,7 +341,7 @@ const App: React.FC = () => {
           await deleteStrategy(user.uid, pageId, strategyId);
           setStrategyHistory(prev => prev.filter(s => s.id !== strategyId));
       } catch (error) {
-          console.error("Error deleting strategy in App.tsx", error);
+          console.error("Error deleting strategy:", error);
       }
   };
 
@@ -374,7 +373,7 @@ const App: React.FC = () => {
       stabilityApiKey: keys.stability
     }, { merge: true });
   }, [user]);
-  
+
   const handleLoadPagesFromBusiness = useCallback(async (businessId: string) => {
     setLoadingBusinessId(businessId);
     try {
@@ -383,7 +382,7 @@ const App: React.FC = () => {
       const newTargetsMap = new Map<string, Target>();
       ownedPages.forEach(p => newTargetsMap.set(p.id, { ...p, type: 'facebook' }));
       igAccounts.forEach(ig => newTargetsMap.set(ig.id, ig));
-      
+
       setTargets(prevTargets => {
         const existingTargetsMap = new Map(prevTargets.map(t => [t.id, t]));
         newTargetsMap.forEach((value, key) => existingTargetsMap.set(key, value));
@@ -395,7 +394,7 @@ const App: React.FC = () => {
             handleFacebookTokenError();
         }
             alert(`فشل تحميل الصفحات: ${error.message}`);
-        
+
     } finally {
       setLoadingBusinessId(null);
     }
@@ -419,7 +418,7 @@ const App: React.FC = () => {
         setAuthError('البريد الإلكتروني أو كلمة المرور غير صحيحة.');
     }
   }, []);
-  
+
   const handleFacebookConnect = useCallback(async (isReauth = false) => {
     console.log('handleFacebookConnect triggered.');
     if (!user || !sdkLoaded || !window.FB) {
@@ -428,16 +427,16 @@ const App: React.FC = () => {
     }
     const facebookProvider = new firebase.auth.FacebookAuthProvider();
     facebookProvider.addScope('email,public_profile,business_management,pages_show_list,read_insights,pages_manage_posts,pages_read_engagement,pages_manage_engagement,pages_messaging,instagram_basic,instagram_manage_comments,instagram_manage_messages,ads_management,ads_read');
-    
+
     if (isReauth) {
         facebookProvider.setCustomParameters({ auth_type: 'reauthenticate' });
     }
 
     try {
-        const result = isReauth 
+        const result = isReauth
             ? await auth.currentUser?.reauthenticateWithPopup(facebookProvider)
             : await auth.currentUser?.linkWithPopup(facebookProvider);
-            
+
         const credential = result?.credential as firebase.auth.OAuthCredential;
         if (credential?.accessToken) {
           console.log('Facebook login successful. Exchanging token.', credential.accessToken);
@@ -456,27 +455,32 @@ const App: React.FC = () => {
             try {
                 const result = await auth.signInWithCredential(credential);
                 if (result.user) {
-                     alert("تم تسجيل الدخول بنجاح. سيتم تحديث الصفحة.");
+                     // If sign-in is successful, update the app user state and potentially reload data
+                     console.log('Signed in with existing Facebook linked account.');
+                     const userDoc = await db.collection('users').doc(result.user.uid).get();
+                     setAppUser(userDoc.data() as AppUser);
+                     alert("تم تسجيل الدخول بنجاح باستخدام حساب فيسبوك المرتبط. سيتم تحديث الصفحات.");
                 }
             } catch (signInError: any) {
-                 alert(`فشل تسجيل الدخول باستخدام حساب فيسبوك. السبب: ${signInError.message}`);
+                 console.error('Error signing in with existing credential:', signInError);
+                 alert(`فشل تسجيل الدخول باستخدام حساب فيسبوك المرتبط. السبب: ${signInError.message}`);
             }
         } else {
             alert(`فشل الاتصال بفيسبوك. السبب: ${error.message}`);
         }
     }
-  }, [user, sdkLoaded]);
+  }, [user, sdkLoaded]); // Dependencies
 
   const handleLogout = useCallback(async () => { await auth.signOut(); }, []);
 
   const renderContent = () => {
     if (!sdkLoaded || loadingUser) return <div className="flex items-center justify-center min-h-screen">جاري تهيئة التطبيق...</div>;
     if (currentPath.startsWith('/privacy-policy')) return <PrivacyPolicyPage />;
-  
+
     if (!user || !appUser) return <HomePage onSignIn={handleEmailSignIn} onSignUp={handleEmailSignUp} authError={authError} />;
-  
+
     let userPlan = plans.find(p => p.id === appUser.planId) || plans.find(p => p.id === 'free') || null;
-  
+
     if (appUser.isAdmin) {
       userPlan = {
         id: 'admin', name: 'Admin Plan', priceMonthly: 0, priceAnnual: 0,
@@ -491,11 +495,11 @@ const App: React.FC = () => {
         adminOnly: true, price: 0, pricePeriod: 'monthly',
       } as Plan;
     }
-  
+
     if (currentPath.startsWith('/admin') && appUser.isAdmin) {
       return <AdminPage appUser={appUser} allUsers={allUsers} onLogout={handleLogout} onSettingsClick={() => setIsSettingsModalOpen(true)} theme={theme} onToggleTheme={handleToggleTheme} plans={plans} onSelectTarget={setSelectedTarget} />;
     }
-  
+
     if (selectedTarget) {
       return (
         <DashboardPage
@@ -525,7 +529,7 @@ const App: React.FC = () => {
         />
       );
     }
-  
+
     return (
       <PageSelectorPage
         targets={targets}
@@ -550,7 +554,7 @@ const App: React.FC = () => {
       />
     );
   };
-  
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
       <OnboardingTour isOpen={isTourOpen} onComplete={handleCompleteTour} hasConnectedFacebook={!!appUser?.fbAccessToken} hasSelectedTarget={!!selectedTarget} />
