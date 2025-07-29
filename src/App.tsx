@@ -284,6 +284,8 @@ const App: React.FC = () => {
 
   useEffect(() => {
     console.log('App user or SDK loaded useEffect triggered.');
+    console.log('Current appUser:', appUser);
+    console.log('Current appUser.fbAccessToken:', appUser?.fbAccessToken);
     if (appUser && sdkLoaded) {
         console.log('App user and SDK loaded. Checking conditions for fetching Facebook data.');
         setApiKey(appUser.geminiApiKey || null);
@@ -444,6 +446,8 @@ const App: React.FC = () => {
           alert("تم ربط حساب فيسبوك بنجاح! جاري جلب صفحاتك...");
           const userDoc = await db.collection('users').doc(user.uid).get();
           setAppUser(userDoc.data() as AppUser);
+          console.log('App user after successful link/reauth:', userDoc.data());
+
         } else {
             console.log('Facebook login result had no access token.', result);
         }
@@ -459,6 +463,8 @@ const App: React.FC = () => {
                      console.log('Signed in with existing Facebook linked account.');
                      const userDoc = await db.collection('users').doc(result.user.uid).get();
                      setAppUser(userDoc.data() as AppUser);
+                     console.log('App user after signing in with existing credential:', userDoc.data());
+
                      alert("تم تسجيل الدخول بنجاح باستخدام حساب فيسبوك المرتبط. سيتم تحديث الصفحات.");
                 }
             } catch (signInError: any) {
