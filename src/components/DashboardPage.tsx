@@ -268,25 +268,51 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         showNotification('error', 'رمز الوصول غير موجود.');
         return { adSets: [], ads: [] };
     }
-    
-    const adSetsFields = 'id,name,status,insights.date_preset(last_30d){spend,reach,clicks,ctr}';
-    const adsFields = 'id,name,status,insights.date_preset(last_30d){spend,reach,clicks,ctr},creative{body,thumbnail_url}';
+
+    const baseUrl = `https://graph.facebook.com/v19.0/${campaignId}`;
+
+    // Helper function to fetch details for adsets or ads robustly
+    const fetchDetails = async (endpoint: 'adsets' | 'ads') => {
+        const params = new URLSearchParams({
+            access_token: fbAccessToken,
+        });
+
+        if (endpoint === 'adsets') {
+            params.append('fields', 'id,name,status,insights.date_preset(last_30d){spend,reach,clicks,ctr}');
+        } else { // 'ads'
+            params.append('fields', 'id,name,status,insights.date_preset(last_30d){spend,reach,clicks,ctr},creative{body,thumbnail_url}');
+        }
+
+        try {
+            const response = await fetch(`${baseUrl}/${endpoint}?${params.toString()}`);
+            const data = await response.json();
+            if (data.error) {
+                throw new Error(`(${data.error.code}) ${data.error.message}`);
+            }
+            // Process the data to correctly flatten the insights object
+            return (data.data || []).map((item: any) => ({
+                ...item,
+                insights: item.insights?.data?.[0] || {},
+            }));
+        } catch (error: any) {
+            console.error(`Error fetching ${endpoint} for campaign ${campaignId}:`, error);
+            showNotification('error', `فشل جلب ${endpoint}: ${error.message}`);
+            return []; // Return an empty array on error for this specific part
+        }
+    };
 
     try {
-        const adSetsPromise = makeRequestWithRetry(`/${campaignId}/adsets?fields=${adSetsFields}`, fbAccessToken);
-        const adsPromise = makeRequestWithRetry(`/${campaignId}/ads?fields=${adsFields}`, fbAccessToken);
-
-        const [adSetsResponse, adsResponse] = await Promise.all([adSetsPromise, adsPromise]);
-
-        const adSets = (adSetsResponse.data || []).map((as: any) => ({ ...as, insights: as.insights?.data?.[0] || {} }));
-        const ads = (adsResponse.data || []).map((ad: any) => ({ ...ad, insights: ad.insights?.data?.[0] || {} }));
-
+        const [adSets, ads] = await Promise.all([
+            fetchDetails('adsets'),
+            fetchDetails('ads')
+        ]);
         return { adSets, ads };
-    } catch (error: any) {
-        showNotification('error', `فشل جلب تفاصيل الحملة: ${error.message}`);
+    } catch (error) {
+        console.error("Error in Promise.all for sub-entities:", error);
         return { adSets: [], ads: [] };
     }
-}, [fbAccessToken, makeRequestWithRetry, showNotification]);
+}, [fbAccessToken, showNotification]);
+
 
     useEffect(() => {
         if (view === 'ads') {
