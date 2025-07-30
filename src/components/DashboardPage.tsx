@@ -282,9 +282,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             return { adSets: [], ads: [] };
         }
 
-        const fetchDetails = async (endpoint: 'adsets' | 'ads') => {
+        const fetchEndpointData = async (endpoint: 'adsets' | 'ads') => {
             const path = `/${campaignId}/${endpoint}`;
-            
             let fields = '';
             if (endpoint === 'adsets') {
                 fields = 'id,name,status,insights.date_preset(last_30d){spend,reach,clicks,ctr,cpc,cpp,cpm}';
@@ -293,20 +292,15 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             }
 
             try {
-                // Use the robust object-based parameter passing
                 const response: any = await new Promise(resolve => 
                     window.FB.api(path, 'get', { fields, access_token: fbAccessToken }, (res: any) => resolve(res))
                 );
-                
                 console.log(`[DEBUG] Raw API response for ${endpoint} of campaign ${campaignId}:`, response);
-
                 if (response.error) throw new Error(`(${response.error.code}) ${response.error.message}`);
-                
                 return (response.data || []).map((item: any) => ({
                     ...item,
                     insights: item.insights?.data?.[0] || {},
                 }));
-
             } catch (error: any) {
                 console.error(`Error fetching ${endpoint} for campaign ${campaignId}:`, error);
                 showNotification('error', `فشل جلب ${endpoint}: ${error.message}`);
@@ -315,13 +309,15 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         };
 
         try {
-            const [adSets, ads] = await Promise.all([
-                fetchDetails('adsets'),
-                fetchDetails('ads')
-            ]);
+            // Fetch sequentially as requested to avoid potential concurrency issues.
+            showNotification('partial', 'جاري جلب المجموعات الإعلانية...');
+            const adSets = await fetchEndpointData('adsets');
+            showNotification('partial', 'جاري جلب الإعلانات...');
+            const ads = await fetchEndpointData('ads');
+            
             return { adSets, ads };
         } catch (error) {
-            console.error("Error in Promise.all for sub-entities:", error);
+            console.error("Error fetching sub-entities sequentially:", error);
             return { adSets: [], ads: [] };
         }
     }, [fbAccessToken, showNotification]);

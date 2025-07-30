@@ -137,43 +137,29 @@ const App: React.FC = () => {
     }
 
     let allData: any[] = [];
-    const [basePath, queryParamsStr] = path.split('?');
-    const params: any = new URLSearchParams(queryParamsStr || '');
-    
-    let nextCursor: string | null = null;
-    let hasMorePages = true;
+    // Start with the initial path and add the access token
+    let currentPath: string | null = `${path}${path.includes('?') ? '&' : '?'}access_token=${tokenToUse}`;
     let counter = 0;
 
-    while (hasMorePages && counter < 50) { // Safety break
-        const currentParams: any = { access_token: tokenToUse };
-        // Copy existing params
-        for (const [key, value] of params.entries()) {
-            currentParams[key] = value;
-        }
-        if (nextCursor) {
-            currentParams.after = nextCursor;
-        }
-
-        console.log(`Fetching page for path: ${basePath} with params:`, currentParams);
-        const response: any = await new Promise(resolve => window.FB.api(basePath, 'get', currentParams, (res: any) => resolve(res)));
+    while (currentPath && counter < 50) { // Safety break
+        console.log('Fetching page using full path:', currentPath);
+        const response: any = await new Promise(resolve => {
+            // The FB.api call should use the path directly, as it contains all necessary parameters
+            window.FB.api(currentPath!, (res: any) => resolve(res));
+        });
         console.log('Received response:', response);
 
-        if (response?.data) {
-            if(response.data.length > 0) allData = allData.concat(response.data);
-
-            if (response.paging && response.paging.cursors && response.paging.cursors.after) {
-                nextCursor = response.paging.cursors.after;
-                hasMorePages = true;
-            } else {
-                hasMorePages = false;
-                nextCursor = null;
-            }
+        if (response?.data && response.data.length > 0) {
+            allData = allData.concat(response.data);
+            // THE MOST RELIABLE WAY: Use the 'next' link provided by the API.
+            // It already contains the correct cursors and all other parameters.
+            currentPath = response.paging?.next ? response.paging.next.replace('https://graph.facebook.com', '') : null;
         } else {
             if (response?.error) {
                 if (response.error.code === 190) throw new FacebookTokenError(response.error.message);
                 throw new Error(`Facebook API Error: ${response.error.message}`);
             }
-            hasMorePages = false;
+            currentPath = null; // Stop if no data or error
         }
         counter++;
     }
