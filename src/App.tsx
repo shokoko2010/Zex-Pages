@@ -137,30 +137,50 @@ const App: React.FC = () => {
     }
 
     let allData: any[] = [];
-    let currentPath: string | null = `${path}${path.includes('?') ? '&' : '?'}access_token=${tokenToUse}`;
+    const [basePath, queryParamsStr] = path.split('?');
+    const params: any = new URLSearchParams(queryParamsStr || '');
+    
+    let nextCursor: string | null = null;
+    let hasMorePages = true;
     let counter = 0;
 
-    while (currentPath && counter < 50) { // Safety break
-        console.log('Fetching page:', currentPath);
-        // The '!' tells TypeScript that we are sure currentPath is not null here.
-        const response: any = await new Promise(resolve => window.FB.api(currentPath!, (res: any) => resolve(res)));
+    while (hasMorePages && counter < 50) { // Safety break
+        const currentParams: any = { access_token: tokenToUse };
+        // Copy existing params
+        for (const [key, value] of params.entries()) {
+            currentParams[key] = value;
+        }
+        if (nextCursor) {
+            currentParams.after = nextCursor;
+        }
+
+        console.log(`Fetching page for path: ${basePath} with params:`, currentParams);
+        const response: any = await new Promise(resolve => window.FB.api(basePath, 'get', currentParams, (res: any) => resolve(res)));
         console.log('Received response:', response);
 
-        if (response?.data && response.data.length > 0) {
-            allData = allData.concat(response.data);
-            currentPath = response.paging?.next ? response.paging.next.replace('https://graph.facebook.com', '') : null;
+        if (response?.data) {
+            if(response.data.length > 0) allData = allData.concat(response.data);
+
+            if (response.paging && response.paging.cursors && response.paging.cursors.after) {
+                nextCursor = response.paging.cursors.after;
+                hasMorePages = true;
+            } else {
+                hasMorePages = false;
+                nextCursor = null;
+            }
         } else {
             if (response?.error) {
                 if (response.error.code === 190) throw new FacebookTokenError(response.error.message);
                 throw new Error(`Facebook API Error: ${response.error.message}`);
             }
-            currentPath = null; // Stop if no data or error
+            hasMorePages = false;
         }
         counter++;
     }
     console.log('fetchWithPagination finished. Total data items:', allData.length);
     return allData;
 }, [appUser?.fbAccessToken, sdkLoaded]);
+
 
 
 

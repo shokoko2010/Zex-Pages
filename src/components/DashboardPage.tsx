@@ -283,30 +283,30 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         }
 
         const fetchDetails = async (endpoint: 'adsets' | 'ads') => {
-            const baseUrl = `https://graph.facebook.com/v19.0/${campaignId}/${endpoint}`;
+            const path = `/${campaignId}/${endpoint}`;
+            
             let fields = '';
             if (endpoint === 'adsets') {
                 fields = 'id,name,status,insights.date_preset(last_30d){spend,reach,clicks,ctr,cpc,cpp,cpm}';
-            } else {
+            } else { // 'ads'
                 fields = 'id,name,status,insights.date_preset(last_30d){spend,reach,clicks,ctr,cpc,cpp,cpm},creative{body,thumbnail_url}';
             }
-            
-            const url = `${baseUrl}?fields=${encodeURIComponent(fields)}&access_token=${encodeURIComponent(fbAccessToken)}`;
 
             try {
-                const response = await fetch(url);
-                const data = await response.json();
-                console.log(`[DEBUG] Raw API response for ${endpoint} of campaign ${campaignId}:`, data);
-
-                if (data.error) throw new Error(`(${data.error.code}) ${data.error.message}`);
+                // Use the robust object-based parameter passing
+                const response: any = await new Promise(resolve => 
+                    window.FB.api(path, 'get', { fields, access_token: fbAccessToken }, (res: any) => resolve(res))
+                );
                 
-                return (data.data || []).map((item: any) => {
-                    const insightsData = item.insights?.data?.[0] || {};
-                    if (!item.insights) {
-                        console.warn(`[DEBUG] Item ${item.id} (${item.name}) came back with NO insights object.`);
-                    }
-                    return { ...item, insights: insightsData };
-                });
+                console.log(`[DEBUG] Raw API response for ${endpoint} of campaign ${campaignId}:`, response);
+
+                if (response.error) throw new Error(`(${response.error.code}) ${response.error.message}`);
+                
+                return (response.data || []).map((item: any) => ({
+                    ...item,
+                    insights: item.insights?.data?.[0] || {},
+                }));
+
             } catch (error: any) {
                 console.error(`Error fetching ${endpoint} for campaign ${campaignId}:`, error);
                 showNotification('error', `فشل جلب ${endpoint}: ${error.message}`);
@@ -325,6 +325,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             return { adSets: [], ads: [] };
         }
     }, [fbAccessToken, showNotification]);
+
 
 
     useEffect(() => {
