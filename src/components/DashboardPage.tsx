@@ -119,6 +119,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     const [contentPlan, setContentPlan] = useState<ContentPlanItem[] | null>(null);
     const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
     const [isSchedulingStrategy, setIsSchedulingStrategy] = useState(false);
+    const [isUpdatingCampaign, setIsUpdatingCampaign] = useState(false);
     const [planError, setPlanError] = useState<string | null>(null);
     const replaceUndefinedWithNull = (obj: any): any => {
         if (obj === undefined) {
@@ -179,8 +180,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     
             // Step 2: For each ad account, fetch its campaigns and their associated ad creatives.
             const campaignPromises = adAccounts.map(adAccount => {
-                // This is the robust way: get campaigns -> their ads -> the creative of each ad.
-                const fields = `id,name,status,objective,insights{spend,reach},ads{creative{effective_object_story_id,object_type,object_id}}`;
+                // **MODIFIED**: Added .date_preset(last_30d) and more insight metrics
+                const fields = `id,name,status,objective,insights.date_preset(last_30d){spend,reach,clicks,ctr,cpc,cpp,cpm},ads{creative{effective_object_story_id,object_type,object_id}}`;
                 
                 return makeRequestWithRetry(`/${adAccount.id}/campaigns?fields=${fields}&limit=50`, fbAccessToken)
                     .catch(error => {
@@ -201,12 +202,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                         if (ad.creative) {
                             const creative = ad.creative;
                             
-                            // Case 1: Post Engagement (most common).
-                            // The effective_object_story_id is the reliable 'pageId_postId'.
                             const postPromotionMatch = creative.effective_object_story_id?.startsWith(managedTarget.id + '_');
-                            
-                            // Case 2: Page Likes.
-                            // The creative's object_type is 'PAGE' and its object_id matches our page.
                             const pageLikeMatch = creative.object_type === 'PAGE' && creative.object_id === managedTarget.id;
     
                             if (postPromotionMatch || pageLikeMatch) {
@@ -214,21 +210,21 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                                     const reason = postPromotionMatch ? "ترويج لمنشور" : "ترويج للصفحة (إعجابات)";
                                     console.log(`Found matching campaign "${campaign.name}" (ID: ${campaign.id}) because of: ${reason}.`);
                                     validCampaigns.set(campaign.id, campaign);
-                                    break; // Campaign is matched, move to the next campaign.
+                                    break; 
                                 }
                             }
                         }
                     }
                 }
             }
-    
+        
             const finalCampaigns = Array.from(validCampaigns.values());
     
             if (finalCampaigns.length > 0) {
                 const processedCampaigns = finalCampaigns.map((campaign: any) => ({
                     ...campaign,
-                    spend: campaign.insights?.data?.[0]?.spend || '0',
-                    reach: campaign.insights?.data?.[0]?.reach || '0',
+                    // **MODIFIED**: Access insights data safely
+                    insights: campaign.insights?.data?.[0] || {},
                 }));
                 setAdCampaigns(processedCampaigns);
                 showNotification('success', `تم جلب ${processedCampaigns.length} حملة/حملات مرتبطة بهذه الصفحة.`);
@@ -247,7 +243,25 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             setAdCampaigns([]);
         }
     }, [user, fbAccessToken, managedTarget.id, makeRequestWithRetry, fetchWithPagination, showNotification, onTokenError]);
-    
+    const handleUpdateCampaignStatus = useCallback(async (campaignId: string, newStatus: 'ACTIVE' | 'PAUSED'): Promise<boolean> => {
+        if (!fbAccessToken) {
+            showNotification('error', 'رمز الوصول غير موجود.');
+            return false;
+        }
+        setIsUpdatingCampaign(true);
+        try {
+            await makeRequestWithRetry(`/${campaignId}?status=${newStatus}`, fbAccessToken);
+            showNotification('success', `تم تحديث حالة الحملة بنجاح إلى ${newStatus}.`);
+            // Refresh campaigns list to show the new status
+            await fetchAdCampaigns();
+            setIsUpdatingCampaign(false);
+            return true;
+        } catch (error: any) {
+            showNotification('error', `فشل تحديث حالة الحملة: ${error.message}`);
+            setIsUpdatingCampaign(false);
+            return false;
+        }
+   }, [fbAccessToken, makeRequestWithRetry, showNotification, fetchAdCampaigns]);
     useEffect(() => {
         if (view === 'ads') {
             fetchAdCampaigns();
@@ -1449,10 +1463,12 @@ const onFetchPostInsights = async (postId: string): Promise<any> => {
         case 'ads': 
         return (
             <AdsManagerPage 
-                selectedTarget={managedTarget} 
-                role={currentUserRole}
-                campaigns={adCampaigns} // Pass the fetched campaigns
-            />
+                 selectedTarget={managedTarget} 
+                 role={currentUserRole}
+                 campaigns={adCampaigns}
+                 onUpdateCampaignStatus={handleUpdateCampaignStatus}
+                 isLoading={isUpdatingCampaign}
+             />
         );
         default: 
             return <div className="p-8 text-center text-gray-500 dark:text-gray-400">اختر قسمًا من القائمة للبدء.</div>;
