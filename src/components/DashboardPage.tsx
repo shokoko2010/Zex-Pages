@@ -119,8 +119,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     const [contentPlan, setContentPlan] = useState<ContentPlanItem[] | null>(null);
     const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
     const [isSchedulingStrategy, setIsSchedulingStrategy] = useState(false);
-    const [isUpdatingCampaign, setIsUpdatingCampaign] = useState(false);
     const [planError, setPlanError] = useState<string | null>(null);
+    const [isUpdatingCampaign, setIsUpdatingCampaign] = useState(false);
     const replaceUndefinedWithNull = (obj: any): any => {
         if (obj === undefined) {
             return null;
@@ -243,6 +243,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             setAdCampaigns([]);
         }
     }, [user, fbAccessToken, managedTarget.id, makeRequestWithRetry, fetchWithPagination, showNotification, onTokenError]);
+    
     const handleUpdateCampaignStatus = useCallback(async (campaignId: string, newStatus: 'ACTIVE' | 'PAUSED'): Promise<boolean> => {
         if (!fbAccessToken) {
             showNotification('error', 'رمز الوصول غير موجود.');
@@ -250,10 +251,22 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         }
         setIsUpdatingCampaign(true);
         try {
-            await makeRequestWithRetry(`/${campaignId}?status=${newStatus}`, fbAccessToken);
+            // NOTE: Facebook Graph API requires POST requests for status changes
+            const response = await fetch(`https://graph.facebook.com/v19.0/${campaignId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    status: newStatus,
+                    access_token: fbAccessToken,
+                }),
+            });
+            const responseData = await response.json();
+            if (!response.ok || responseData.error) {
+                throw new Error(responseData.error?.message || 'فشل تحديث الحالة.');
+            }
+
             showNotification('success', `تم تحديث حالة الحملة بنجاح إلى ${newStatus}.`);
-            // Refresh campaigns list to show the new status
-            await fetchAdCampaigns();
+            await fetchAdCampaigns(); // Refresh campaigns list
             setIsUpdatingCampaign(false);
             return true;
         } catch (error: any) {
@@ -261,63 +274,58 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             setIsUpdatingCampaign(false);
             return false;
         }
-   }, [fbAccessToken, makeRequestWithRetry, showNotification, fetchAdCampaigns]);
+    }, [fbAccessToken, showNotification, fetchAdCampaigns]);
 
-   const fetchCampaignSubEntities = useCallback(async (campaignId: string) => {
-    if (!fbAccessToken) {
-        showNotification('error', 'رمز الوصول غير موجود.');
-        return { adSets: [], ads: [] };
-    }
-
-    // --- Helper function for robust fetching ---
-    const fetchDetails = async (endpoint: 'adsets' | 'ads') => {
-        const baseUrl = `https://graph.facebook.com/v19.0/${campaignId}/${endpoint}`;
-        
-        let fields = '';
-        if (endpoint === 'adsets') {
-            fields = 'id,name,status,insights.date_preset(last_30d){spend,reach,clicks,ctr}';
-        } else { // 'ads'
-            fields = 'id,name,status,insights.date_preset(last_30d){spend,reach,clicks,ctr},creative{body,thumbnail_url}';
+    const fetchCampaignSubEntities = useCallback(async (campaignId: string) => {
+        if (!fbAccessToken) {
+            showNotification('error', 'رمز الوصول غير موجود.');
+            return { adSets: [], ads: [] };
         }
 
-        // Manually construct the URL to avoid encoding issues with special characters.
-        const url = `${baseUrl}?fields=${encodeURIComponent(fields)}&access_token=${encodeURIComponent(fbAccessToken)}`;
+        const fetchDetails = async (endpoint: 'adsets' | 'ads') => {
+            const baseUrl = `https://graph.facebook.com/v19.0/${campaignId}/${endpoint}`;
+            
+            let fields = '';
+            if (endpoint === 'adsets') {
+                fields = 'id,name,status,insights.date_preset(last_30d){spend,reach,clicks,ctr}';
+            } else { // 'ads'
+                fields = 'id,name,status,insights.date_preset(last_30d){spend,reach,clicks,ctr},creative{body,thumbnail_url}';
+            }
+
+            const url = `${baseUrl}?fields=${encodeURIComponent(fields)}&access_token=${encodeURIComponent(fbAccessToken)}`;
+
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                console.log(`[DEBUG] Raw API response for ${endpoint} of campaign ${campaignId}:`, data);
+
+                if (data.error) {
+                    throw new Error(`(${data.error.code}) ${data.error.message}`);
+                }
+                
+                return (data.data || []).map((item: any) => ({
+                    ...item,
+                    insights: item.insights?.data?.[0] || {},
+                }));
+
+            } catch (error: any) {
+                console.error(`Error fetching ${endpoint} for campaign ${campaignId}:`, error);
+                showNotification('error', `فشل جلب ${endpoint}: ${error.message}`);
+                return [];
+            }
+        };
 
         try {
-            const response = await fetch(url);
-            const data = await response.json();
-
-            // ** Enhanced Debugging **
-            console.log(`[DEBUG] Raw API response for ${endpoint} of campaign ${campaignId}:`, data);
-
-            if (data.error) {
-                throw new Error(`(${data.error.code}) ${data.error.message}`);
-            }
-            
-            return (data.data || []).map((item: any) => ({
-                ...item,
-                insights: item.insights?.data?.[0] || {},
-            }));
-
-        } catch (error: any) {
-            console.error(`Error fetching ${endpoint} for campaign ${campaignId}:`, error);
-            showNotification('error', `فشل جلب ${endpoint}: ${error.message}`);
-            return [];
+            const [adSets, ads] = await Promise.all([
+                fetchDetails('adsets'),
+                fetchDetails('ads')
+            ]);
+            return { adSets, ads };
+        } catch (error) {
+            console.error("Error in Promise.all for sub-entities:", error);
+            return { adSets: [], ads: [] };
         }
-    };
-
-    try {
-        const [adSets, ads] = await Promise.all([
-            fetchDetails('adsets'),
-            fetchDetails('ads')
-        ]);
-        return { adSets, ads };
-    } catch (error) {
-        console.error("Error in Promise.all for sub-entities:", error);
-        return { adSets: [], ads: [] };
-    }
-}, [fbAccessToken, showNotification]);
-
+    }, [fbAccessToken, showNotification]);
 
     useEffect(() => {
         if (view === 'ads') {
@@ -1517,17 +1525,17 @@ const onFetchPostInsights = async (postId: string): Promise<any> => {
                     role={currentUserRole} user={user} 
                 />
             );
-        case 'ads': 
-        return (
-            <AdsManagerPage 
+            case 'ads': 
+            return (
+                <AdsManagerPage 
                     selectedTarget={managedTarget} 
                     role={currentUserRole}
                     campaigns={adCampaigns}
                     onUpdateCampaignStatus={handleUpdateCampaignStatus}
-                    isLoading={isUpdatingCampaign}
+                    isLoading={isUpdatingCampaign || publishedPostsLoading}
                     fetchCampaignSubEntities={fetchCampaignSubEntities}
                 />
-        );
+            );
         default: 
             return <div className="p-8 text-center text-gray-500 dark:text-gray-400">اختر قسمًا من القائمة للبدء.</div>;
     }
