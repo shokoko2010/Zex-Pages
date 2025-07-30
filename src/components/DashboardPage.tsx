@@ -162,13 +162,12 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             return;
         }
     
-        showNotification('partial', 'جاري جلب جميع الحسابات الإعلانية للعثور على حملات مرتبطة...');
+        showNotification('partial', 'جاري جلب جميع الحملات للتحقق من ارتباطها بالصفحة...');
         setAdCampaigns([]);
         const validCampaigns = new Map<string, any>();
     
         try {
-            // Step 1: Use fetchWithPagination to get ALL ad accounts, respecting pagination.
-            showNotification('partial', 'الخطوة 1: جلب كل الحسابات الإعلانية...');
+            // Step 1: Use fetchWithPagination to get ALL ad accounts.
             const adAccounts = await fetchWithPagination(`/me/adaccounts?fields=id,name&limit=100`, fbAccessToken);
     
             if (!adAccounts || adAccounts.length === 0) {
@@ -176,41 +175,46 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                 return;
             }
     
-            showNotification('partial', `تم العثور على ${adAccounts.length} حساب إعلاني. جاري فحص الحملات داخلها...`);
+            showNotification('partial', `تم العثور على ${adAccounts.length} حساب إعلاني. جاري فحص الحملات...`);
     
-            // Step 2: For each ad account, fetch all its campaigns and their ad sets.
+            // Step 2: For each ad account, fetch its campaigns and their associated ad creatives.
             const campaignPromises = adAccounts.map(adAccount => {
-                const fields = `id,name,status,objective,insights{spend,reach},adsets{promoted_object{page_id,object_story_id}}`;
-                return makeRequestWithRetry(`/${adAccount.id}/campaigns?fields=${fields}&limit=200`, fbAccessToken)
+                // This is the robust way: get campaigns -> their ads -> the creative of each ad.
+                const fields = `id,name,status,objective,insights{spend,reach},ads{creative{effective_object_story_id,object_type,object_id}}`;
+                
+                return makeRequestWithRetry(`/${adAccount.id}/campaigns?fields=${fields}&limit=50`, fbAccessToken)
                     .catch(error => {
-                        console.warn(`Could not fetch campaigns for ad account ${adAccount.name}:`, error.message);
+                        console.warn(`Could not fetch campaigns for ad account ${adAccount.name} (${adAccount.id}):`, error.message);
                         return { data: [] }; // Return an empty object on failure to not break Promise.all
                     });
             });
             
             const results = await Promise.all(campaignPromises);
-            const allCampaigns = results.flatMap(result => result.data || []); // Flatten all campaigns from all accounts
+            const allCampaigns = results.flatMap(result => result.data || []);
     
-            console.log(`Total campaigns fetched across all accounts for checking: ${allCampaigns.length}`);
+            console.log(`Total campaigns fetched across all accounts for client-side checking: ${allCampaigns.length}`);
     
-            // Step 3: Process the results on the client-side to find the right campaigns.
+            // Step 3: Process the results client-side to find campaigns linked to the page.
             for (const campaign of allCampaigns) {
-                if (campaign.adsets && campaign.adsets.data) {
-                    for (const adset of campaign.adsets.data) {
-                        if (adset.promoted_object) {
-                            // Check for direct page promotion (e.g., Page Likes campaigns)
-                            const pageIdMatch = adset.promoted_object.page_id === managedTarget.id;
+                if (campaign.ads && campaign.ads.data) {
+                    for (const ad of campaign.ads.data) {
+                        if (ad.creative) {
+                            const creative = ad.creative;
                             
-                            // Check for post promotion (e.g., Engagement campaigns)
-                            // The object_story_id is often in the format pageId_postId
-                            const postIdMatch = adset.promoted_object.object_story_id?.startsWith(managedTarget.id + '_');
+                            // Case 1: Post Engagement (most common).
+                            // The effective_object_story_id is the reliable 'pageId_postId'.
+                            const postPromotionMatch = creative.effective_object_story_id?.startsWith(managedTarget.id + '_');
+                            
+                            // Case 2: Page Likes.
+                            // The creative's object_type is 'PAGE' and its object_id matches our page.
+                            const pageLikeMatch = creative.object_type === 'PAGE' && creative.object_id === managedTarget.id;
     
-                            if (pageIdMatch || postIdMatch) {
+                            if (postPromotionMatch || pageLikeMatch) {
                                 if (!validCampaigns.has(campaign.id)) {
-                                     const reason = pageIdMatch ? "ترويج مباشر للصفحة" : "ترويج لمنشور على الصفحة";
-                                     console.log(`Found matching campaign "${campaign.name}" (ID: ${campaign.id}) because of: ${reason}.`);
-                                     validCampaigns.set(campaign.id, campaign);
-                                     break; // Found a matching adset, no need to check others in this campaign.
+                                    const reason = postPromotionMatch ? "ترويج لمنشور" : "ترويج للصفحة (إعجابات)";
+                                    console.log(`Found matching campaign "${campaign.name}" (ID: ${campaign.id}) because of: ${reason}.`);
+                                    validCampaigns.set(campaign.id, campaign);
+                                    break; // Campaign is matched, move to the next campaign.
                                 }
                             }
                         }
