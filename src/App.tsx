@@ -126,43 +126,64 @@ const App: React.FC = () => {
   }, [user]);
 
   const fetchWithPagination = useCallback(async (initialPath: string, accessToken?: string): Promise<any[]> => {
-      console.log('Attempting fetchWithPagination for path:', initialPath);
-      if (!sdkLoaded || !window.FB) {
-          console.log('fetchWithPagination aborted: SDK not loaded or FB object missing.');
-          return [];
-      }
-      let allData: any[] = [];
-      let path: string | null = initialPath;
-      const tokenToUse = accessToken || appUser?.fbAccessToken;
-      if (!tokenToUse) {
-          console.log('fetchWithPagination aborted: Facebook Access Token is missing.');
-          throw new Error("Facebook Access Token is missing.");
-      }
+    console.log('Attempting fetchWithPagination for path:', initialPath);
+    if (!sdkLoaded || !window.FB) {
+        console.log('fetchWithPagination aborted: SDK not loaded or FB object missing.');
+        return [];
+    }
+    let allData: any[] = [];
+    const tokenToUse = accessToken || appUser?.fbAccessToken;
+    if (!tokenToUse) {
+        console.log('fetchWithPagination aborted: Facebook Access Token is missing.');
+        throw new Error("Facebook Access Token is missing.");
+    }
 
-      path = path.includes('?') ? `${path}&access_token=${tokenToUse}` : `${path}?access_token=${tokenToUse}`;
+    // We need to handle the path and parameters carefully
+    const [basePath, queryParams] = initialPath.split('?');
+    const params = new URLSearchParams(queryParams || '');
+    params.set('access_token', tokenToUse);
+    
+    let nextPath: string | null = `${basePath}?${params.toString()}`;
+    let counter = 0;
 
-      let counter = 0;
-      while (path && counter < 50) {
-          console.log('Fetching page:', path);
-          const response: any = await new Promise(resolve => window.FB.api(path, (res: any) => resolve(res)));
-          console.log('Received response:', response);
-          if (response?.data) {
-              if (response.data.length > 0) allData = allData.concat(response.data);
-              path = response.paging?.next ? response.paging.next.replace('https://graph.facebook.com', '') : null;
-          } else {
-              if (response?.error) {
+    while (nextPath && counter < 50) { // Safety break
+        console.log('Fetching page:', nextPath);
+        const response: any = await new Promise(resolve => window.FB.api(nextPath, (res: any) => resolve(res)));
+        console.log('Received response:', response);
+
+        if (response?.data) {
+            if (response.data.length > 0) allData = allData.concat(response.data);
+            
+            if (response.paging) {
+                if (response.paging.next) {
+                    nextPath = response.paging.next.replace('https://graph.facebook.com', '');
+                } else if (response.paging.cursors && response.paging.cursors.after) {
+                    // Cursor-based pagination
+                    const currentParams = new URLSearchParams(nextPath!.split('?')[1]); // <-- FIX IS HERE
+                    currentParams.set('after', response.paging.cursors.after);
+                    nextPath = `${nextPath!.split('?')[0]}?${currentParams.toString()}`;
+                } else {
+                    nextPath = null; // No more pages
+                }
+            } else {
+                nextPath = null; // No paging object means we're done
+            }
+
+        } else {
+            if (response?.error) {
                 if (response.error.code === 190) {
-                  throw new FacebookTokenError(response.error.message);
+                    throw new FacebookTokenError(response.error.message);
                 }
                 throw new Error(`خطأ في واجهة فيسبوك: ${response.error.message}`);
-              }
-              path = null;
-          }
-          counter++;
-      }
-      console.log('fetchWithPagination finished. Total data items:', allData.length);
-      return allData;
-  }, [appUser?.fbAccessToken, sdkLoaded]);
+            }
+            nextPath = null;
+        }
+        counter++;
+    }
+    console.log('fetchWithPagination finished. Total data items:', allData.length);
+    return allData;
+}, [appUser?.fbAccessToken, sdkLoaded]);
+
 
   const fetchInstagramAccounts = useCallback(async (pages: Target[]): Promise<Target[]> => {
     console.log('Attempting fetchInstagramAccounts for', pages.length, 'pages.');
