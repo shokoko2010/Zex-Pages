@@ -262,6 +262,32 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             return false;
         }
    }, [fbAccessToken, makeRequestWithRetry, showNotification, fetchAdCampaigns]);
+
+   const fetchCampaignSubEntities = useCallback(async (campaignId: string) => {
+    if (!fbAccessToken) {
+        showNotification('error', 'رمز الوصول غير موجود.');
+        return { adSets: [], ads: [] };
+    }
+    
+    const adSetsFields = 'id,name,status,insights.date_preset(last_30d){spend,reach,clicks,ctr}';
+    const adsFields = 'id,name,status,insights.date_preset(last_30d){spend,reach,clicks,ctr},creative{body,thumbnail_url}';
+
+    try {
+        const adSetsPromise = makeRequestWithRetry(`/${campaignId}/adsets?fields=${adSetsFields}`, fbAccessToken);
+        const adsPromise = makeRequestWithRetry(`/${campaignId}/ads?fields=${adsFields}`, fbAccessToken);
+
+        const [adSetsResponse, adsResponse] = await Promise.all([adSetsPromise, adsPromise]);
+
+        const adSets = (adSetsResponse.data || []).map((as: any) => ({ ...as, insights: as.insights?.data?.[0] || {} }));
+        const ads = (adsResponse.data || []).map((ad: any) => ({ ...ad, insights: ad.insights?.data?.[0] || {} }));
+
+        return { adSets, ads };
+    } catch (error: any) {
+        showNotification('error', `فشل جلب تفاصيل الحملة: ${error.message}`);
+        return { adSets: [], ads: [] };
+    }
+}, [fbAccessToken, makeRequestWithRetry, showNotification]);
+
     useEffect(() => {
         if (view === 'ads') {
             fetchAdCampaigns();
@@ -1463,12 +1489,13 @@ const onFetchPostInsights = async (postId: string): Promise<any> => {
         case 'ads': 
         return (
             <AdsManagerPage 
-                 selectedTarget={managedTarget} 
-                 role={currentUserRole}
-                 campaigns={adCampaigns}
-                 onUpdateCampaignStatus={handleUpdateCampaignStatus}
-                 isLoading={isUpdatingCampaign}
-             />
+                    selectedTarget={managedTarget} 
+                    role={currentUserRole}
+                    campaigns={adCampaigns}
+                    onUpdateCampaignStatus={handleUpdateCampaignStatus}
+                    isLoading={isUpdatingCampaign}
+                    fetchCampaignSubEntities={fetchCampaignSubEntities}
+                />
         );
         default: 
             return <div className="p-8 text-center text-gray-500 dark:text-gray-400">اختر قسمًا من القائمة للبدء.</div>;

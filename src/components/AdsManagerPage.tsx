@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { Target, Role } from '../types';
 import Button from './ui/Button';
 import ChartBarIcon from './icons/ChartBarIcon';
@@ -8,8 +8,7 @@ import UserGroupIcon from './icons/UserGroupIcon';
 import CursorArrowRaysIcon from './icons/CursorArrowRaysIcon';
 import PlayPauseIcon from './icons/PlayPauseIcon';
 import Tooltip from './ui/Tooltip';
-// We will create this Modal in the next step. For now, we are preparing for it.
-// import CampaignDetailsModal from './CampaignDetailsModal'; 
+import CampaignDetailsModal from './CampaignDetailsModal'; 
 
 // Define a type for the campaign data
 interface Campaign {
@@ -28,15 +27,37 @@ interface Campaign {
     };
 }
 
+// Add types for sub-entities
+interface AdSet {
+    id: string;
+    name: string;
+    status: string;
+    insights: any;
+}
+
+interface Ad {
+    id: string;
+    name: string;
+    status: string;
+    insights: any;
+    creative: {
+        thumbnail_url?: string;
+        body?: string;
+    };
+}
+
+
 interface AdsManagerPageProps {
     selectedTarget: Target | null;
     role: Role;
     campaigns: Campaign[];
     onUpdateCampaignStatus: (campaignId: string, newStatus: 'ACTIVE' | 'PAUSED') => Promise<boolean>;
     isLoading: boolean;
+    // Add the new prop
+    fetchCampaignSubEntities: (campaignId: string) => Promise<{ adSets: AdSet[], ads: Ad[] }>;
 }
 
-const AdsManagerPage: React.FC<AdsManagerPageProps> = ({ selectedTarget, role, campaigns, onUpdateCampaignStatus, isLoading }) => {
+const AdsManagerPage: React.FC<AdsManagerPageProps> = ({ selectedTarget, role, campaigns, onUpdateCampaignStatus, isLoading, fetchCampaignSubEntities }) => {
     const isViewer = role === 'viewer';
     const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
     const [selectedCampaignForDetails, setSelectedCampaignForDetails] = useState<Campaign | null>(null);
@@ -45,7 +66,6 @@ const AdsManagerPage: React.FC<AdsManagerPageProps> = ({ selectedTarget, role, c
     const handleViewDetails = (campaign: Campaign) => {
         setSelectedCampaignForDetails(campaign);
         setIsDetailsModalOpen(true);
-        alert("سيتم فتح نافذة التفاصيل هنا في الخطوة القادمة!");
     };
     
     const handleToggleStatus = async (campaign: Campaign) => {
@@ -85,7 +105,13 @@ const AdsManagerPage: React.FC<AdsManagerPageProps> = ({ selectedTarget, role, c
 
     return (
     <>
-        {/* We will add the <CampaignDetailsModal /> here later */}
+        <CampaignDetailsModal 
+            isOpen={isDetailsModalOpen}
+            onClose={() => setIsDetailsModalOpen(false)}
+            campaign={selectedCampaignForDetails}
+            target={selectedTarget}
+            fetchCampaignSubEntities={fetchCampaignSubEntities}
+        />
         <div className="p-6 bg-gray-50 dark:bg-gray-900 min-h-full space-y-6">
             <div className="flex justify-between items-center">
                 <h2 className="text-3xl font-bold text-gray-800 dark:text-white">مدير الحملات الإعلانية</h2>
