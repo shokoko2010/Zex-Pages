@@ -269,35 +269,40 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         return { adSets: [], ads: [] };
     }
 
-    const baseUrl = `https://graph.facebook.com/v19.0/${campaignId}`;
-
-    // Helper function to fetch details for adsets or ads robustly
+    // --- Helper function for robust fetching ---
     const fetchDetails = async (endpoint: 'adsets' | 'ads') => {
-        const params = new URLSearchParams({
-            access_token: fbAccessToken,
-        });
-
+        const baseUrl = `https://graph.facebook.com/v19.0/${campaignId}/${endpoint}`;
+        
+        let fields = '';
         if (endpoint === 'adsets') {
-            params.append('fields', 'id,name,status,insights.date_preset(last_30d){spend,reach,clicks,ctr}');
+            fields = 'id,name,status,insights.date_preset(last_30d){spend,reach,clicks,ctr}';
         } else { // 'ads'
-            params.append('fields', 'id,name,status,insights.date_preset(last_30d){spend,reach,clicks,ctr},creative{body,thumbnail_url}');
+            fields = 'id,name,status,insights.date_preset(last_30d){spend,reach,clicks,ctr},creative{body,thumbnail_url}';
         }
 
+        // Manually construct the URL to avoid encoding issues with special characters.
+        const url = `${baseUrl}?fields=${encodeURIComponent(fields)}&access_token=${encodeURIComponent(fbAccessToken)}`;
+
         try {
-            const response = await fetch(`${baseUrl}/${endpoint}?${params.toString()}`);
+            const response = await fetch(url);
             const data = await response.json();
+
+            // ** Enhanced Debugging **
+            console.log(`[DEBUG] Raw API response for ${endpoint} of campaign ${campaignId}:`, data);
+
             if (data.error) {
                 throw new Error(`(${data.error.code}) ${data.error.message}`);
             }
-            // Process the data to correctly flatten the insights object
+            
             return (data.data || []).map((item: any) => ({
                 ...item,
                 insights: item.insights?.data?.[0] || {},
             }));
+
         } catch (error: any) {
             console.error(`Error fetching ${endpoint} for campaign ${campaignId}:`, error);
             showNotification('error', `فشل جلب ${endpoint}: ${error.message}`);
-            return []; // Return an empty array on error for this specific part
+            return [];
         }
     };
 
