@@ -284,14 +284,13 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
 
         const fetchDetails = async (endpoint: 'adsets' | 'ads') => {
             const baseUrl = `https://graph.facebook.com/v19.0/${campaignId}/${endpoint}`;
-            
             let fields = '';
             if (endpoint === 'adsets') {
-                fields = 'id,name,status,insights.date_preset(last_30d){spend,reach,clicks,ctr}';
-            } else { // 'ads'
-                fields = 'id,name,status,insights.date_preset(last_30d){spend,reach,clicks,ctr},creative{body,thumbnail_url}';
+                fields = 'id,name,status,insights.date_preset(last_30d){spend,reach,clicks,ctr,cpc,cpp,cpm}';
+            } else {
+                fields = 'id,name,status,insights.date_preset(last_30d){spend,reach,clicks,ctr,cpc,cpp,cpm},creative{body,thumbnail_url}';
             }
-
+            
             const url = `${baseUrl}?fields=${encodeURIComponent(fields)}&access_token=${encodeURIComponent(fbAccessToken)}`;
 
             try {
@@ -299,15 +298,15 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
                 const data = await response.json();
                 console.log(`[DEBUG] Raw API response for ${endpoint} of campaign ${campaignId}:`, data);
 
-                if (data.error) {
-                    throw new Error(`(${data.error.code}) ${data.error.message}`);
-                }
+                if (data.error) throw new Error(`(${data.error.code}) ${data.error.message}`);
                 
-                return (data.data || []).map((item: any) => ({
-                    ...item,
-                    insights: item.insights?.data?.[0] || {},
-                }));
-
+                return (data.data || []).map((item: any) => {
+                    const insightsData = item.insights?.data?.[0] || {};
+                    if (!item.insights) {
+                        console.warn(`[DEBUG] Item ${item.id} (${item.name}) came back with NO insights object.`);
+                    }
+                    return { ...item, insights: insightsData };
+                });
             } catch (error: any) {
                 console.error(`Error fetching ${endpoint} for campaign ${campaignId}:`, error);
                 showNotification('error', `فشل جلب ${endpoint}: ${error.message}`);
@@ -326,6 +325,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             return { adSets: [], ads: [] };
         }
     }, [fbAccessToken, showNotification]);
+
 
     useEffect(() => {
         if (view === 'ads') {
