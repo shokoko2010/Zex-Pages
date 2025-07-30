@@ -33,11 +33,11 @@ const exchangeAndStoreLongLivedToken = async (userId: string, shortLivedToken: s
         console.log('exchangeAndStoreLongLivedToken aborted: Missing userId or shortLivedToken.');
         return;
     }
-
+  
     const clientId = import.meta.env.VITE_FACEBOOK_APP_ID;
-    const clientSecret = import.meta.env.VITE_FACEBASE_APP_SECRET; // Typo corrected here, was VITE_FACEBASE_APP_SECRET
+    const clientSecret = import.meta.env.VITE_FACEBOOK_APP_SECRET; // Corrected typo from FACEBASE to FACEBOOK
     const url = `https://graph.facebook.com/v19.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${clientId}&client_secret=${clientSecret}&fb_exchange_token=${shortLivedToken}`;
-
+  
     console.log('Exchange URL:', url);
 
     try {
@@ -46,7 +46,7 @@ const exchangeAndStoreLongLivedToken = async (userId: string, shortLivedToken: s
       const data = await response.json();
       console.log('Exchange response data:', data);
       const longLivedToken = data.access_token;
-
+  
       if (longLivedToken) {
         console.log('Long Lived Token obtained. Attempting to store in Firestore.');
         await db.collection('users').doc(userId).update({
