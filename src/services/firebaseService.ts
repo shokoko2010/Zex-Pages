@@ -35,7 +35,15 @@ const exchangeAndStoreLongLivedToken = async (userId: string, shortLivedToken: s
     }
   
     const clientId = import.meta.env.VITE_FACEBOOK_APP_ID;
-    const clientSecret = import.meta.env.VITE_FACEBOOK_APP_SECRET; // Corrected typo from FACEBASE to FACEBOOK
+    const clientSecret = import.meta.env.VITE_FACEBOOK_APP_SECRET;
+
+    if (!clientId || !clientSecret) {
+        const errorMsg = "Facebook App ID or Secret is not configured. Please check your Vercel environment variables and ensure they are prefixed with 'VITE_'. (e.g., VITE_FACEBOOK_APP_ID)";
+        console.error(errorMsg);
+        alert(errorMsg);
+        return;
+    }
+
     const url = `https://graph.facebook.com/v19.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${clientId}&client_secret=${clientSecret}&fb_exchange_token=${shortLivedToken}`;
   
     console.log('Exchange URL:', url);
