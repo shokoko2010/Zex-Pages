@@ -158,86 +158,69 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     }, []); // Note the empty dependency array
     const fetchAdCampaigns = useCallback(async () => {
         if (!user || !fbAccessToken) {
-            showNotification('error', 'رمز وصول المستخدم مفقود لجلب الحملات الإعلانية.');
+            showNotification('error', 'رمز وصول المستخدم مفقود.');
             return;
         }
     
-        showNotification('partial', 'جاري البحث عن حساب إعلاني مرتبط...');
-        setAdCampaigns([]); // Clear previous campaigns
+        showNotification('partial', 'جاري جلب جميع الحسابات الإعلانية للعثور على حملات مرتبطة بهذه الصفحة...');
+        setAdCampaigns([]);
     
-        const findAndFetchCampaigns = async (adAccountId: string) => {
-            showNotification('partial', `تم العثور على الحساب الإعلاني ${adAccountId}. جاري جلب الحملات...`);
-            const campaignFields = 'id,name,status,objective,insights{spend,reach}';
-            const campaignsData = await makeRequestWithRetry(`/${adAccountId}/campaigns?fields=${campaignFields}`, fbAccessToken);
-            
-            if (campaignsData.data && campaignsData.data.length > 0) {
-                const processedCampaigns = campaignsData.data.map((campaign: any) => ({
+        try {
+            // Step 1: Fetch ALL Ad Accounts the user has access to.
+            const userAdAccountsData = await makeRequestWithRetry(`/me/adaccounts?fields=id,name&limit=100`, fbAccessToken);
+    
+            if (!userAdAccountsData?.data || userAdAccountsData.data.length === 0) {
+                showNotification('error', 'لم يتم العثور على أي حسابات إعلانية متاحة لك.');
+                return;
+            }
+    
+            const adAccounts: { id: string, name: string }[] = userAdAccountsData.data;
+            showNotification('partial', `تم العثور على ${adAccounts.length} حساب/حسابات. جاري البحث عن حملات مرتبطة بالصفحة...`);
+    
+            // Step 2: For each ad account, try fetching campaigns filtered by the current page ID.
+            const campaignPromises = adAccounts.map(adAccount => {
+                const campaignFields = 'id,name,status,objective,insights{spend,reach}';
+                const filtering = `[{ "field": "promoted_object.page_id", "operator": "EQUAL", "value": "${managedTarget.id}" }]`;
+                
+                return makeRequestWithRetry(`/${adAccount.id}/campaigns?fields=${campaignFields}&filtering=${filtering}`, fbAccessToken)
+                    .then(response => {
+                        console.log(`Found ${response.data.length} campaigns for page ${managedTarget.id} in ad account ${adAccount.name} (${adAccount.id})`);
+                        return response.data; // This will be an array of campaigns
+                    })
+                    .catch(error => {
+                        // It's common for accounts to not have access or campaigns, so we can warn instead of erroring.
+                        console.warn(`Could not fetch campaigns for page ${managedTarget.id} in ad account ${adAccount.name}:`, error.message);
+                        return []; // Return an empty array on failure to not break Promise.all
+                    });
+            });
+    
+            // Step 3: Await all searches and flatten the results.
+            const allCampaignsNested = await Promise.all(campaignPromises);
+            const allCampaigns = allCampaignsNested.flat();
+    
+            if (allCampaigns.length > 0) {
+                const processedCampaigns = allCampaigns.map((campaign: any) => ({
                     ...campaign,
                     spend: campaign.insights?.data?.[0]?.spend || '0',
                     reach: campaign.insights?.data?.[0]?.reach || '0',
                 }));
                 setAdCampaigns(processedCampaigns);
-                showNotification('success', 'تم جلب الحملات الإعلانية بنجاح.');
+                showNotification('success', `تم جلب ${processedCampaigns.length} حملة/حملات مرتبطة بهذه الصفحة.`);
             } else {
-                setAdCampaigns([]);
-                showNotification('partial', 'لم يتم العثور على حملات إعلانية نشطة في هذا الحساب.');
-            }
-        };
-    
-        try {
-            // Method 1: Find Ad Account via Business Manager (more reliable)
-            let adAccountId: string | null = null;
-            try {
-                console.log(`Searching for business owner of page ${managedTarget.id}`);
-                const businessOwnerData = await makeRequestWithRetry(`/${managedTarget.id}?fields=business`, managedTarget.access_token || fbAccessToken);
-                const businessId = businessOwnerData?.business?.id;
-    
-                if (businessId) {
-                    showNotification('partial', `تم العثور على مدير أعمال. جاري البحث عن حسابات إعلانية...`);
-                    console.log(`Found business ID: ${businessId}. Fetching client ad accounts.`);
-                    const clientAdAccountsData = await makeRequestWithRetry(`/${businessId}/client_ad_accounts?fields=id,name`, fbAccessToken);
-                    if (clientAdAccountsData?.data?.length > 0) {
-                        adAccountId = clientAdAccountsData.data[0].id;
-                        console.log(`Found ad account via Business Manager: ${adAccountId}`);
-                    } else {
-                         console.log('No client_ad_accounts found for this business.');
-                    }
-                } else {
-                    console.log('Page is not owned by a Business Manager.');
-                }
-            } catch (error) {
-                console.warn("Could not find ad account via Business Manager, will try fallback method. Error:", error);
-            }
-    
-            // Method 2: Fallback to user's ad accounts if Method 1 fails
-            if (!adAccountId) {
-                showNotification('partial', 'لم يتم العثور على حساب عبر مدير الأعمال، جاري محاولة الطريقة البديلة...');
-                console.log('Fallback: Fetching from /me/adaccounts');
-                const userAdAccountsData = await makeRequestWithRetry(`/me/adaccounts?fields=id,name`, fbAccessToken);
-                if (userAdAccountsData?.data?.length > 0) {
-                    adAccountId = userAdAccountsData.data[0].id; // Use the first one as a fallback
-                    console.log(`Found ad account via user's list: ${adAccountId}`);
-                }
-            }
-    
-            // Fetch campaigns if an ad account was found
-            if (adAccountId) {
-                await findAndFetchCampaigns(adAccountId);
-            } else {
-                showNotification('error', 'لم يتم العثور على أي حساب إعلاني مرتبط بهذه الصفحة ومتاح لك.');
+                showNotification('error', 'لم يتم العثور على أي حملات إعلانية مرتبطة بهذه الصفحة في جميع حساباتك المتاحة.');
                 setAdCampaigns([]);
             }
     
         } catch (error: any) {
-            console.error('Failed to fetch ad campaigns:', error);
+            console.error('An error occurred while fetching ad accounts or campaigns:', error);
             if (error instanceof FacebookTokenError) {
                 onTokenError();
             } else {
-                showNotification('error', `فشل جلب الحملات الإعلانية: ${error.message}`);
+                showNotification('error', `فشل البحث عن الحملات: ${error.message}`);
             }
             setAdCampaigns([]);
         }
-    }, [user, fbAccessToken, managedTarget.id, managedTarget.access_token, makeRequestWithRetry, showNotification, onTokenError]);
+    }, [user, fbAccessToken, managedTarget.id, makeRequestWithRetry, showNotification, onTokenError]);
     
     useEffect(() => {
         if (view === 'ads') {
