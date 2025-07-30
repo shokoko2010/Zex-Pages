@@ -162,8 +162,9 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             return;
         }
     
-        showNotification('partial', 'جاري جلب جميع الحسابات الإعلانية للعثور على حملات مرتبطة بهذه الصفحة...');
+        showNotification('partial', 'جاري جلب جميع الحملات للتحقق من ارتباطها بالصفحة...');
         setAdCampaigns([]);
+        const validCampaigns = new Map<string, any>();
     
         try {
             // Step 1: Fetch ALL Ad Accounts the user has access to.
@@ -175,31 +176,46 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
             }
     
             const adAccounts: { id: string, name: string }[] = userAdAccountsData.data;
-            showNotification('partial', `تم العثور على ${adAccounts.length} حساب/حسابات. جاري البحث عن حملات مرتبطة بالصفحة...`);
+            showNotification('partial', `تم العثور على ${adAccounts.length} حساب/حسابات. جاري فحص الحملات داخل كل حساب...`);
     
-            // Step 2: For each ad account, try fetching campaigns filtered by the current page ID.
+            // Step 2: For each ad account, fetch all its campaigns and their ad sets.
             const campaignPromises = adAccounts.map(adAccount => {
-                const campaignFields = 'id,name,status,objective,insights{spend,reach}';
-                const filtering = `[{ "field": "promoted_object.page_id", "operator": "EQUAL", "value": "${managedTarget.id}" }]`;
+                // We ask for campaigns, and for each campaign, its adsets, and for each adset, its promoted page_id
+                const fields = `id,name,status,objective,insights{spend,reach},adsets{promoted_object{page_id}}`;
                 
-                return makeRequestWithRetry(`/${adAccount.id}/campaigns?fields=${campaignFields}&filtering=${filtering}`, fbAccessToken)
-                    .then(response => {
-                        console.log(`Found ${response.data.length} campaigns for page ${managedTarget.id} in ad account ${adAccount.name} (${adAccount.id})`);
-                        return response.data; // This will be an array of campaigns
-                    })
+                return makeRequestWithRetry(`/${adAccount.id}/campaigns?fields=${fields}&limit=200`, fbAccessToken)
                     .catch(error => {
-                        // It's common for accounts to not have access or campaigns, so we can warn instead of erroring.
-                        console.warn(`Could not fetch campaigns for page ${managedTarget.id} in ad account ${adAccount.name}:`, error.message);
-                        return []; // Return an empty array on failure to not break Promise.all
+                        console.warn(`Could not fetch campaigns for ad account ${adAccount.name}:`, error.message);
+                        return { data: [] }; // Return an empty object on failure to not break Promise.all
                     });
             });
     
-            // Step 3: Await all searches and flatten the results.
-            const allCampaignsNested = await Promise.all(campaignPromises);
-            const allCampaigns = allCampaignsNested.flat();
+            const results = await Promise.all(campaignPromises);
     
-            if (allCampaigns.length > 0) {
-                const processedCampaigns = allCampaigns.map((campaign: any) => ({
+            // Step 3: Process the results on the client-side to find the right campaigns.
+            for (const result of results) {
+                if (result && result.data) {
+                    for (const campaign of result.data) {
+                        if (campaign.adsets && campaign.adsets.data) {
+                            for (const adset of campaign.adsets.data) {
+                                // Check if the adset is promoting our specific page
+                                if (adset.promoted_object?.page_id === managedTarget.id) {
+                                    // If it matches, this campaign is valid. Add it to our map to avoid duplicates.
+                                    if (!validCampaigns.has(campaign.id)) {
+                                         console.log(`Found matching campaign "${campaign.name}" because its adset promotes page ${managedTarget.id}`);
+                                         validCampaigns.set(campaign.id, campaign);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+    
+            const finalCampaigns = Array.from(validCampaigns.values());
+    
+            if (finalCampaigns.length > 0) {
+                const processedCampaigns = finalCampaigns.map((campaign: any) => ({
                     ...campaign,
                     spend: campaign.insights?.data?.[0]?.spend || '0',
                     reach: campaign.insights?.data?.[0]?.reach || '0',
