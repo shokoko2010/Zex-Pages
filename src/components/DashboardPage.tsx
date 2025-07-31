@@ -323,8 +323,6 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
     }, [fbAccessToken, showNotification]);
 
 
-
-
     useEffect(() => {
         if (view === 'ads') {
             fetchAdCampaigns();

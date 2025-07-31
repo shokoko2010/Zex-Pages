@@ -138,43 +138,44 @@ const App: React.FC = () => {
 
     let allData: any[] = [];
     let hasMorePages = true;
-    let nextCursor: string | null = null;
+    let afterCursor: string | undefined = undefined;
     let counter = 0;
-    
-    // Explicitly type the variables to fix the TypeScript error
-    const pathParts: string[] = path.split('?');
-    const basePath: string = pathParts[0];
-    const queryParamsStr: string | undefined = pathParts[1];
+
+    const [basePath, queryParamsStr] = path.split('?');
     const initialParams = new URLSearchParams(queryParamsStr || '');
 
     while (hasMorePages && counter < 50) { // Safety break
-        const currentParams: { [key: string]: any } = { access_token: tokenToUse };
+        const paramsForApiCall: { [key: string]: any } = {
+            access_token: tokenToUse,
+            limit: 100 // Explicitly set a limit for each request
+        };
         
-        for (const [key, value] of initialParams.entries()) {
-            currentParams[key] = value;
-        }
-        
-        if (nextCursor) {
-            currentParams.after = nextCursor;
+        initialParams.forEach((value, key) => {
+            if (key.toLowerCase() !== 'limit') { // Avoid duplicate limit param
+              paramsForApiCall[key] = value;
+            }
+        });
+
+        if (afterCursor) {
+            paramsForApiCall.after = afterCursor;
         }
 
-        console.log(`Fetching page for path: ${basePath} with params:`, currentParams);
-        const response: any = await new Promise(resolve => window.FB.api(basePath, 'get', currentParams, (res: any) => resolve(res)));
-        console.log('Received response:', response);
+        console.log(`[PAGINATION] Fetching for ${basePath} with params`, paramsForApiCall);
+        
+        const response: any = await new Promise(resolve => 
+            window.FB.api(basePath, 'get', paramsForApiCall, (res: any) => resolve(res))
+        );
+
+        console.log(`[PAGINATION] Received response`, response);
 
         if (response?.data) {
-            if (response.data.length > 0) {
-                allData = allData.concat(response.data);
-            }
-
-            // This logic specifically handles cursor-based pagination for ad accounts
-            if (response.paging && response.paging.cursors && response.paging.cursors.after) {
-                nextCursor = response.paging.cursors.after;
+            allData = allData.concat(response.data);
+            
+            if (response.paging?.cursors?.after) {
+                afterCursor = response.paging.cursors.after;
                 hasMorePages = true;
             } else {
-                // If there are no more cursors, or no paging object, we are done.
                 hasMorePages = false;
-                nextCursor = null;
             }
         } else {
             if (response?.error) {
@@ -185,12 +186,10 @@ const App: React.FC = () => {
         }
         counter++;
     }
+    
     console.log('fetchWithPagination finished. Total data items:', allData.length);
     return allData;
 }, [appUser?.fbAccessToken, sdkLoaded]);
-
-
-
 
 
   const fetchInstagramAccounts = useCallback(async (pages: Target[]): Promise<Target[]> => {
