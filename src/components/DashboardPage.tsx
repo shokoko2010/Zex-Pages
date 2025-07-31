@@ -324,6 +324,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
 
 
 
+
     useEffect(() => {
         if (view === 'ads') {
             fetchAdCampaigns();

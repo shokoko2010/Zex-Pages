@@ -170,6 +170,7 @@ const App: React.FC = () => {
 
 
 
+
   const fetchInstagramAccounts = useCallback(async (pages: Target[]): Promise<Target[]> => {
     console.log('Attempting fetchInstagramAccounts for', pages.length, 'pages.');
     if (pages.length === 0 || !appUser?.fbAccessToken || !sdkLoaded || !window.FB) {
