@@ -137,29 +137,51 @@ const App: React.FC = () => {
     }
 
     let allData: any[] = [];
-    // Start with the initial path and add the access token
-    let currentPath: string | null = `${path}${path.includes('?') ? '&' : '?'}access_token=${tokenToUse}`;
+    let hasMorePages = true;
+    let nextCursor: string | null = null;
     let counter = 0;
+    
+    // Explicitly type the variables to fix the TypeScript error
+    const pathParts: string[] = path.split('?');
+    const basePath: string = pathParts[0];
+    const queryParamsStr: string | undefined = pathParts[1];
+    const initialParams = new URLSearchParams(queryParamsStr || '');
 
-    while (currentPath && counter < 50) { // Safety break
-        console.log('Fetching page using full path:', currentPath);
-        const response: any = await new Promise(resolve => {
-            // The FB.api call should use the path directly, as it contains all necessary parameters
-            window.FB.api(currentPath!, (res: any) => resolve(res));
-        });
+    while (hasMorePages && counter < 50) { // Safety break
+        const currentParams: { [key: string]: any } = { access_token: tokenToUse };
+        
+        for (const [key, value] of initialParams.entries()) {
+            currentParams[key] = value;
+        }
+        
+        if (nextCursor) {
+            currentParams.after = nextCursor;
+        }
+
+        console.log(`Fetching page for path: ${basePath} with params:`, currentParams);
+        const response: any = await new Promise(resolve => window.FB.api(basePath, 'get', currentParams, (res: any) => resolve(res)));
         console.log('Received response:', response);
 
-        if (response?.data && response.data.length > 0) {
-            allData = allData.concat(response.data);
-            // THE MOST RELIABLE WAY: Use the 'next' link provided by the API.
-            // It already contains the correct cursors and all other parameters.
-            currentPath = response.paging?.next ? response.paging.next.replace('https://graph.facebook.com', '') : null;
+        if (response?.data) {
+            if (response.data.length > 0) {
+                allData = allData.concat(response.data);
+            }
+
+            // This logic specifically handles cursor-based pagination for ad accounts
+            if (response.paging && response.paging.cursors && response.paging.cursors.after) {
+                nextCursor = response.paging.cursors.after;
+                hasMorePages = true;
+            } else {
+                // If there are no more cursors, or no paging object, we are done.
+                hasMorePages = false;
+                nextCursor = null;
+            }
         } else {
             if (response?.error) {
                 if (response.error.code === 190) throw new FacebookTokenError(response.error.message);
                 throw new Error(`Facebook API Error: ${response.error.message}`);
             }
-            currentPath = null; // Stop if no data or error
+            hasMorePages = false;
         }
         counter++;
     }

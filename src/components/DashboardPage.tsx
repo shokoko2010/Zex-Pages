@@ -309,7 +309,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, isAdmin, userPlan, 
         };
 
         try {
-            // Fetch sequentially as requested to avoid potential concurrency issues.
+            // Fetch sequentially to avoid potential concurrency issues.
             showNotification('partial', 'جاري جلب المجموعات الإعلانية...');
             const adSets = await fetchEndpointData('adsets');
             showNotification('partial', 'جاري جلب الإعلانات...');
