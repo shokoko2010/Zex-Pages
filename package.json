@@ -1,0 +1,40 @@
+{
+  "name": "facebook-post-manager-tool",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "deploy": "npm run build && firebase deploy --only hosting",
+    "build:check": "npm run build && echo '✅ Build successful - ready for deployment'",
+    "env:check": "node -e \"console.log('Environment variables check:'); const required = ['VITE_FIREBASE_API_KEY', 'VITE_FIREBASE_AUTH_DOMAIN', 'VITE_FIREBASE_PROJECT_ID', 'VITE_FIREBASE_STORAGE_BUCKET', 'VITE_FIREBASE_MESSAGING_SENDER_ID', 'VITE_FIREBASE_APP_ID', 'VITE_FACEBOOK_APP_ID', 'VITE_FACEBOOK_APP_SECRET']; const missing = required.filter(v => !process.env[v]); if (missing.length > 0) { console.error('❌ Missing variables:', missing); process.exit(1); } else { console.log('✅ All required variables are set'); }\"",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@google/genai": "^1.8.0",
+    "chart.js": "^4.5.0",
+    "firebase": "^10.14.1",
+    "lucide-react": "^0.535.0",
+    "react": "^18.2.0",
+    "react-chartjs-2": "^5.3.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^7.7.0",
+    "recharts": "^3.1.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/typography": "^0.5.13",
+    "@types/chart.js": "^2.9.41",
+    "@types/node": "^24.1.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.19",
+    "firebase-tools": "^13.13.1",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.4",
+    "typescript": "^5.0.2",
+    "vite": "^5.2.0"
+  }
+}
