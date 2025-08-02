@@ -272,6 +272,8 @@ export interface PerformanceSummaryData {
   engagementRate: number;
   topPosts: any[];
   postCount: number;
+  totalImpressions: number; // Added this line
+  fanCount: number; // Added this line
 }
 
 export interface Link {
