@@ -1,5 +1,5 @@
 import React from 'react';
-import { PerformanceSummaryData } from '../types';
+import { PerformanceSummaryData, PublishedPost } from '../types';
 import KpiCard from './ui/KpiCard';
 import EyeIcon from './icons/EyeIcon';
 import UsersIcon from './icons/UsersIcon';
@@ -129,17 +129,17 @@ const AnalyticsSummaryDashboard: React.FC<AnalyticsSummaryDashboardProps> = ({
                           {index + 1}
                         </div>
                         <div className="flex-grow min-w-0">
-                          <p className="text-sm font-medium text-gray-900 dark:text-white truncate" title={post.text}>
-                            {post.text || 'منشور بصورة'}
+                          <p className="text-sm font-medium text-gray-900 dark:text-white truncate" title={post.text ?? undefined}>
+                            {post.text ?? 'منشور بصورة'}
                           </p>
                           <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {new Date(post.publishedAt).toLocaleDateString('ar-EG')}
+                            {post.publishedAt ? new Date(post.publishedAt).toLocaleDateString('ar-EG') : 'N/A'}
                           </p>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right" title={`Likes: ${post.analytics?.likes || 0}, Comments: ${post.analytics?.comments || 0}, Shares: ${post.analytics?.shares || 0}`}>
                           <p className="text-sm font-bold text-blue-600 dark:text-blue-400">
-                            {((post.analytics?.likes || 0) + 
-                              (post.analytics?.comments || 0) + 
+                            {((post.analytics?.likes || 0) +
+                              (post.analytics?.comments || 0) +
                               (post.analytics?.shares || 0)).toLocaleString('ar-EG')}
                           </p>
                           <p className="text-xs text-gray-500 dark:text-gray-400">تفاعل</p>

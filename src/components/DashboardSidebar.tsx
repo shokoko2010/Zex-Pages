@@ -1,10 +1,10 @@
 import React from 'react';
-import { Target, Role, InboxItem } from '../types';
+import { Target, Role, InboxItem, DashboardView } from '../types';
 import Button from './ui/Button';
 
 // Icons
 import PencilSquareIcon from './icons/PencilSquareIcon';
-import QueueListIcon from './icons/QueueListIcon';
+import QueueListIcon from './icons/QueueListIcon'; 
 import BrainCircuitIcon from './icons/BrainCircuitIcon';
 import CalendarIcon from './icons/CalendarIcon';
 import ArchiveBoxIcon from './icons/ArchiveBoxIcon';
@@ -13,8 +13,6 @@ import ChartBarIcon from './icons/ChartBarIcon';
 import BriefcaseIcon from './icons/BriefcaseIcon';
 import UserCircleIcon from './icons/UserCircleIcon';
 import ArrowPathIcon from './icons/ArrowPathIcon';
-
-type DashboardView = 'composer' | 'calendar' | 'drafts' | 'analytics' | 'bulk' | 'planner' | 'inbox' | 'profile' | 'ads';
 
 interface NavItemProps {
     icon: React.ReactNode;

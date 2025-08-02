@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Target, Role, InboxItem } from '../types';
+import { Target, Role, InboxItem, DashboardView } from '../types';
 import Button from './ui/Button';
 
 // Icons
@@ -14,8 +14,6 @@ import BriefcaseIcon from './icons/BriefcaseIcon';
 import UserCircleIcon from './icons/UserCircleIcon';
 import XMarkIcon from './icons/XMarkIcon';
 import Bars3Icon from './icons/Bars3Icon';
-
-type DashboardView = 'composer' | 'calendar' | 'drafts' | 'analytics' | 'bulk' | 'planner' | 'inbox' | 'profile' | 'ads';
 
 interface MobileMenuProps {
     currentView: DashboardView;

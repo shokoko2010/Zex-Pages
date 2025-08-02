@@ -4,121 +4,76 @@ import DashboardSidebar from './DashboardSidebar';
 import DashboardViewRenderer from './DashboardViewRenderer';
 import DashboardNotification from './DashboardNotification';
 import MobileMenu from './MobileMenu';
-import { Target, Role, Plan, InboxItem, PublishedPost, ScheduledPost, Draft, BulkPostItem, ContentPlanItem, StrategyHistoryItem, PerformanceSummaryData, AudienceGrowthData, HeatmapDataPoint, ContentTypePerformanceData, PageProfile } from '../types';
-
-type DashboardView = 'composer' | 'calendar' | 'drafts' | 'analytics' | 'bulk' | 'planner' | 'inbox' | 'profile' | 'ads';
+import { Target, Role, Plan, InboxItem, PublishedPost, ScheduledPost, Draft, PageProfile, AppUser, DashboardView, DashboardViewRendererProps, ContentPlanItem, StrategyHistoryItem, PerformanceSummaryData, AudienceGrowthData, HeatmapDataPoint, ContentTypePerformanceData } from '../types';
 
 interface DashboardLayoutProps {
-    // Header props
     pageName: string;
     onChangePage: () => void;
     onLogout: () => void;
     onSettingsClick: () => void;
     theme: 'light' | 'dark';
     onToggleTheme: () => void;
-    
-    // Sidebar props
     currentView: DashboardView;
     onViewChange: (view: DashboardView) => void;
     managedTarget: Target;
     currentUserRole: Role;
     inboxItems: InboxItem[];
     isSyncing: boolean;
-    onSync: () => void;
-    
-    // View renderer props
-    view: DashboardView;
-    postText: string;
-    onPostTextChange: (text: string) => void;
-    imagePreview: string | null;
-    selectedImage: File | null;
-    isScheduled: boolean;
-    scheduleDate: string;
-    composerError: string;
-    isPublishing: boolean;
-    editingScheduledPostId: string | null;
-    includeInstagram: boolean;
-    scheduledPosts: ScheduledPost[];
-    drafts: Draft[];
+    onSync: (target: Target) => void;
+    user: AppUser;
+    userPlan: Plan | null;
+    pageProfile: PageProfile;
+    notification: { type: 'success' | 'error' | 'partial', message: string } | null;
+    showNotification: (type: 'success' | 'error' | 'partial', message: string) => void;
     publishedPosts: PublishedPost[];
     publishedPostsLoading: boolean;
-    analyticsPeriod: '7d' | '30d';
-  setAnalyticsPeriod: (period: '7d' | '30d') => void;
+    scheduledPosts: ScheduledPost[];
+    drafts: Draft[];
     performanceSummaryData: PerformanceSummaryData | null;
     performanceSummaryText: string;
     isGeneratingSummary: boolean;
+    onGeneratePerformanceSummary: () => void;
+    onFetchPostInsights: (postId: string) => Promise<any>;
+    onLoadDrafts: () => void;
+    onDeleteDraft: (draftId: string) => Promise<void>;
+    onPublish: DashboardViewRendererProps['onPublish'];
+    onSaveDraft: DashboardViewRendererProps['onSaveDraft'];
+    onDeleteScheduledPost: (postId: string) => Promise<void>;
+    onUpdateScheduledPost: DashboardViewRendererProps['onUpdateScheduledPost'];
+    onSyncCalendar: () => void;
+    isSyncingCalendar: boolean;
+    onApprovePost: (postId: string) => void;
+    onRejectPost: (postId: string) => void;
+    adCampaigns: any[];
+    isUpdatingCampaign: boolean;
+    handleUpdateCampaignStatus: (campaignId: string, newStatus: "ACTIVE" | "PAUSED") => Promise<boolean>;
+    fetchCampaignSubEntities: (campaignId: string) => Promise<{ adSets: any[], ads: any[] }>;
+    onSyncAdCampaigns: (target: Target) => Promise<void>;
     audienceGrowthData: AudienceGrowthData[];
     heatmapData: HeatmapDataPoint[];
     contentTypeData: ContentTypePerformanceData[];
     isGeneratingDeepAnalytics: boolean;
     audienceCityData: { [key: string]: number };
     audienceCountryData: { [key: string]: number };
-    bulkPosts: BulkPostItem[];
-    schedulingStrategy: 'even' | 'weekly';
-    weeklyScheduleSettings: { days: number[]; time: string };
-    contentPlan: ContentPlanItem[] | null;
-    isGeneratingPlan: boolean;
-    isSchedulingStrategy: boolean;
-    planError: string | null;
-    strategyHistory: StrategyHistoryItem[];
-    inboxItemsForView: InboxItem[];
-    isInboxLoading: boolean;
-    pageProfile: PageProfile;
+    onGenerateDeepAnalytics: () => void;
+    onFetchPageProfile: () => Promise<void>;
     isFetchingProfile: boolean;
-    adCampaigns: any[];
-    isUpdatingCampaign: boolean;
-    linkedInstagramTarget: Target | null;
-    userPlan: Plan | null;
+    onProfileChange: (newProfile: PageProfile) => void;
+    allUsers: AppUser[];
+    plans: Plan[];
     aiClient: any;
     stabilityApiKey: string | null;
-    user: any;
-    
-    // Handlers
-    handlePublish: () => Promise<void>;
-    handleSaveDraft: () => Promise<void>;
-    handleEditScheduledPost: (post: ScheduledPost) => void;
-    handleDeleteScheduledPost: (postId: string) => Promise<void>;
-    handleApprovePost: (postId: string) => Promise<void>;
-    handleRejectPost: (postId: string) => Promise<void>;
-    handleLoadDraft: (draft: Draft) => void;
-    handleDeleteDraft: (draftId: string) => Promise<void>;
-    handlePageProfileChange: (profile: PageProfile) => Promise<void>;
-    handleFetchProfile: () => Promise<void>;
-    handleUpdateCampaignStatus: (campaignId: string, newStatus: 'ACTIVE' | 'PAUSED') => Promise<boolean>;
-    fetchCampaignSubEntities: (campaignId: string) => Promise<{ adSets: any[]; ads: any[] }>;
-    onSyncCampaigns: () => Promise<void>; // Add sync campaigns handler
-    onSchedulingStrategyChange: (strategy: 'even' | 'weekly') => void;
-    onWeeklyScheduleSettingsChange: (settings: { days: number[]; time: string }) => void;
-    onReschedule: (postId: string, newDate: string) => void;
-    onAddPosts: (posts: BulkPostItem[]) => void;
-    onUpdatePost: (post: BulkPostItem) => void;
-    onRemovePost: (postId: string) => void;
-    onGeneratePostFromText: (text: string) => Promise<void>;
-    onGenerateImageFromText: (text: string) => Promise<void>;
-    onGeneratePostFromImage: (image: File) => Promise<void>;
-    onAddImageManually: (postId: string, file: File) => void;
-    onScheduleAll: () => Promise<void>;
-    onScheduleStrategy: (plan: ContentPlanItem[]) => Promise<void>;
+    linkedInstagramTarget: Target | null;
+    contentPlan: ContentPlanItem[] | null;
+    isGeneratingPlan: boolean;
+    planError: string | null;
+    isSchedulingStrategy: boolean;
+    strategyHistory: StrategyHistoryItem[];
     onGeneratePlan: (request: any) => Promise<void>;
+    onScheduleStrategy: (plan: ContentPlanItem[]) => Promise<void>;
     onStartPost: (item: ContentPlanItem) => void;
     onLoadFromHistory: (item: StrategyHistoryItem) => void;
     onDeleteFromHistory: (strategyId: string) => Promise<void>;
-    onGeneratePerformanceSummary: () => Promise<void>;
-    onGenerateDeepAnalytics: () => Promise<void>;
-    onFetchPostInsights: (postId: string) => Promise<void>;
-    onIncludeInstagramChange: (include: boolean) => void;
-    onImageChange: (file: File | null) => void;
-    onImageGenerated: (file: File) => void;
-    onImageRemove: () => void;
-    onIsScheduledChange: (scheduled: boolean) => void;
-    onScheduleDateChange: (date: string) => void;
-    showNotification: (type: 'success' | 'error' | 'partial', message: string) => void;
-    syncFacebookData: (target: Target, lastSyncTime?: string) => Promise<void>;
-    onFetchMessageHistory: (conversationId: string) => Promise<void>;
-    saveDataToFirestore: (data: { [key: string]: any }) => Promise<void>;
-    
-    // Notification
-    notification: { type: 'success' | 'error' | 'partial', message: string } | null;
 }
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = (props) => {
@@ -136,7 +91,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = (props) => {
             
             <DashboardNotification notification={props.notification} />
             
-            {/* Mobile Menu */}
             <MobileMenu
                 currentView={props.currentView}
                 onViewChange={props.onViewChange}
@@ -144,11 +98,10 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = (props) => {
                 currentUserRole={props.currentUserRole}
                 inboxItems={props.inboxItems}
                 isSyncing={props.isSyncing}
-                onSync={props.onSync}
+                onSync={() => props.onSync(props.managedTarget)}
             />
             
             <div className="flex flex-col md:flex-row min-h-[calc(100vh-80px)]">
-                {/* Desktop Sidebar */}
                 <div className="hidden md:block">
                     <DashboardSidebar
                         currentView={props.currentView}
@@ -157,7 +110,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = (props) => {
                         currentUserRole={props.currentUserRole}
                         inboxItems={props.inboxItems}
                         isSyncing={props.isSyncing}
-                        onSync={props.onSync}
+                        onSync={() => props.onSync(props.managedTarget)}
                     />
                 </div>
                 
@@ -165,97 +118,68 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = (props) => {
                     <div className="h-full overflow-y-auto">
                         <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
                             <DashboardViewRenderer
-                            view={props.view}
-                            postText={props.postText}
-                            onPostTextChange={props.onPostTextChange}
-                            imagePreview={props.imagePreview}
-                            selectedImage={props.selectedImage}
-                            isScheduled={props.isScheduled}
-                            scheduleDate={props.scheduleDate}
-                            composerError={props.composerError}
-                            isPublishing={props.isPublishing}
-                            editingScheduledPostId={props.editingScheduledPostId}
-                            includeInstagram={props.includeInstagram}
-                            scheduledPosts={props.scheduledPosts}
-                            drafts={props.drafts}
-                            publishedPosts={props.publishedPosts}
-                            publishedPostsLoading={props.publishedPostsLoading}
-                            analyticsPeriod={props.analyticsPeriod}
-                            setAnalyticsPeriod={props.setAnalyticsPeriod}
-                            performanceSummaryData={props.performanceSummaryData}
-                            performanceSummaryText={props.performanceSummaryText}
-                            isGeneratingSummary={props.isGeneratingSummary}
-                            audienceGrowthData={props.audienceGrowthData}
-                            heatmapData={props.heatmapData}
-                            contentTypeData={props.contentTypeData}
-                            isGeneratingDeepAnalytics={props.isGeneratingDeepAnalytics}
-                            audienceCityData={props.audienceCityData}
-                            audienceCountryData={props.audienceCountryData}
-                            bulkPosts={props.bulkPosts}
-                            schedulingStrategy={props.schedulingStrategy}
-                            weeklyScheduleSettings={props.weeklyScheduleSettings}
-                            contentPlan={props.contentPlan}
-                            isGeneratingPlan={props.isGeneratingPlan}
-                            isSchedulingStrategy={props.isSchedulingStrategy}
-                            planError={props.planError}
-                            strategyHistory={props.strategyHistory}
-                            inboxItems={props.inboxItemsForView}
-                            isInboxLoading={props.isInboxLoading}
-                            pageProfile={props.pageProfile}
-                            isFetchingProfile={props.isFetchingProfile}
-                            adCampaigns={props.adCampaigns}
-                            isUpdatingCampaign={props.isUpdatingCampaign}
-                            managedTarget={props.managedTarget}
-                            linkedInstagramTarget={props.linkedInstagramTarget}
-                            currentUserRole={props.currentUserRole}
-                            userPlan={props.userPlan}
-                            aiClient={props.aiClient}
-                            stabilityApiKey={props.stabilityApiKey}
-                            user={props.user}
-                            handlePublish={props.handlePublish}
-                            handleSaveDraft={props.handleSaveDraft}
-                            handleEditScheduledPost={props.handleEditScheduledPost}
-                            handleDeleteScheduledPost={props.handleDeleteScheduledPost}
-                            handleApprovePost={props.handleApprovePost}
-                            handleRejectPost={props.handleRejectPost}
-                            handleLoadDraft={props.handleLoadDraft}
-                            handleDeleteDraft={props.handleDeleteDraft}
-                            handlePageProfileChange={props.handlePageProfileChange}
-                            handleFetchProfile={props.handleFetchProfile}
-                            handleUpdateCampaignStatus={props.handleUpdateCampaignStatus}
-                            fetchCampaignSubEntities={props.fetchCampaignSubEntities}
-                            onSyncCampaigns={props.onSyncCampaigns} // Add sync campaigns handler
-                            onSchedulingStrategyChange={props.onSchedulingStrategyChange}
-                            onWeeklyScheduleSettingsChange={props.onWeeklyScheduleSettingsChange}
-                            onReschedule={props.onReschedule}
-                            onAddPosts={props.onAddPosts}
-                            onUpdatePost={props.onUpdatePost}
-                            onRemovePost={props.onRemovePost}
-                            onGeneratePostFromText={props.onGeneratePostFromText}
-                            onGenerateImageFromText={props.onGenerateImageFromText}
-                            onGeneratePostFromImage={props.onGeneratePostFromImage}
-                            onAddImageManually={props.onAddImageManually}
-                            onScheduleAll={props.onScheduleAll}
-                            onScheduleStrategy={props.onScheduleStrategy}
-                            onGeneratePlan={props.onGeneratePlan}
-                            onStartPost={props.onStartPost}
-                            onLoadFromHistory={props.onLoadFromHistory}
-                            onDeleteFromHistory={props.onDeleteFromHistory}
-                            onGeneratePerformanceSummary={props.onGeneratePerformanceSummary}
-                            onGenerateDeepAnalytics={props.onGenerateDeepAnalytics}
-                            onFetchPostInsights={props.onFetchPostInsights}
-                            onIncludeInstagramChange={props.onIncludeInstagramChange}
-                            onImageChange={props.onImageChange}
-                            onImageGenerated={props.onImageGenerated}
-                            onImageRemove={props.onImageRemove}
-                            onIsScheduledChange={props.onIsScheduledChange}
-                            onScheduleDateChange={props.onScheduleDateChange}
-                            showNotification={props.showNotification}
-                            syncFacebookData={props.syncFacebookData}
-                            onFetchMessageHistory={props.onFetchMessageHistory}
-                            saveDataToFirestore={props.saveDataToFirestore}
-                            onViewChange={props.onViewChange}
-                        />
+                                activeView={props.currentView}
+                                managedTarget={props.managedTarget}
+                                currentUserRole={props.currentUserRole}
+                                publishedPosts={props.publishedPosts}
+                                publishedPostsLoading={props.publishedPostsLoading}
+                                scheduledPosts={props.scheduledPosts}
+                                drafts={props.drafts}
+                                performanceSummaryData={props.performanceSummaryData}
+                                onSync={props.onSync}
+                                performanceSummaryText={props.performanceSummaryText}
+                                isGeneratingSummary={props.isGeneratingSummary}
+                                onGeneratePerformanceSummary={props.onGeneratePerformanceSummary}
+                                onFetchPostInsights={props.onFetchPostInsights}
+                                userPlan={props.userPlan}
+                                onLoadDrafts={props.onLoadDrafts}
+                                onDeleteDraft={props.onDeleteDraft}
+                                onPublish={props.onPublish}
+                                onSaveDraft={props.onSaveDraft}
+                                onDeleteScheduledPost={props.onDeleteScheduledPost}
+                                onUpdateScheduledPost={props.onUpdateScheduledPost}
+                                onSyncCalendar={props.onSyncCalendar}
+                                isSyncingCalendar={props.isSyncingCalendar}
+                                onApprovePost={props.onApprovePost}
+                                onRejectPost={props.onRejectPost}
+                                pageProfile={props.pageProfile}
+                                aiClient={props.aiClient}
+                                stabilityApiKey={props.stabilityApiKey}
+                                linkedInstagramTarget={props.linkedInstagramTarget}
+                                inboxItems={props.inboxItems}
+                                adCampaigns={props.adCampaigns}
+                                onFetchMessageHistory={() => Promise.resolve()}
+                                onSendMessage={() => Promise.resolve()}
+                                onMarkAsDone={() => Promise.resolve()}
+                                onSyncAdCampaigns={props.onSyncAdCampaigns}
+                                handleUpdateCampaignStatus={props.handleUpdateCampaignStatus}
+                                fetchCampaignSubEntities={props.fetchCampaignSubEntities}
+                                isUpdatingCampaign={props.isUpdatingCampaign}
+                                audienceGrowthData={props.audienceGrowthData}
+                                heatmapData={props.heatmapData}
+                                contentTypeData={props.contentTypeData}
+                                isGeneratingDeepAnalytics={props.isGeneratingDeepAnalytics}
+                                audienceCityData={props.audienceCityData}
+                                audienceCountryData={props.audienceCountryData}
+                                onGenerateDeepAnalytics={props.onGenerateDeepAnalytics}
+                                isFetchingProfile={props.isFetchingProfile}
+                                onFetchPageProfile={props.onFetchPageProfile}
+                                onProfileChange={props.onProfileChange}
+                                user={props.user}
+                                allUsers={props.allUsers}
+                                plans={props.plans}
+                                contentPlan={props.contentPlan}
+                                isGeneratingPlan={props.isGeneratingPlan}
+
+                                planError={props.planError}
+                                isSchedulingStrategy={props.isSchedulingStrategy}
+                                strategyHistory={props.strategyHistory}
+                                onGeneratePlan={props.onGeneratePlan}
+                                onScheduleStrategy={props.onScheduleStrategy}
+                                onStartPost={props.onStartPost}
+                                onLoadFromHistory={props.onLoadFromHistory}
+                                onDeleteFromHistory={props.onDeleteFromHistory}
+                            />
                         </div>
                     </div>
                 </main>
