@@ -10,9 +10,7 @@ import AnalyticsPage from './AnalyticsPage';
 import PageProfilePage from './PageProfilePage';
 import UserManagementPage from './UserManagementPage';
 import AdminPage from './AdminPage';
-import { Target, Role, PublishedPost, ScheduledPost, Draft, InboxItem, PerformanceSummaryData, AudienceGrowthData, HeatmapDataPoint, ContentTypePerformanceData, Plan, PageProfile, TeamMember, AppUser, PostType, ContentPlanItem, StrategyHistoryItem } from '../types';
-
-export type DashboardView = 'dashboard' | 'planner' | 'scheduler' | 'inbox' | 'ads' | 'analytics' | 'profile' | 'users' | 'admin';
+import { Target, Role, PublishedPost, ScheduledPost, Draft, InboxItem, PerformanceSummaryData, AudienceGrowthData, HeatmapDataPoint, ContentTypePerformanceData, Plan, PageProfile, TeamMember, AppUser, PostType, ContentPlanItem, StrategyHistoryItem, DashboardView } from '../types';
 
 export interface DashboardViewRendererProps {
     activeView: DashboardView;

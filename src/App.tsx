@@ -5,8 +5,6 @@ import HomePage from './components/HomePage';
 import SettingsModal from './components/SettingsModal';
 import PrivacyPolicyPage from './components/PrivacyPolicyPage';
 import OnboardingTour from './components/OnboardingTour';
-import AdminPage from './components/AdminPage';
-import { GoogleGenAI } from '@google/genai';
 import { initializeGoogleGenAI } from './services/geminiService';
 import { Target, Business, Plan, AppUser, StrategyHistoryItem, ContentPlanItem, StrategyRequest, PublishedPost, ScheduledPost, Draft, PageProfile, Role, PostType, InboxItem, AudienceGrowthData, HeatmapDataPoint, ContentTypePerformanceData, PerformanceSummaryData } from './types';
 import { auth, db, User, saveContentPlan, getStrategyHistory, deleteStrategy, exchangeAndStoreLongLivedToken } from './services/firebaseService';
@@ -62,6 +60,7 @@ const facebookSDKLoader = new Promise<void>(resolve => {
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [appUser, setAppUser] = useState<AppUser | null>(null);
+  const [currentView, setCurrentView] = useState<import('./types').DashboardView>('dashboard');
   const [loadingUser, setLoadingUser] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
   const [sdkLoaded, setSdkLoaded] = useState(false);
@@ -69,9 +68,9 @@ const App: React.FC = () => {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [allUsers, setAllUsers] = useState<AppUser[]>([]);
 
-  const [apiKey, setApiKey] = useState<string | null>(null);
-  const [stabilityApiKey, setStabilityApiKey] = useState<string | null>(null); // Added stabilityApiKey state
-  const [aiClient, setAiClient] = useState<GoogleGenAI | null>(null);
+  const [apiKey, setApiKey] = useState<string | null>(null); 
+  const [stabilityApiKey, setStabilityApiKey] = useState<string | null>(null); 
+  const [aiClient, setAiClient] = useState<any | null>(null);
 
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isTourOpen, setIsTourOpen] = useState(false);
@@ -88,7 +87,6 @@ const App: React.FC = () => {
   const [favoriteTargetIds, setFavoriteTargetIds] = useState<Set<string>>(new Set());
 
   // Dashboard state
-  const [currentView, setCurrentView] = useState<'dashboard' | 'planner' | 'scheduler' | 'inbox' | 'ads' | 'analytics' | 'profile' | 'users' | 'admin'>('dashboard');
   const [publishedPosts, setPublishedPosts] = useState<PublishedPost[]>([]);
   const [publishedPostsLoading, setPublishedPostsLoading] = useState(false);
   const [scheduledPosts, setScheduledPosts] = useState<ScheduledPost[]>([]);
@@ -216,7 +214,7 @@ const App: React.FC = () => {
   }, [appUser, fetchFacebookData, sdkLoaded]);
 
   useEffect(() => {
-    setAiClient(apiKey ? initializeGoogleGenAI(apiKey) : null); // Now uses GoogleGenAI type from geminiService
+    setAiClient(apiKey ? initializeGoogleGenAI(apiKey) : null); // Now uses GoogleGenerativeAI type from geminiService
   }, [apiKey]);
   
     // Dummy handlers, replace with actual implementation
